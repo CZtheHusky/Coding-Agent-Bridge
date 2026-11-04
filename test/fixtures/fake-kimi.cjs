@@ -15,7 +15,12 @@ function send(value) {
 function event(type, payload, extra = {}) { send({ type, session_id: session.id, seq: ++seq, payload: { type, agentId: 'main', turnId, ...payload }, ...extra }); }
 const report = JSON.stringify({ summary: 'fixture success', files_changed: [], tests: [], issues: [], needs_master_decision: false, acceptance_met: true });
 function complete() {
-  event('assistant.delta', { delta: scenario.kind === 'invalid' ? '{}' : report }, { offset: scenario.kind === 'gap' ? 99 : 0 });
+  if (scenario.kind === 'multistep') {
+    event('assistant.delta', { delta: '第一段。' }, { offset: 0 });
+    event('turn.step.started', {});
+    event('assistant.delta', { delta: report.slice(0, 40) }, { offset: 0 });
+    event('assistant.delta', { delta: report.slice(40) }, { offset: 40 });
+  } else event('assistant.delta', { delta: scenario.kind === 'invalid' ? '{}' : report }, { offset: scenario.kind === 'gap' ? 99 : 0 });
   event('turn.ended', { reason: scenario.kind === 'failure' ? 'failed' : 'completed', ...(scenario.kind === 'failure' ? { error: { code: 'provider.rate_limit', message: scenario.message ?? 'Usage quota exhausted', details: { api_key: 'SECRET_MUST_NOT_LEAK' } } } : {}) });
 }
 const server = http.createServer(async (req, res) => {

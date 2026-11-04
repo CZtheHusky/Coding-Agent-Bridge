@@ -47,6 +47,18 @@ test("Kimi native completion requires current prompt/main turn and emits no toke
   } finally { f.cleanup(); }
 });
 
+test("Kimi assistant offsets reset per step without dropping earlier output", async () => {
+  const f = fixture("multistep"); const events: { type: string; summary?: string }[] = [];
+  try {
+    const adapter = new KimiAdapter({ onEvent: e => events.push(e) });
+    const result = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(result.errorCode, null);
+    assert.equal(result.agentReport?.summary, "fixture success");
+    assert.ok(result.response?.startsWith("第一段。{"));
+    assert.equal(events.filter(e => e.type === "model_output").map(e => e.summary).join(""), result.response);
+  } finally { f.cleanup(); }
+});
+
 for (const [kind, expected] of [["failure", "kimi_usage_exhausted"], ["invalid", "invalid_agent_report"], ["disconnect", "kimi_nonzero_exit"], ["gap", "kimi_nonzero_exit"], ["envelope_error", "kimi_nonzero_exit"]] as const) {
   test(`Kimi ${kind} never becomes completed, even with an apparently valid report`, async () => {
     const f = fixture(kind); try {

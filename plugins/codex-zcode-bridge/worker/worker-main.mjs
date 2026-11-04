@@ -21315,6 +21315,7 @@ var KimiAdapter = class {
     }, resolveTaskTimeout(task, process.env));
     let sessionId = previousSessionId;
     let response = "";
+    let responseOffset = 0;
     let truncated = false;
     let ws;
     let identity = null;
@@ -21479,17 +21480,20 @@ var KimiAdapter = class {
             if (frame.type === "turn.started" && p.promptId === promptId) {
               turnId = number2().parse(p.turnId);
               response = "";
+              responseOffset = 0;
               emit?.({ type: "turn_started", summary: "Kimi turn started", details: { turn_id: String(turnId) } });
             }
             if (turnId === void 0 || p.turnId !== void 0 && p.turnId !== turnId) return;
+            if (frame.type === "turn.step.started") responseOffset = 0;
             if (frame.type === "assistant.delta") {
               const delta = string2().parse(p.delta);
-              if (frame.offset !== void 0 && frame.offset !== response.length) throw new BridgeError("kimi_nonzero_exit", "Kimi visible output stream offset mismatch");
+              if (frame.offset !== void 0 && frame.offset !== responseOffset) throw new BridgeError("kimi_nonzero_exit", "Kimi visible output stream offset mismatch");
               if (response.length + delta.length > 2e6) {
                 truncated = true;
                 throw new BridgeError("kimi_nonzero_exit", "Kimi visible output exceeded capture limit");
               }
               response += delta;
+              responseOffset += delta.length;
               emit?.({ type: "model_output", summary: delta });
             }
             if (frame.type === "tool.call.started") emit?.({ type: "model_tool_call", summary: `Kimi tool: ${string2().parse(p.name)}`, details: { tool_name: p.name, tool_call_id: p.toolCallId } });

@@ -73,6 +73,7 @@ export class KimiAdapter implements CodingAgentAdapter {
     const timer = setTimeout(() => { run.timedOut = true; run.controller.abort(); }, resolveTaskTimeout(task, process.env));
     let sessionId: string | null = previousSessionId;
     let response = "";
+    let responseOffset = 0;
     let truncated = false;
     let ws: WebSocket | undefined;
     let identity: { pid: number; fingerprint: string } | null = null;
@@ -200,15 +201,19 @@ export class KimiAdapter implements CodingAgentAdapter {
             if (frame.type === "turn.started" && p.promptId === promptId) {
               turnId = z.number().parse(p.turnId);
               response = "";
+              responseOffset = 0;
               emit?.({ type: "turn_started", summary: "Kimi turn started", details: { turn_id: String(turnId) } });
             }
             if (turnId === undefined || (p.turnId !== undefined && p.turnId !== turnId)) return;
+            // Kimi offsets cover one step's assistant text; the report spans the whole turn.
+            if (frame.type === "turn.step.started") responseOffset = 0;
             if (frame.type === "assistant.delta") {
               const delta = z.string().parse(p.delta);
               // Volatile text gaps/duplicates must fail, never create a misleading report.
-              if (frame.offset !== undefined && frame.offset !== response.length) throw new BridgeError("kimi_nonzero_exit", "Kimi visible output stream offset mismatch");
+              if (frame.offset !== undefined && frame.offset !== responseOffset) throw new BridgeError("kimi_nonzero_exit", "Kimi visible output stream offset mismatch");
               if (response.length + delta.length > 2_000_000) { truncated = true; throw new BridgeError("kimi_nonzero_exit", "Kimi visible output exceeded capture limit"); }
               response += delta;
+              responseOffset += delta.length;
               emit?.({ type: "model_output", summary: delta });
             }
             if (frame.type === "tool.call.started") emit?.({ type: "model_tool_call", summary: `Kimi tool: ${z.string().parse(p.name)}`, details: { tool_name: p.name, tool_call_id: p.toolCallId } });
