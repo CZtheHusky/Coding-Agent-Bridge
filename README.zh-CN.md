@@ -14,7 +14,7 @@ Codex 插件与本地 MCP 服务，用于把明确授权的开发任务交给本
 
 ## 安装
 
-需要 Node.js 22.18+、Git、已安装并登录的 ZCode，以及支持插件 marketplace 的 Codex 桌面应用或 CLI。目前只在 Windows 完成真实 ZCode E2E；macOS 和 Linux 尚未验证。
+需要 Node.js 22.18+、Git、已安装并登录的 ZCode，以及支持插件 marketplace 的 Codex 或 Claude Code。目前只在 Windows 完成真实 ZCode E2E；macOS 和 Linux 尚未验证。
 
 ### Codex CLI 安装
 
@@ -23,6 +23,15 @@ Codex 插件与本地 MCP 服务，用于把明确授权的开发任务交给本
 ```sh
 codex plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git --ref master
 codex plugin add codex-zcode-bridge@codex-zcode-bridge
+```
+
+### Claude Code CLI 安装
+
+添加同一个 GitHub marketplace 并安装插件：
+
+```sh
+claude plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git
+claude plugin install codex-zcode-bridge@codex-zcode-bridge
 ```
 
 ### Codex 桌面应用安装

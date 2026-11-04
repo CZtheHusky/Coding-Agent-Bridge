@@ -1,0 +1,14 @@
+{
+  "name": "codex-zcode-bridge",
+  "owner": {
+    "name": "Sandy"
+  },
+  "description": "Delegate coding tasks to local ZCode or Kimi.",
+  "plugins": [
+    {
+      "name": "codex-zcode-bridge",
+      "source": "./plugins/codex-zcode-bridge",
+      "description": "Delegate coding tasks to local ZCode or Kimi; select models, monitor, continue and review results."
+    }
+  ]
+}

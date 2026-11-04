@@ -6,15 +6,22 @@
 
 ## 使用前
 
-需要 Node.js 22.18+、Git、已安装并登录所选执行器（ZCode 或 Kimi），以及支持插件 marketplace 的 Codex。
+需要 Node.js 22.18+、Git、已安装并登录所选执行器（ZCode 或 Kimi），以及支持插件 marketplace 的 Codex 或 Claude Code。
 
-添加本项目 GitHub marketplace 并安装 **Coding Agent Bridge**：在桌面应用中先用 CLI 注册 marketplace，再到 **Plugins Directory** 选择并安装；CLI 用户可直接按下方命令安装。之后开启新对话并检查、信任插件的 `SessionStart` hook。Windows 上 hook 会检查本机环境并报告配置问题。Marketplace 安装无需克隆源码或运行 `npm install`；Node.js 和所选执行器需另行安装。
+添加本项目 GitHub marketplace 并安装 **Coding Agent Bridge**：在 Codex 桌面应用中先用 CLI 注册 marketplace，再到 **Plugins Directory** 选择并安装；CLI 用户可直接按下方命令安装。之后开启新对话并检查、信任插件的 `SessionStart` hook。Windows 上 hook 会检查本机环境并报告配置问题。Marketplace 安装无需克隆源码或运行 `npm install`；Node.js 和所选执行器需另行安装。
 
-CLI 安装示例：
+Codex CLI 安装示例：
 
 ```sh
 codex plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git --ref master
 codex plugin add codex-zcode-bridge@codex-zcode-bridge
+```
+
+Claude Code CLI 安装示例：
+
+```sh
+claude plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git
+claude plugin install codex-zcode-bridge@codex-zcode-bridge
 ```
 
 ## 派发任务

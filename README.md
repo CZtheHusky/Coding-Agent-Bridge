@@ -96,7 +96,7 @@ Codex can delegate the task, monitor execution, inspect the resulting changes, v
 
 ## Install
 
-Requires Node.js 22.18+, Git, ZCode installed and signed in, and the Codex desktop app or CLI with marketplace support. Real ZCode execution has been tested on recorded Windows and Linux environments; macOS remains unverified. Scheduling verification is scoped below.
+Requires Node.js 22.18+, Git, ZCode installed and signed in, and Codex or Claude Code with marketplace support. Real ZCode execution has been tested on recorded Windows and Linux environments; macOS remains unverified. Scheduling verification is scoped below.
 
 ### Install with Codex CLI
 
@@ -105,6 +105,15 @@ Add the GitHub marketplace and install the plugin:
 ```sh
 codex plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git --ref master
 codex plugin add codex-zcode-bridge@codex-zcode-bridge
+```
+
+### Install with Claude Code CLI
+
+Add the same GitHub marketplace and install the plugin:
+
+```sh
+claude plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git
+claude plugin install codex-zcode-bridge@codex-zcode-bridge
 ```
 
 ### Install in the Codex desktop app
