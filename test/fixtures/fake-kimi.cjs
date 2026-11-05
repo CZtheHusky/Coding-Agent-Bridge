@@ -3,6 +3,10 @@ const http = require('node:http');
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
 const scenario = JSON.parse(fs.readFileSync('scenario.json', 'utf8'));
+if (scenario.expected_env) fs.writeFileSync('env-check.json', JSON.stringify({
+  proxy_matches: Object.entries(scenario.expected_env).every(([key, value]) => process.env[key] === value),
+  secrets_filtered: !('KIMI_API_KEY' in process.env) && !('BRIDGE_TEST_UNRELATED_SECRET' in process.env),
+}));
 const session = { id: 'session_fixture', metadata: { cwd: process.cwd() }, agent_config: { model: 'fixture/default' }, busy: false, usage: { input_tokens: 7, output_tokens: 3 } };
 let socket, prompt, seq = 0, turnId = 4, loaded = false;
 const requests = fs.existsSync('requests.json') ? JSON.parse(fs.readFileSync('requests.json', 'utf8')) : [];

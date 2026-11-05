@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createWorkerEnv } from "../runtime/child-env.js";
+import { createProxyEnv, createWorkerEnv } from "../runtime/child-env.js";
 import { validateHostProfile, type BridgeHostProfile } from "../host/profile.js";
 
 export interface SpawnedWorker {
@@ -30,6 +30,7 @@ export function createWorkerSpawner(host?: BridgeHostProfile): SpawnWorker {
   try {
     const workerEnv = {
       ...createWorkerEnv(process.env),
+      ...createProxyEnv(process.env),
       ...(host ? { ZCODE_BRIDGE_HOST_PROFILE: JSON.stringify(host) } : {}),
       // DeepSeek Harness may host its MCP entrypoint inside Electron. Its
       // executable is reusable for detached Node workers only in this mode.

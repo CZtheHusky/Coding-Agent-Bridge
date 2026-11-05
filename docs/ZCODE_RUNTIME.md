@@ -1,9 +1,11 @@
 # ZCode 运行配置边界
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，静态核对本次 systemd runner 配置、App pipe 私有记录与环境转发边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
+> Last updated: 2026-11-04
+> Last verified: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
+> Verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
+> Prior verification: 2026-10-28，静态核对本次 systemd runner 配置、App pipe 私有记录与环境转发边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
+> Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
 > Prior verification: 2026-10-16，独立验证 Windows/Linux worker 环境转发、Windows 自动发现及真实浏览器后端（见[修复报告](reports/2026-10-16-environment-portability-fixes.md#codex-独立验收2026-10-16)）；其余条目沿用 2026-10-15 核对范围。
 > Prior verified against: 0e1e319561edf94e0f0cd481ac455ec784eb19dd + 本分支 F1–F3 修复；受测产物指纹见修复报告。
 
@@ -38,5 +40,7 @@ App pipe 使用观测到的本机 `send_message_to_thread` 协议，Linux App 26
 `TaskPackage.executor` 可选 zcode/kimi，省略仍走原路径。Kimi 使用 `kimi: { model?, permission_mode? }`，默认 yolo，不接受 ZCode model 字段；续作保持已持久化的 executor 与 session。公开工具名保持兼容，包含预约工具；ZCode doctor/catalog/default_model 不用于诊断或配置 Kimi。兼容字段 zcode_session_id、zcode_pid、zcode_output 在 Kimi 任务中存放 Kimi 对应证据，执行 profile.executor 和 usage.source 区分来源。
 
 KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复冷会话并取得游标，再订阅确认并提交独立 prompt_id。只接受当前 session/main agent/prompt/turn，失败、断流、文本偏移不符及无效报告均不得完成；thinking 不外发。审批/问题走既有 interaction 存储；成功和失败均验证进程树清理。Kimi 明确额度耗尽使用 kimi_usage_exhausted，普通 429 为 kimi_nonzero_exit；调度额度故障只升级通知，不自动续作。
+
+即时 Kimi 任务继承 Bridge 进程已有的 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 及对应小写变量，分别通过 detached worker 和 Kimi 子进程的 env 原样传递。代理 URL 可含凭据，因此不写入命令参数、任务记录或日志；其余任意秘密仍不透传。不读取 shell 文件补代理；启动 Bridge 的环境必须已经配置代理。通用 OS/Bridge 配置白名单和 ZCode 子进程策略不变。预约 runner 仍遵循上述环境清空策略，本次不支持从 MCP 宿主继承代理，见 [ADR-012 代理补充](decisions/ADR-012-kimi-executor.md#代理环境补充2026-11-04)。
 
 配置、版本与验证范围见 [ADR-012](decisions/ADR-012-kimi-executor.md) 和[验证报告](reports/2026-10-28-kimi-validation.md)。本节不扩展原有 ZCode 的历史验证结论。

@@ -20003,6 +20003,13 @@ function createMinimalOsEnv(source) {
   }
   return env;
 }
+function createProxyEnv(source) {
+  const env = {};
+  for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"]) {
+    if (source[key] !== void 0) env[key] = source[key];
+  }
+  return env;
+}
 
 // src/runtime/errors.ts
 var BridgeError = class extends Error {
@@ -21325,7 +21332,7 @@ var KimiAdapter = class {
     let usage = null;
     try {
       signal.throwIfAborted();
-      const env = createMinimalOsEnv(process.env);
+      const env = { ...createMinimalOsEnv(process.env), ...createProxyEnv(process.env) };
       if (process.env["KIMI_CODE_HOME"]) env["KIMI_CODE_HOME"] = process.env["KIMI_CODE_HOME"];
       const executable = process.env["KIMI_BRIDGE_EXECUTABLE"] || "kimi";
       const args = ["web", "--no-open", "--host", "127.0.0.1", "--port", "0", "--log-level", "error"];

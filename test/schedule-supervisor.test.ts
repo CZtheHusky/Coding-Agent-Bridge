@@ -49,6 +49,8 @@ function planFixture() {
       PATH: "/usr/bin",
       HOME: "/home/user",
       SECRET_TOKEN: "must-not-forward",
+      HTTPS_PROXY: "http://proxy-user:must-not-forward@proxy.invalid:8080",
+      https_proxy: "http://proxy-user:must-not-forward@proxy.invalid:8080",
       CODEX_APP_TOOLS_PIPE_PATH: "/tmp/private-app.pipe",
       ZCODE_BRIDGE_MODE: "build",
       ZCODE_BRIDGE_DATA_DIR: dir,

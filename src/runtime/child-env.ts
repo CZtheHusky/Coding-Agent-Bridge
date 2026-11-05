@@ -21,6 +21,15 @@ export function createMinimalOsEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv
   return env;
 }
 
+/** Proxy URLs can contain credentials: pass only through spawn env, never argv. */
+export function createProxyEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"]) {
+    if (source[key] !== undefined) env[key] = source[key];
+  }
+  return env;
+}
+
 /** Detached workers need Bridge configuration, but never arbitrary parent secrets. */
 export function createWorkerEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env = createMinimalOsEnv(source);

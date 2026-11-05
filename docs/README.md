@@ -1,9 +1,11 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，核对本次修改文档的调度路由、额度诊断与状态标记；离线运行验证范围见 ADR-010，另已核对真实 ZCode/当前 App 消息送达与 Codex 独立验收；新版调度空闲聊天新轮次仍未验证。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度与 ADR-011 额度诊断）。
+> Last updated: 2026-11-04
+> Last verified: 2026-11-04，仅核对 Kimi 代理补充的运行配置、隐私说明与验证报告路由；其余条目沿用历史记录。
+> Verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复与文档
+> Prior verification: 2026-10-28，核对本次修改文档的调度路由、额度诊断与状态标记；离线运行验证范围见 ADR-010，另已核对真实 ZCode/当前 App 消息送达与 Codex 独立验收；新版调度空闲聊天新轮次仍未验证。
+> Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度与 ADR-011 额度诊断）。
 
 英文使用者从 [README.md](../README.md) 开始。技术文档为中文。本文是文档路由：先看状态等级，再按读者路径选文档。
 
@@ -54,9 +56,9 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 | [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-10-28 | 调度静态核对 + systemd 离线闭环；详见文档顶部 |
 | [INTERFACES.md](INTERFACES.md) | zh | 2026-10-28 | 工具/schema 静态核对 + 离线闭环；详见文档顶部 |
 | [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-10-28 | 可选注入静态核对 + 离线闭环；详见文档顶部 |
-| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-10-28 | 监督/环境静态核对 + 离线闭环；详见文档顶部 |
+| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-04 | Kimi 代理两处 spawn 回归与两端安装后真实调用；其余范围见文档顶部 |
 | [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-10-03 | 未记录 |
-| [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-10-03 | 未记录 |
+| [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
 | [plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md) | zh | 2026-10-28 | 调度/验收静态核对 + 离线闭环 |
 
 `最后核对` 表示上一次有人把文档内容与代码对照的日期及范围；标记为未记录的条目仍缺少核对证据。新建和修改文档时必须填写，否则该文档只能算"最后更新"，不能算"已验证"。本地回归不代表真实 provider 或长期运行通过。
@@ -82,6 +84,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 日期 | 说明 |
 |---|---|---|
+| [Kimi 代理修复与部署](reports/2026-11-04-kimi-proxy-fix.md) | 2026-11-04 | 代理边界回归、本机与远端安装验证、Desktop SSH 入口复核；公开脱敏记录 |
 | [research/phase1-codex-zcode-2026-09-26.md](research/phase1-codex-zcode-2026-09-26.md) | 2026-09-26 | Phase 1 参考项目调研与 V0.1 架构建议 |
 | [research/desktop-task-refresh-2026-09-28.md](research/desktop-task-refresh-2026-09-28.md) | 2026-09-28 | ZCode Desktop 任务列表刷新机制 |
 | [research/start-plan-headless-2026-09-27.md](research/start-plan-headless-2026-09-27.md) | 2026-09-27 | Start Plan headless 认证阻塞与 Coding Plan 回归 |

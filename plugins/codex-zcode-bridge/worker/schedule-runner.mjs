@@ -1499,6 +1499,13 @@ function createMinimalOsEnv(source) {
   }
   return env;
 }
+function createProxyEnv(source) {
+  const env = {};
+  for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"]) {
+    if (source[key] !== void 0) env[key] = source[key];
+  }
+  return env;
+}
 function createWorkerEnv(source) {
   const env = createMinimalOsEnv(source);
   const explicitBridgeKeys = /* @__PURE__ */ new Set([
@@ -1556,6 +1563,7 @@ function createWorkerSpawner(host2) {
     try {
       const workerEnv = {
         ...createWorkerEnv(process.env),
+        ...createProxyEnv(process.env),
         ...host2 ? { ZCODE_BRIDGE_HOST_PROFILE: JSON.stringify(host2) } : {},
         // DeepSeek Harness may host its MCP entrypoint inside Electron. Its
         // executable is reusable for detached Node workers only in this mode.

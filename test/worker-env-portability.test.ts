@@ -21,6 +21,7 @@ interface ProbeReceipt {
   browser_executable: string | null;
   secret_probe: string | null;
   unrelated_secret: string | null;
+  proxies: Record<string, string | null>;
   programfiles: string | null;
   programfiles_x86: string | null;
   zcode_bridge_keys: string[];
@@ -51,6 +52,7 @@ function writeProbeWorker(scriptPath: string, receiptPath: string, releasePath: 
     "  browser_executable: lookup('ZCODE_BRIDGE_BROWSER_EXECUTABLE'),",
     "  secret_probe: lookup('ZCODE_BRIDGE_SECRET_PROBE'),",
     "  unrelated_secret: lookup('BRIDGE_TEST_UNRELATED_SECRET'),",
+    "  proxies: Object.fromEntries(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'].map(key => [key, process.env[key] ?? null])),",
     "  programfiles: lookup('PROGRAMFILES'),",
     "  programfiles_x86: lookup('PROGRAMFILES(X86)'),",
     "  zcode_bridge_keys: Object.keys(process.env).filter((name) => name.startsWith('ZCODE_BRIDGE_')).sort(),",
@@ -90,6 +92,7 @@ test("a real detached worker receives env-only browser settings while secrets st
   // An existing absolute file standing in for an explicitly configured browser.
   const fakeExecutable = path.join(dir, "fake-msedge.exe");
   writeFileSync(fakeExecutable, "probe fixture", "utf8");
+  const proxies = Object.fromEntries(["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"].map(key => [key, key.toUpperCase() === "NO_PROXY" ? "localhost,127.0.0.1,::1" : `http://fixture-user:${process.platform === "win32" ? key.toUpperCase() : key}@127.0.0.1:8123`]));
 
   let workerPid: number | null = null;
   let primaryFailed = false;
@@ -100,6 +103,7 @@ test("a real detached worker receives env-only browser settings while secrets st
       process.env["ZCODE_BRIDGE_BROWSER_EXECUTABLE"] = fakeExecutable;
       process.env["ZCODE_BRIDGE_SECRET_PROBE"] = "must-not-leak";
       process.env["BRIDGE_TEST_UNRELATED_SECRET"] = "must-not-leak";
+      Object.assign(process.env, proxies);
       if (process.platform === "win32") {
         // Real Windows casing, values that differ per variable so a mixed-up
         // forward cannot pass. Auto-discovery needs these directory roots.
@@ -121,6 +125,7 @@ test("a real detached worker receives env-only browser settings while secrets st
     assert.equal(receipt.browser_executable, fakeExecutable, "env-only ZCODE_BRIDGE_BROWSER_EXECUTABLE must reach the detached worker");
     assert.equal(receipt.secret_probe, null, "an arbitrary ZCODE_BRIDGE_ secret must not reach the worker");
     assert.equal(receipt.unrelated_secret, null, "an arbitrary non-Bridge secret must not reach the worker");
+    assert.deepEqual(receipt.proxies, proxies, "Kimi needs the caller's proxy and bypass values across the real detached worker boundary");
     if (process.platform === "win32") {
       assert.equal(receipt.programfiles, path.join(dir, "Program Files"), "ProgramFiles must survive the worker env filter (browser auto-discovery)");
       assert.equal(receipt.programfiles_x86, path.join(dir, "Program Files (x86)"), "ProgramFiles(x86) must survive the worker env filter (browser auto-discovery)");

@@ -7,7 +7,7 @@ import type { ZCodeAppServerAdapterOptions } from "./zcode-app-server-adapter.js
 import type { AdapterErrorCode, ZCodeRunOutcome } from "./zcode-adapter.js";
 import { parseAgentReport } from "./agent-report.js";
 import { buildTaskPrompt, buildContinuePrompt } from "../prompts/task-prompt.js";
-import { createMinimalOsEnv } from "../runtime/child-env.js";
+import { createMinimalOsEnv, createProxyEnv } from "../runtime/child-env.js";
 import { BridgeError } from "../runtime/errors.js";
 import { resolveTaskTimeout } from "../runtime/task-timeout.js";
 import { captureSpawnGenerationIdentity, childStillOnSpawnGeneration, terminateProcessTree, verifyProcessTreeClaimantsClean } from "./process-spawn.js";
@@ -83,7 +83,7 @@ export class KimiAdapter implements CodingAgentAdapter {
     let usage: Record<string, unknown> | null = null;
     try {
       signal.throwIfAborted();
-      const env = createMinimalOsEnv(process.env);
+      const env = { ...createMinimalOsEnv(process.env), ...createProxyEnv(process.env) };
       if (process.env["KIMI_CODE_HOME"]) env["KIMI_CODE_HOME"] = process.env["KIMI_CODE_HOME"];
       const executable = process.env["KIMI_BRIDGE_EXECUTABLE"] || "kimi";
       const args = ["web", "--no-open", "--host", "127.0.0.1", "--port", "0", "--log-level", "error"];

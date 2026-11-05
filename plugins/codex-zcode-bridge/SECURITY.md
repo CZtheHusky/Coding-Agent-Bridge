@@ -19,6 +19,7 @@
 - 仅 legacy GitWorktreeProvider 有 Git 快照及启发式凭据排除；当前生产路径不创建快照，也不承诺过滤执行目录中的凭据。legacy 路径的 Git clean filters 可能在排除步骤前运行。
 - POSIX 下 `.tasks/` 使用 `0700` 目录和 `0600` 文件权限。Windows 的实际访问限制由父目录 ACL 决定。
 - 环境变量通过白名单传递给 worker 和 ZCode 子进程；未列入白名单的自定义代理或 provider 环境变量不会传递。请使用受支持的 provider 配置文件方式。
+- 即时 Kimi 任务额外保留标准 HTTP_PROXY、HTTPS_PROXY、ALL_PROXY、NO_PROXY 及小写形式；代理 URL 可能含凭据，仅经进程环境传入 worker/Kimi，不进入命令参数或任务记录。启动 Bridge 时必须已有这些变量；systemd 预约 runner 不继承宿主代理。
 
 ## Security policy
 

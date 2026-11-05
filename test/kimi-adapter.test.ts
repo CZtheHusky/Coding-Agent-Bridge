@@ -30,6 +30,26 @@ test("Kimi task contract is additive; worker env forwards only explicit Kimi con
   const f = fixture(); try { assert.equal(zcodeTaskInputSchema.parse({ ...f.task, kimi: { permission_mode: "manual", model: "local/alias" } }).executor, "kimi"); } finally { f.cleanup(); }
 });
 
+test("Kimi inherits proxy credentials and loopback bypass without inheriting unrelated secrets", async () => {
+  const f = fixture();
+  const proxies = Object.fromEntries(["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"].map(key => [key, key.toUpperCase() === "NO_PROXY" ? "localhost,127.0.0.1,::1" : `http://fixture-user:${process.platform === "win32" ? key.toUpperCase() : key}@127.0.0.1:8123`]));
+  const overrides = { ...proxies, KIMI_API_KEY: "must-not-leak", BRIDGE_TEST_UNRELATED_SECRET: "must-not-leak" };
+  const before = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, overrides);
+    writeFileSync(path.join(f.cwd, "scenario.json"), JSON.stringify({ kind: "success", expected_env: proxies }));
+    const events: unknown[] = [];
+    const adapter = new KimiAdapter({ onEvent: event => events.push(event) });
+    const result = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(result.errorCode, null);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(f.cwd, "env-check.json"), "utf8")), { proxy_matches: true, secrets_filtered: true });
+    assert.doesNotMatch(JSON.stringify({ events, result, requests: f.requests() }), /fixture-user|must-not-leak/, "proxy credentials belong in the child environment, never model requests or external evidence");
+  } finally {
+    for (const [key, value] of Object.entries(before)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    f.cleanup();
+  }
+});
+
 test("Kimi native completion requires current prompt/main turn and emits no token or reasoning", async () => {
   const f = fixture(); const events: unknown[] = [];
   try {
