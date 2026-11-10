@@ -53,3 +53,5 @@ ADR-001 到 ADR-003 只搬运权威文档里已经写明的结论。ADR-004 原�
 - [ADR-018：结果诊断与运行构建](ADR-018-result-diagnostics-and-running-build.md)：结构化 provider_error、同版执行文件变化观察与重连提示。
 
 - [ADR-019：Kimi 晚注册工具与真实用量](ADR-019-kimi-late-tools-and-usage.md)：原生 MCP 名称模式覆盖异步工具注册，snapshot 提供会话累计用量。
+
+- [ADR-020：活动调度索引与显式数据目录](ADR-020-scheduling-index-and-data-root.md)：写前登记、锁内验证撤销、一次迁移及 DATA_DIR 单项覆盖；同库 Manager 须统一升级。

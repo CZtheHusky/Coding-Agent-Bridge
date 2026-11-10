@@ -1,11 +1,12 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
+> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](../../docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verification: 2026-11-09，仅图片参数、续作示例与模型模态；其余沿用原说明。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree。
 
@@ -86,6 +87,8 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 读取 `coding_agent_result.zcode_output` 并独立验收数据，不从事件摘要拼接。raw 完成不等于数据正确，输出截断会失败；预约不支持 raw。续作沿用模式，不相关请求各建新任务。同目录及父子目录串行；更新后须重连 MCP 或开启新宿主会话。
 
 ZCode 双图实测输入 20,119 → 2,536 token（本样本减少 87.4%），Kimi 双图总预填（含缓存读取）本机 65,211 → 3,111、远端 14,056 → 3,332，四入口实际工具数均为 0；另有两次远端 OCR 数据失败，不能承诺准确率不变。Kimi usage 为会话累计，非缓存输入与缓存读取分列。完整示例、验证及边界见源码仓库 `README.zh-CN.md`「API 模式」和 `docs/reports/2026-11-09-data-task-repair.md`，Kimi 实测及边界见 `docs/reports/2026-11-10-kimi-api-live-validation.md`。
+
+批量任务可通过显式非空的 `ZCODE_BRIDGE_DATA_DIR=/absolute/batch-data` 覆盖保存的数据目录，其余运行/代理配置仍按原规则读取。不同目录拥有独立任务库、锁和配额，不会搬迁历史。调度使用活动候选索引，旧库首次全量校验在调度锁外完成；升级索引时，共用同一数据目录的所有 Bridge 管理进程必须一起升级并重连，不能与仍会提交/续作的旧管理进程混用。旧版 worker 可以完成已登记任务。
 
 ## 安全边界
 

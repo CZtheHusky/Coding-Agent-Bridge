@@ -1,11 +1,12 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
+> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verification: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
 
@@ -96,6 +97,10 @@ ZCode 3.16.3 / GLM-5.3-Flash 双图对照输入为 20,119 → 2,536 token，本�
 
 失败结果的 `provider_error` 提供脱敏后的原生错误码、HTTP 状态和重试提示等实际证据；未知字段缺省。顶层 `error_code` 仍决定额度耗尽和清理阻塞，不因 retryable=true 自动重试。提交/续作回执及 doctor 的 `bridge` 显示运行版本与构建指纹；`disk_status: "changed"` 表示执行文件已变化，需重连，unknown 表示未能确认。首次升级前的旧进程仍须手动重连。详见 [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md)。
 
+批量任务可通过显式非空的 `ZCODE_BRIDGE_DATA_DIR=/absolute/batch-data` 覆盖保存的数据目录，其余运行/代理配置仍按原规则读取。不同目录拥有独立任务库、锁和 worker 并发名额，不会搬迁历史。调度使用活动候选索引，旧库首次全量校验在调度锁外完成；升级索引时，共用同一数据目录的所有 Bridge 管理进程必须一起升级并重连，不能与仍会提交/续作的旧管理进程混用。旧版 worker 可以完成已登记任务。
+
+持续批处理可选择持久化的本地数据目录；慢共享存储仍可能触发 5 秒排队超时。工具响应 `isError: true` 表示失败；`BRIDGE_BUSY` / `REQUEST_QUEUE_TIMEOUT` 应使用同一 task_id 重试。不同数据目录之间不共享工作区锁。
+
 ## 功能
 
 - 在 Codex 中派发、跟踪、续作和取消 ZCode 任务。
@@ -143,7 +148,7 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 - `ZCODE_BRIDGE_DATA_DIR`：Bridge 任务数据目录的绝对路径。
 - `ZCODE_BRIDGE_DEFAULT_PROVIDER_ID` 与 `ZCODE_BRIDGE_DEFAULT_MODEL_ID`：默认 provider 和 model ID，必须成对填写。
 - `ZCODE_BRIDGE_MODE`：初始执行模式，可设为 `plan`、`build`、`edit` 或 `yolo`，默认 `yolo`。`yolo` 会放行普通工具操作并使用当前操作系统账户权限；如需 ZCode 的审批规则，可设为 `build`。
-- `ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS`：同一数据目录内的调度并行上限，范围 1–8，默认 8；多个 Bridge 进程应使用一致设置，重叠执行路径串行。
+- `ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS`：同一数据目录内的调度并行上限，范围 1–20，默认 20；多个 Bridge 进程应使用一致设置，重叠执行路径串行。已有持久化配置中的较小值继续生效，需修改配置后重连。
 - `ZCODE_BRIDGE_BROWSER_USE`：可选 headless 浏览器宿主，默认 `off`；设为 `headless` 后 worker 以 managed CDP 后端响应 ZCode 原生浏览器工具的 `interaction/browserList`/`interaction/browserExecute` 反向 RPC，使用独立临时 profile 启动已安装的系统 Chromium/Edge（不下载浏览器，也不连接用户已有窗口）。可选 `ZCODE_BRIDGE_BROWSER_EXECUTABLE` 指定绝对路径。该宿主上的原生浏览器模型链路已在记录的 Windows/ZCode 版本上验证，范围与限制见 `docs/reports/2026-10-15-browser-and-transport-fixes.md`。
 - `ZCODE_BRIDGE_TIMEOUT_MS`：未在任务中指定 `timeout_ms` 时使用的单次执行时限，单位毫秒，范围 60,000–14,400,000；默认 3,600,000（60 分钟）。
 

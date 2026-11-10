@@ -69,7 +69,7 @@ export interface TaskManagerOptions {
   workerStartGraceMs?: number;
   /** Advisory stall-hint threshold for business-event silence. Default 120,000 ms. */
   stallHintMs?: number;
-  /** Maximum simultaneous detached workers in this Bridge process. Defaults to 8. */
+  /** Maximum simultaneous detached workers sharing the data root. Defaults to 20. */
   maxConcurrentWorkers?: number;
 }
 
@@ -105,9 +105,9 @@ export class BridgeTaskManager implements ProgressTaskManager {
     this.#probe = options.probe ?? null;
     this.#now = options.now ?? (() => new Date());
     this.#dataRoot = options.store.dataRoot;
-    this.#maxConcurrentWorkers = options.maxConcurrentWorkers ?? 8;
-    if (!Number.isInteger(this.#maxConcurrentWorkers) || this.#maxConcurrentWorkers < 1 || this.#maxConcurrentWorkers > 8) {
-      throw new RangeError("maxConcurrentWorkers must be an integer from 1 to 8");
+    this.#maxConcurrentWorkers = options.maxConcurrentWorkers ?? 20;
+    if (!Number.isInteger(this.#maxConcurrentWorkers) || this.#maxConcurrentWorkers < 1 || this.#maxConcurrentWorkers > 20) {
+      throw new RangeError("maxConcurrentWorkers must be an integer from 1 to 20");
     }
     this.#workerStartGraceMs = options.workerStartGraceMs ?? 10_000;
     if (!Number.isInteger(this.#workerStartGraceMs) || this.#workerStartGraceMs < 0) {
@@ -158,6 +158,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
    * blocks the others. */
   async recoverTasks(): Promise<void> {
     if (this.#recoveryPromise) return this.#recoveryPromise;
+    await this.#store.initializeSchedulingIndex();
     const releaseRecovery = tryAcquireProcessLock(path.join(this.#store.tasksRoot, ".recovery.lock"));
     if (!releaseRecovery) return;
     const lastRunFile = path.join(this.#store.tasksRoot, ".recovery-last-run");
@@ -167,7 +168,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
     }
     const run = (async () => {
       let hasQueuedTask = false;
-      for (const taskId of this.#store.listTaskIds()) {
+      for (const taskId of this.#store.listSchedulingTaskIds()) {
         try {
           const status = this.#safeStatus(taskId);
           if (!status) continue;
@@ -186,7 +187,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
       }
       // With no observed queue there is nothing to dispatch. New submissions
       // pump themselves; a concurrently abandoned submission is seen next tick.
-      // Never cache terminal state across ticks or skip cleanup reconciliation.
+      // Candidates are re-read each tick, including unverified terminal cleanup.
       if (hasQueuedTask) await this.#exclusive(async () => { this.#pumpLocked(); });
     })();
     this.#recoveryPromise = run;
@@ -1456,10 +1457,9 @@ export class BridgeTaskManager implements ProgressTaskManager {
   }
 
   #pumpLocked(): void {
-    // Reuse one validated snapshot within this scheduling operation only.
-    // Terminal/corrupt records remain checked; no cross-operation cache can
-    // hide an external worker transition or release an unverified workspace.
-    const snapshot = this.#store.listTaskIds().map((taskId) => ({ taskId, status: this.#safeStatus(taskId) }));
+    // The index narrows candidates; persisted records still decide occupancy.
+    // Worker status commits and continuations register before publishing state.
+    const snapshot = this.#store.listSchedulingTaskIds().map((taskId) => ({ taskId, status: this.#safeStatus(taskId) }));
     const running = snapshot.filter(({ status }) => status?.status === "running" || status?.cleanup_unverified === true).map(({ taskId }) => taskId);
     if (running.length >= this.#maxConcurrentWorkers) return;
 
@@ -1595,7 +1595,10 @@ export class BridgeTaskManager implements ProgressTaskManager {
     }
   }
 
-  #exclusive<T>(operation: () => Promise<T>): Promise<T> {
+  async #exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    // Cold migration can read the legacy history without holding up another
+    // process's scheduling lock or burning the operation queue's 5s budget.
+    await this.#store.initializeSchedulingIndex();
     if (this.#queuedOperations >= 32) return Promise.reject(new TaskManagerError("BRIDGE_BUSY", "Bridge operation queue is full; retry with the same task_id"));
     this.#queuedOperations += 1;
     let started = false;
@@ -1632,13 +1635,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
 
   #safeStatus(taskId: string): ReturnType<TaskStore["readStatus"]> | null {
     try {
-      const status = this.#store.readStatus(taskId);
-      this.#store.readTask(taskId);
-      this.#store.readWorkspaceRef(taskId);
-      this.#store.readResult(taskId);
-      this.#store.readAttemptMeta(taskId, status.attempt, "started.json");
-      this.#store.readAttemptMeta(taskId, status.attempt, "continue.json");
-      return status;
+      return this.#store.readSchedulingStatus(taskId);
     } catch (error) {
       console.error(`Bridge skipped corrupt task ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
       return null;

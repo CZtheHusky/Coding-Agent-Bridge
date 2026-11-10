@@ -9,7 +9,7 @@ param(
     [string]$DefaultModelId,
     [string]$DefaultReasoningLevel,
     [ValidateSet("plan", "build", "edit", "yolo")][string]$Mode,
-    [ValidateRange(1, 8)][int]$MaxConcurrentWorkers,
+    [ValidateRange(1, 20)][int]$MaxConcurrentWorkers,
     # ADR-007 optional headless browser host. Default off; when headless is
     # enabled the managed runtime uses an isolated temporary profile and can
     # be pointed at an installed system browser executable.
@@ -276,14 +276,14 @@ $effectiveMode = if ($Mode) { $Mode } elseif ((Get-ConfiguredEnvironmentValue "Z
 if ($effectiveMode -notin @("plan", "build", "edit", "yolo")) {
     throw "ZCODE_BRIDGE_MODE must be one of: plan, build, edit, yolo."
 }
-$effectiveMaxWorkers = 8
+$effectiveMaxWorkers = 20
 if ($PSBoundParameters.ContainsKey("MaxConcurrentWorkers")) {
     $effectiveMaxWorkers = $MaxConcurrentWorkers
 } elseif ((Get-ConfiguredEnvironmentValue "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS")) {
     $parsedMaxWorkers = 0
     $configuredMaxWorkers = Get-ConfiguredEnvironmentValue "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"
-    if (-not [int]::TryParse($configuredMaxWorkers, [ref]$parsedMaxWorkers) -or $parsedMaxWorkers -lt 1 -or $parsedMaxWorkers -gt 8) {
-        throw "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS must be an integer from 1 to 8."
+    if (-not [int]::TryParse($configuredMaxWorkers, [ref]$parsedMaxWorkers) -or $parsedMaxWorkers -lt 1 -or $parsedMaxWorkers -gt 20) {
+        throw "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS must be an integer from 1 to 20."
     }
     $effectiveMaxWorkers = $parsedMaxWorkers
 }

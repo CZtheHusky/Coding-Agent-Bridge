@@ -1,11 +1,12 @@
 # 当前接口与兼容边界
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
+> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Prior verification: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
@@ -111,3 +112,7 @@ turn.failed / RPC 错误的既有码不变；消息及事件 provider_error 可�
 `TaskResult.provider_error` 可选，保留原生失败的白名单 code/type、数值 status/statusCode/retryAfter/retry_after、布尔 retryable 和固定 category=content_filter。没有证据时缺省；未知消息、请求体、headers 和 metadata 不外发。支持 ZCode event/RPC 失败及 Kimi 原生失败中实际提供的字段，并随已有 checkpoint 恢复。顶层 error_code 及额度/清理优先级不变；不要只根据 provider_error.retryable 自动重试。
 
 MCP task/continue 回执及 doctor 的可选 `bridge` 提供核心 version、started_at、running_build_id、disk_build_id、disk_status（same/changed/unknown）和 reconnect_required（布尔或 null）。manager 的持久幂等回执不附加该观察。SHA-256 比较启动时分发执行文件与当前磁盘内容，覆盖标准插件的三入口 bundle 或编译 core 的 JS/CJS 树；不能据此排序版本或认定任务通过。changed 提示重连；文件缺失/不可读或初始指纹缺失为 unknown，reconnect_required=null，不阻断任务。更旧进程没有此能力，须首次重连；不热更新或自动重启。详见 [ADR-018](decisions/ADR-018-result-diagnostics-and-running-build.md)。
+
+## 调度候选与目录覆盖（ADR-020）
+
+MCP schema 和任务查询契约不变。同库 worker 并发默认 20、范围 1–20，较小的显式配置仍生效；重叠目录仍串行。内部活动候选索引避免逐轮读取健康历史，仍逐次验证当前状态、损坏范围与 cleanup。首次旧库迁移不持有共享调度锁；超时及同 task_id 重试语义不变。所有写入状态的 Manager 须一起升级重连；不支持新旧 Manager 混用同库。健康终态退出调度集合后，手工更改历史文件不作为恢复入口；通过 continue/cancel 的正常状态写入会重新登记。显式非空 DATA_DIR 只覆盖目录，其余持久化设置优先，详见 ADR-020 与 ZCODE_RUNTIME。

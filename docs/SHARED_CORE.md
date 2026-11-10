@@ -1,10 +1,11 @@
 # 共享核心与宿主适配
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-09
+> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
+> Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 2318201 + ADR-018 working tree
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verification: 2026-11-08，仅核对 ADR-015 的 Claude 入口声明、跨项目目录启动回归及真实 Claude MCP 健康检查；其余范围沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口修复。
 > Prior verification: 2026-10-28，createBridgeServer 可选调度注入、默认 Codex stdio 装配与 Linux 离线闭环，详见 ADR-010；新版调度在对话空闲时启动新轮次仍未验证。
@@ -37,7 +38,7 @@ await startBridge({
 
 Claude marketplace 入口由 `.claude-plugin/plugin.json` 声明，用 `${CLAUDE_PLUGIN_ROOT}/dist/bridge.mjs` 覆盖自动发现的同名 MCP 条目；Codex / portable 入口仍保留自己的相对路径规则，见 [ADR-015](decisions/ADR-015-claude-plugin-entry-path.md)。独立部署的宿主需单独升级共享核心，更新 CLI 或其他宿主的缓存不会自动替换它。
 
-Codex 默认配置目录保持 `~/.codex/codex-zcode-bridge`。运行配置仍优先于环境变量。`legacySettingsDirectories` 仅在宿主明确配置时启用；缺文件才回退，存在但损坏的文件会报错。首次写入默认模型会复制完整 legacy 设置到宿主 canonical 文件，并保留未知字段；不会修改 legacy 文件。不要默认共享两个宿主的可变任务目录。
+Codex 默认配置目录保持 `~/.codex/codex-zcode-bridge`。除非空的显式 `ZCODE_BRIDGE_DATA_DIR` 优先于已保存的数据目录外，运行配置仍优先于环境变量（ADR-020）；覆盖目录不会搬迁旧任务。`legacySettingsDirectories` 仅在宿主明确配置时启用；缺文件才回退，存在但损坏的文件会报错。首次写入默认模型会复制完整 legacy 设置到宿主 canonical 文件，并保留未知字段；不会修改 legacy 文件。不要默认共享两个宿主的可变任务目录。
 
 公共 MCP 工具名称、schema 和业务语义由核心维护，宿主可传服务身份与 instructions。描述与 task prompt 使用调用宿主的中性措辞。`coding_agent_feedback` 是向后兼容的只读 snapshot 与文本 renderer；原有 `coding_agent_events`、`coding_agent_status` 和 `coding_agent_result` 保持原契约。`coding_agent_progress_probe` 是实验工具，默认关闭；只有直接调用 `createBridgeServer({ enableExperiments: true, ... })` 才启用。
 
@@ -63,6 +64,6 @@ KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复
 
 API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名称；沿用异步任务接口，没有额外 mode 字段或 HTTP 接口。
 
-TaskPackage 的 report_mode 与 session_profile、TaskResult 的 output_truncated/runtime_session_usage 是可选增量。直接调用共享 core 也会验证枚举值；调度入口在任何落盘前拒绝 raw。TaskManager 仍拥有状态和清理裁决；模型完成不替代调用方的数据验收。无 queued 的恢复周期不再额外 pump 全扫描，新提交自行 pump，遗留并发提交下一周期接管，仍核对历史状态及 cleanup；未引入跨周期状态缓存、历史删除或活动索引。
+TaskPackage 的 report_mode 与 session_profile、TaskResult 的 output_truncated/runtime_session_usage 是可选增量。直接调用共享 core 也会验证枚举值；调度入口在任何落盘前拒绝 raw。TaskManager 仍拥有状态和清理裁决；模型完成不替代调用方的数据验收。无 queued 的恢复周期不再额外 pump 全扫描，新提交自行 pump，遗留并发提交下一周期接管，ADR-020 后只核对活动候选及 cleanup，不缓存状态，不删除历史。共享同库的所有宿主 Manager 须一起升级并重连；旧版 worker 只可完成已登记任务。
 
 ADR-018 增加可选 TaskResult.provider_error 及 MCP 回执/doctor.bridge。createBridgeServer 默认观察本核心执行分发的内容指纹；自定义重新打包的宿主可通过 bridgeInfo 回调提供同类型观察。标准 startBridge 在 stderr 记录版本、启动时间和运行构建 ID，不输出安装路径或秘密。只提示重连，不干预 manager 的持久回执、已有任务或进程。

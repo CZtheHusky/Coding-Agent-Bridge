@@ -85,7 +85,7 @@ test("provider projection exposes actionable classification and safe scalar fiel
   assert.equal(providerFailureDiagnostic({ metadata: { code: 1301 }, request: { message: "[1301]" } }).details.category, undefined);
 });
 
-test("idle history is scanned once without skipping later queues or cleanup occupancy", async () => {
+test("idle healthy history leaves recovery without hiding newly queued work", async () => {
   const f = await makeManagerFixture();
   try {
     const now = new Date().toISOString();
@@ -93,10 +93,11 @@ test("idle history is scanned once without skipping later queues or cleanup occu
       const task = f.makeTask({ task_id: `history_${i}` });
       f.store.createTask(task, now); f.store.writeStatus(task.task_id, { status: "completed", worker_pid: null });
     }
+    await f.manager.recoverTasks();
     const original = f.store.readStatus.bind(f.store); let reads = 0;
     f.store.readStatus = (...args) => { reads++; return original(...args); };
     await f.manager.recoverTasks();
-    assert.equal(reads, 20, "no queued task means a second whole-history pump scan has no work to do");
+    assert.equal(reads, 0, "after migration, healthy history must not consume recovery I/O");
     f.store.createTask(f.makeTask({ task_id: "abandoned_submission" }), now);
     await f.manager.recoverTasks();
     assert.equal(f.spawned.length, 1, "the next scan still discovers queued tasks created by another host");

@@ -4,7 +4,7 @@
 // TaskStore in a temp directory with fake workers. No model calls.
 import assert from "node:assert/strict";
 import { utimesSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -14,6 +14,8 @@ import {
   type ManagerFixture,
 } from "./manager-helpers.js";
 import { TaskStore } from "../src/store/task-store.js";
+import { BridgeTaskManager } from "../src/manager/task-manager.js";
+import { DirectWorkspaceProvider } from "../src/workspace/direct-provider.js";
 import { TaskManagerError } from "../src/manager/errors.js";
 import { withProcessLock } from "../src/store/process-lock.js";
 import { runWorkerTask } from "../src/worker/run-task.js";
@@ -90,13 +92,14 @@ test("with a free slot the task starts immediately as running with a persisted p
   }
 });
 
-test("each scheduling operation validates historical records once and observes later changes", async () => {
+test("healthy history leaves the hot path; later cleanup writes restore its occupancy", async () => {
   const fx = await freshFixture();
   try {
     const historical = fx.makeTask({ task_id: "historical" });
     fx.store.createTask(historical, CREATED_AT);
     fx.store.writeWorkspaceRef(historical.task_id, { requestedPath: fx.workspaceDir, canonicalPath: fx.workspaceDir, mode: "direct" });
     fx.store.writeStatus(historical.task_id, { status: "completed", worker_pid: null });
+    await fx.manager.recoverTasks();
     const originalRead = fx.store.readTask.bind(fx.store);
     let historicalReads = 0;
     fx.store.readTask = (taskId) => {
@@ -104,13 +107,13 @@ test("each scheduling operation validates historical records once and observes l
       return originalRead(taskId);
     };
     await fx.manager.createTask(fx.makeTask());
-    assert.equal(historicalReads, 1, "one health-validation pass, even with free slots");
+    assert.equal(historicalReads, 0, "healthy finished history must not consume scheduling time");
     await fx.runWorker("task_1", new FakeAdapter());
     // A new operation must see cleanup occupancy added after the first scan.
     fx.store.writeStatus(historical.task_id, { cleanup_unverified: true });
     historicalReads = 0;
     const next = await fx.manager.createTask(fx.makeTask({ task_id: "task_2" }));
-    assert.equal(historicalReads, 1, "no cached terminal status across operations");
+    assert.equal(historicalReads, 1, "cleanup changes are registered, then revalidated without cached status");
     assert.equal(next.status, "queued");
     assert.equal(fx.spawned.length, 1, "unverified historical cleanup still occupies the workspace");
   } finally {
@@ -192,6 +195,29 @@ test("a second task queues FIFO and starts only after the slot frees", async () 
     await fx.cleanup();
   }
 });
+
+for (const limit of [undefined, 20]) {
+  test(`${limit === undefined ? "default" : "explicit"} concurrency allows twenty distinct projects and queues the twenty-first`, async () => {
+    const fx = await makeManagerFixture({ maxConcurrentWorkers: limit });
+    try {
+      for (let slot = 0; slot < 21; slot++) {
+        const workspace = path.join(fx.workspaceDir, `project_${slot}`);
+        await mkdir(workspace);
+        const receipt = await fx.manager.createTask(fx.makeTask({ task_id: `capacity_${slot}`, workspace }));
+        assert.equal(receipt.status, slot < 20 ? "running" : "queued");
+      }
+      assert.equal(fx.spawned.length, 20, "capacity must not reject work or exceed twenty workers");
+      await fx.runWorker("capacity_0", new FakeAdapter());
+      await fx.manager.recoverTasks();
+      assert.equal((await fx.manager.getStatus("capacity_20")).status, "running", "queued work starts when capacity is released");
+      for (const invalid of [0, 21, 1.5, Number.NaN]) {
+        assert.throws(() => new BridgeTaskManager({
+          store: fx.store, workspaceProvider: new DirectWorkspaceProvider(), pollIntervalMs: 0, maxConcurrentWorkers: invalid,
+        }), /integer from 1 to 20/);
+      }
+    } finally { await fx.cleanup(); }
+  });
+}
 
 test("different project roots run concurrently while the same mutable directory is serialized", async () => {
   const fx = await makeManagerFixture({ maxConcurrentWorkers: 2 });

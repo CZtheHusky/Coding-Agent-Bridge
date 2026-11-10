@@ -2,11 +2,12 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-10
-> Last verified: 2026-11-10，上游两处局部回移与 Linux 离线回归；本轮未重跑真实 provider 或替换安装。
+> Last verified: 2026-11-10，ADR-020 调度、数据目录及 20 并发的 Linux 离线回归；共享盘仍有排队超时，未替换安装，见本轮报告。
+> Prior verification: 2026-11-10，上游两处局部回移与 Linux 离线回归；本轮未重跑真实 provider 或替换安装。
 > Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口及 Linux 回归；安装边界见本轮诊断报告，其余沿用下列历史范围。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 对照及 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)，两端四入口八次真实执行见[安装验收](reports/2026-11-09-api-mode-deployment.md)。其余保留历史核对范围。
-> Verified against: 5a66d71e5c4ad66702006fbed00e641ef2f80096
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verification: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
 > Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
@@ -19,7 +20,7 @@
 
 ## 版本与发布
 
-- 当前源码版本：`1.2.7`（`package.json`、`plugins/codex-zcode-bridge/plugin.json`）；已提交并推送的附图基线为 d1bf2fe，未新建 release；API 模式代码为 998670c，已推送并部署；本次仅补充安装核对记录。
+- 当前源码版本：`1.2.7`（`package.json`、`plugins/codex-zcode-bridge/plugin.json`）；本轮基线为 01748cd，ADR-020 的实现与回归范围见批量调度报告，后续部署另记，未新建 release。此前附图、API 模式及上游回移的部署范围见各轮报告。
 - 发布方式：release-please 监听 `master`，合并后自动开版本 PR；合并版本 PR 才产生 tag 与 GitHub Release。
 - CI：`.github/workflows/ci.yml`，ubuntu 与 windows 两个作业，跑 typecheck、build、test、validate:plugin，并校验生成的 bundle 已随源码提交。
 
@@ -47,6 +48,12 @@ ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原�
 
 [上游审阅台账](reports/2026-11-10-upstream-review.md)记录 stable 83 + preview 11 个完整提交的审阅范围、处置及后续增量起点。只回移 `a6ba76c` 的合帧开始事件去重、`4a3763e` 的 cleanup helper stdin error 处理，本地提交 `5a66d71`；上游其余 hunk 和 SQLite 执行链未合入。fork 完整回归 676 通过 / 4 平台跳过，Node 24 定向 126/126、clean-entrypoints 6/6，通过构建与插件检查。Windows 真机、真实模型及两端安装更新不在本轮范围。
 
+## 2026-11-10 批量调度与 20 并发
+
+ADR-020：活动候选索引将健康历史的全量校验集中在首次迁移，迁移不持有共享调度锁；正常状态写入先登记候选，清理验证及损坏范围仍重新校验。显式非空 DATA_DIR 覆盖同一持久化字段，其余配置优先级不变。worker 默认及上限改为 20，已有较小配置继续生效，重叠目录仍串行。
+
+Linux Node 22 完整回归 690 通过 / 4 平台跳过，Node 24 定向 87/87，clean-entrypoints 6/6。独立本地数据目录的双进程测试两端各 120/120 无错误；远端共享盘 2×8 仍有 8/48 次排队超时，更强突发也未通过，不能宣称任意存储零超时。本轮没有改生产配置、任务或安装；同库所有 Manager 须统一升级重连，旧 Manager 不能混用。详见[测量与修复报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+
 ## 稳定
 
 - 原生附图（ADR-016）：task、continue 与 schedule.task 接收 `attachments: [{ path: "/absolute/image.png" }]`；续作只发送本轮新图并复用原 session。GLM-5.3 普通版仅支持文本，Flash/FlashX 原生多模态，本轮只实测 Flash。Linux 本机与 SSH 实际安装的四入口首图/补图均通过；此前 Kimi 安装复测受额度限制；额度恢复后的四入口 PNG 传图/补图结果与 OCR 失败见[Kimi 补测](reports/2026-11-10-kimi-api-live-validation.md)。预约仅覆盖离线传播；完整证据见[功能实测](reports/2026-11-09-native-image-attachments.md)与[安装验收](reports/2026-11-09-native-image-deployment.md)。
@@ -58,7 +65,7 @@ ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原�
 - `coding_agent_feedback` 的 `TaskFeedbackSnapshotV01`。
 - 工作区隔离：执行目录由调用宿主准备，Bridge 不创建也不删除 worktree。
 - 模型选择：可按任务覆盖 provider/model，不持久化为工作区默认。
-- 并发：同一 data root 内默认最多 8 个 worker，可用 `ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS` 在 1–8 之间调整。
+- 并发：同一 data root 内默认最多 20 个 worker，可用 `ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS` 在 1–20 之间调整；已有较小的持久化配置继续生效，重叠目录仍串行。
 - 会话帧传输（ADR-008）：换行 JSON-RPC 帧逐条消费，单帧 16 MiB 原始未 trim 字节上限；致命帧错误锁存原因、终止 pending RPC/turn 并阻止后续 request。真实 resume 帧（观测 2,139,927 UTF-8 bytes，曾触发旧伪 30s 超时）与分片/合包/UTF-8 边界由回归覆盖。
 - 大审批输入（ADR-008）：审批 params 完整私有保存至 1 MiB（`JSON.stringify(params)` 紧凑序列化计量），带 bytes/SHA256 元数据；批准在 interaction 锁内校验，等待中记录丢失/损坏/改动时明确 decline。真实链路已实测：build 模式单次 43,014-byte Write 走完整审批往返，审批 params 45,704 bytes，文件与批准内容字节/SHA256 一致，cleanup verified（1.2.3修复版本的本机实测，当前分支回归范围另列）。超过 64,000-byte 事件行的大请求按显式预览 + `full_request` 完整引用发布；该 >64KB 预览与 1 MiB 边界由合成回归验证，与真实 43,014-byte Write 属不同验证强度，不混称。
 
@@ -93,7 +100,7 @@ ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原�
 - 真实 Desktop 数据库写入与刷新行为。
 - 其他 PID 复用与自行脱离进程组的后代场景：ADR-009 覆盖已记录 PID 的 claimant 闭包与句柄可证明窗口；闭包外（未观察中间祖先、对抗性伪造创建时间）不在证明范围。
 - 旧不可读取 owner 与崩溃遗留 reclaim guard 的安全恢复；没有按年龄清除旧锁。
-- 长会话真实 provider/报告一次合格率。调度已减少同次重复扫描，仍有随历史库增长的全量校验成本。
+- 长会话真实 provider/报告一次合格率。ADR-020 的首次旧库迁移仍随历史增长；热路径只校验活动候选，慢共享盘的突发写入仍可能排队超时，见本轮批量调度报告。
 
 ## 核对来源
 

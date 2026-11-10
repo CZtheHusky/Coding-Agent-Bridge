@@ -408,6 +408,7 @@ var init_task_store = __esm({
       #tasksRoot;
       #maxLogBytes;
       #maxEventBytes;
+      #schedulingInitialization = null;
       constructor(dataRoot, options = {}) {
         this.#dataRoot = dataRoot;
         this.#tasksRoot = path4.join(dataRoot, ".tasks");
@@ -443,6 +444,89 @@ var init_task_store = __esm({
           (entry) => existsSync3(path4.join(this.#tasksRoot, entry, "status.json"))
         );
       }
+      /** Migrate legacy records once, outside the manager lock. Writers publish
+       * candidates before status, so concurrent new work cannot escape the scan. */
+      async initializeSchedulingIndex() {
+        if (this.#schedulingIndexReady()) return;
+        if (this.#schedulingInitialization) return this.#schedulingInitialization;
+        const initialize = withProcessLock(path4.join(this.#tasksRoot, ".scheduling-init.lock"), async () => {
+          if (this.#schedulingIndexReady()) return;
+          privateMkdir(this.#schedulingRoot());
+          let scanned = 0;
+          for (const taskId of this.listTaskIds()) {
+            if (!existsSync3(this.taskDir(taskId))) continue;
+            let inactive = false;
+            try {
+              const status = this.#validatedSchedulingStatus(taskId);
+              inactive = isTerminalStatus(status.status) && status.cleanup_unverified !== true;
+            } catch {
+            }
+            if (!inactive && existsSync3(this.taskDir(taskId))) this.#markSchedulingTask(taskId);
+            if (++scanned % 64 === 0) await new Promise((resolve) => setImmediate(resolve));
+          }
+          this.#writeJsonAtomic(path4.join(this.#schedulingRoot(), ".ready.json"), { version: 1 });
+        });
+        this.#schedulingInitialization = initialize;
+        try {
+          await initialize;
+        } finally {
+          this.#schedulingInitialization = null;
+        }
+      }
+      listSchedulingTaskIds() {
+        if (!this.#schedulingIndexReady()) throw new Error("scheduling index has not been initialized");
+        return readdirSync(this.#schedulingRoot()).filter((entry) => TASK_ID_PATTERN.test(entry));
+      }
+      /** Only pruning needs the task lock; revalidate under it so a stale terminal
+       * snapshot can never hide a worker commit or continuation. */
+      readSchedulingStatus(taskId) {
+        const observed = this.#validatedSchedulingStatus(taskId);
+        if (!isTerminalStatus(observed.status) || observed.cleanup_unverified === true) return observed;
+        return withEventLock(path4.join(this.taskDir(taskId), "state.lock"), () => {
+          const status = this.#validatedSchedulingStatus(taskId);
+          if (isTerminalStatus(status.status) && status.cleanup_unverified !== true) {
+            rmSync(path4.join(this.#schedulingRoot(), taskId), { force: true });
+          }
+          return status;
+        });
+      }
+      #validatedSchedulingStatus(taskId) {
+        const status = this.readStatus(taskId);
+        this.readTask(taskId);
+        this.readWorkspaceRef(taskId);
+        this.readResult(taskId);
+        this.readAttemptMeta(taskId, status.attempt, "started.json");
+        this.readAttemptMeta(taskId, status.attempt, "continue.json");
+        return status;
+      }
+      #schedulingRoot() {
+        return path4.join(this.#tasksRoot, ".scheduling");
+      }
+      #schedulingIndexReady() {
+        const file = path4.join(this.#schedulingRoot(), ".ready.json");
+        if (!existsSync3(file)) return false;
+        let value;
+        try {
+          value = this.#readJson(file);
+        } catch {
+          return false;
+        }
+        if (value && typeof value === "object" && "version" in value) {
+          if (value.version === 1) return true;
+          if (typeof value.version === "number" && value.version > 1) throw new Error("unsupported scheduling index version; upgrade all Bridge managers together");
+        }
+        return false;
+      }
+      #markSchedulingTask(taskId) {
+        this.assertValidTaskId(taskId);
+        privateMkdir(this.#schedulingRoot());
+        const marker = path4.join(this.#schedulingRoot(), taskId);
+        try {
+          closeSync(openSync(marker, "wx", 384));
+        } catch (error2) {
+          if (error2.code !== "EEXIST") throw error2;
+        }
+      }
       createTask(task, createdAt) {
         this.assertValidTaskId(task.task_id);
         const dir = this.taskDir(task.task_id);
@@ -450,6 +534,7 @@ var init_task_store = __esm({
           throw new Error(`task already exists: ${task.task_id}`);
         }
         privateMkdir(path4.join(dir, "attempts"));
+        this.#markSchedulingTask(task.task_id);
         this.#writeJsonAtomic(path4.join(dir, "task.json"), task);
         const status = {
           task_id: task.task_id,
@@ -509,6 +594,7 @@ var init_task_store = __esm({
             task_id: current.task_id,
             updated_at: (/* @__PURE__ */ new Date()).toISOString()
           };
+          this.#markSchedulingTask(taskId);
           this.#writeJsonAtomic(path4.join(this.taskDir(taskId), "status.json"), next);
           return next;
         });
@@ -529,6 +615,7 @@ var init_task_store = __esm({
       commitWorkerResult(taskId, attempt, result, patch) {
         withEventLock(path4.join(this.taskDir(taskId), "state.lock"), () => {
           this.assertWorkerAttempt(taskId, attempt);
+          this.#markSchedulingTask(taskId);
           this.#writeJsonAtomic(path4.join(this.taskDir(taskId), "result.json"), result);
           const current = this.readStatus(taskId);
           let effective = patch;
@@ -545,6 +632,7 @@ var init_task_store = __esm({
         withEventLock(path4.join(this.taskDir(taskId), "state.lock"), () => {
           const current = this.readStatus(taskId);
           if (current.attempt !== attempt || current.status !== "running") return;
+          this.#markSchedulingTask(taskId);
           this.#writeJsonAtomic(path4.join(this.taskDir(taskId), "status.json"), { ...current, ...patch, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
         });
       }
@@ -23243,6 +23331,8 @@ var PERSISTED_RUNTIME_KEYS = [
 ];
 function loadPersistedRuntimeEnvironment(source, homeDir = homedir2(), host = codexHostProfile(homeDir)) {
   validateHostProfile(host);
+  const explicitDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
+  if (explicitDataRoot && !path2.isAbsolute(explicitDataRoot)) throw new BridgeError("provider_config_invalid", "ZCODE_BRIDGE_DATA_DIR must be an absolute path");
   const settingsPaths = [host.settingsDirectory, ...host.legacySettingsDirectories ?? []].map((directory) => path2.join(directory, "runtime-config.json"));
   const legacyDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
   if (legacyDataRoot && path2.isAbsolute(legacyDataRoot)) {
@@ -23276,6 +23366,9 @@ function loadPersistedRuntimeEnvironment(source, homeDir = homedir2(), host = co
     if (typeof value === "string") env[key] = value.trim();
     else if (value === null) env[key] = "";
     else throw new BridgeError("provider_config_invalid", `Bridge runtime setting ${key} must be a string or null`);
+  }
+  if (explicitDataRoot) {
+    env["ZCODE_BRIDGE_DATA_DIR"] = explicitDataRoot;
   }
   return env;
 }
@@ -25452,9 +25545,9 @@ var BridgeTaskManager = class _BridgeTaskManager {
     this.#probe = options.probe ?? null;
     this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.#dataRoot = options.store.dataRoot;
-    this.#maxConcurrentWorkers = options.maxConcurrentWorkers ?? 8;
-    if (!Number.isInteger(this.#maxConcurrentWorkers) || this.#maxConcurrentWorkers < 1 || this.#maxConcurrentWorkers > 8) {
-      throw new RangeError("maxConcurrentWorkers must be an integer from 1 to 8");
+    this.#maxConcurrentWorkers = options.maxConcurrentWorkers ?? 20;
+    if (!Number.isInteger(this.#maxConcurrentWorkers) || this.#maxConcurrentWorkers < 1 || this.#maxConcurrentWorkers > 20) {
+      throw new RangeError("maxConcurrentWorkers must be an integer from 1 to 20");
     }
     this.#workerStartGraceMs = options.workerStartGraceMs ?? 1e4;
     if (!Number.isInteger(this.#workerStartGraceMs) || this.#workerStartGraceMs < 0) {
@@ -25500,6 +25593,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
    * blocks the others. */
   async recoverTasks() {
     if (this.#recoveryPromise) return this.#recoveryPromise;
+    await this.#store.initializeSchedulingIndex();
     const releaseRecovery = tryAcquireProcessLock(path9.join(this.#store.tasksRoot, ".recovery.lock"));
     if (!releaseRecovery) return;
     const lastRunFile = path9.join(this.#store.tasksRoot, ".recovery-last-run");
@@ -25509,7 +25603,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
     }
     const run = (async () => {
       let hasQueuedTask = false;
-      for (const taskId of this.#store.listTaskIds()) {
+      for (const taskId of this.#store.listSchedulingTaskIds()) {
         try {
           const status = this.#safeStatus(taskId);
           if (!status) continue;
@@ -26607,7 +26701,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
     return true;
   }
   #pumpLocked() {
-    const snapshot = this.#store.listTaskIds().map((taskId) => ({ taskId, status: this.#safeStatus(taskId) }));
+    const snapshot = this.#store.listSchedulingTaskIds().map((taskId) => ({ taskId, status: this.#safeStatus(taskId) }));
     const running = snapshot.filter(({ status }) => status?.status === "running" || status?.cleanup_unverified === true).map(({ taskId }) => taskId);
     if (running.length >= this.#maxConcurrentWorkers) return;
     const occupiedPaths = running.map((taskId) => this.#executionPathKeyLocked(taskId));
@@ -26731,7 +26825,8 @@ var BridgeTaskManager = class _BridgeTaskManager {
       throw new TaskManagerError("TASK_INVALID", "model must include non-empty provider_id and model_id strings");
     }
   }
-  #exclusive(operation) {
+  async #exclusive(operation) {
+    await this.#store.initializeSchedulingIndex();
     if (this.#queuedOperations >= 32) return Promise.reject(new TaskManagerError("BRIDGE_BUSY", "Bridge operation queue is full; retry with the same task_id"));
     this.#queuedOperations += 1;
     let started = false;
@@ -26767,13 +26862,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
   }
   #safeStatus(taskId) {
     try {
-      const status = this.#store.readStatus(taskId);
-      this.#store.readTask(taskId);
-      this.#store.readWorkspaceRef(taskId);
-      this.#store.readResult(taskId);
-      this.#store.readAttemptMeta(taskId, status.attempt, "started.json");
-      this.#store.readAttemptMeta(taskId, status.attempt, "continue.json");
-      return status;
+      return this.#store.readSchedulingStatus(taskId);
     } catch (error2) {
       console.error(`Bridge skipped corrupt task ${taskId}: ${error2 instanceof Error ? error2.message : String(error2)}`);
       return null;
@@ -29837,11 +29926,11 @@ function resolveDataRoot(env) {
 }
 function resolveMaxConcurrentWorkers(env) {
   const raw = env["ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"]?.trim();
-  if (!raw) return { maxConcurrentWorkers: 8 };
-  if (!/^[1-8]$/u.test(raw)) {
+  if (!raw) return { maxConcurrentWorkers: 20 };
+  if (!/^(?:[1-9]|1[0-9]|20)$/u.test(raw)) {
     return {
       maxConcurrentWorkers: 1,
-      warning: "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS must be an integer from 1 to 8; using 1"
+      warning: "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS must be an integer from 1 to 20; using 1"
     };
   }
   return { maxConcurrentWorkers: Number(raw) };

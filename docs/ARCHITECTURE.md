@@ -1,9 +1,10 @@
 # 当前架构
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Last updated: 2026-11-10
+> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verification: 2026-10-28，静态核对本次 src/schedule 的监督、持久化、续作与唤醒装配；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
@@ -93,7 +94,7 @@ app-server stdout 协议帧与模型文本捕获分离（ADR-008）：完整 JSO
 
 TaskStore 的 JSON 用临时文件原子 rename；事件文件有独立短锁、字节上限、关键事件保留空间和稀疏索引。追加只读最后一个字节，不重新读取完整历史。worker 把模型输出拆为 2000 字符事件；容量用尽仍可能丢弃非关键事件，普通超长摘要明确标记截断。
 
-损坏记录会显式诊断、隔离调度，并保留可确定的执行路径。健康且不重叠的任务可继续；无法确定损坏任务的执行范围时暂停新调度，不能猜测它已经释放目录。每次 pump 在调度锁内校验一次全库，快照复用于运行占用、损坏占用和 FIFO 队列；启动前重读 queued 状态。快照不跨操作缓存，终态健康检查仍保留，因此调度成本仍随历史任务数增长。
+损坏记录会显式诊断、隔离调度，并保留可确定的执行路径。健康且不重叠的任务可继续；无法确定损坏任务的执行范围时暂停新调度，不能猜测它已经释放目录。按 ADR-020，首次全库校验在独立初始化锁中完成，分批让出事件循环，不持有调度锁。每次 pump 只验证 `.tasks/.scheduling/` 候选，快照复用于运行占用、损坏占用和 FIFO 队列；启动前重读 queued 状态。所有状态写入先登记候选，健康终态在任务锁内重新验证后撤销；状态快照不跨操作缓存。已验证清理的历史终态不再逐轮读取，历史查询不变；手工修改归档式历史不作为调度入口。同库所有 Manager 须同时升级重连，旧版 worker 可完成已登记任务。
 
 Desktop 索引同步是 best effort，事务内检查 schema 与 Bridge owner、更新有限状态字段，保留用户标题与额外 metadata。回归使用临时 SQLite。真实 Desktop schema/刷新/并发行为受安装版本影响，本轮未写入真实数据库。
 
@@ -107,4 +108,4 @@ KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复
 
 ## ADR-017 增量
 
-默认编码报告合同不变。普通数据任务显式选 raw 后，PromptBuilder 不追加 AgentReport 合同，adapter 保留原生成功/未知终态的判定，worker/manager 规范化原文且独立验证清理；raw completed 不是数据验收。精简会话只使用各执行器原生工具配置，保留默认系统提示。详见 [接口增量](INTERFACES.md#数据任务与精简会话adr-017)。恢复周期仍检查历史状态，只有未观察到 queued 时省掉无用的第二次 pump 扫描。
+默认编码报告合同不变。普通数据任务显式选 raw 后，PromptBuilder 不追加 AgentReport 合同，adapter 保留原生成功/未知终态的判定，worker/manager 规范化原文且独立验证清理；raw completed 不是数据验收。精简会话只使用各执行器原生工具配置，保留默认系统提示。详见 [接口增量](INTERFACES.md#数据任务与精简会话adr-017)。ADR-020 后恢复周期只检查已登记候选，未观察到 queued 时仍省掉无用的第二次 pump。

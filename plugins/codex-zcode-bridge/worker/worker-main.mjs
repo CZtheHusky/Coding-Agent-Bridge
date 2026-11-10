@@ -21760,6 +21760,8 @@ var PERSISTED_RUNTIME_KEYS = [
 ];
 function loadPersistedRuntimeEnvironment(source, homeDir = homedir2(), host = codexHostProfile(homeDir)) {
   validateHostProfile(host);
+  const explicitDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
+  if (explicitDataRoot && !path4.isAbsolute(explicitDataRoot)) throw new BridgeError("provider_config_invalid", "ZCODE_BRIDGE_DATA_DIR must be an absolute path");
   const settingsPaths = [host.settingsDirectory, ...host.legacySettingsDirectories ?? []].map((directory) => path4.join(directory, "runtime-config.json"));
   const legacyDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
   if (legacyDataRoot && path4.isAbsolute(legacyDataRoot)) {
@@ -21793,6 +21795,9 @@ function loadPersistedRuntimeEnvironment(source, homeDir = homedir2(), host = co
     if (typeof value === "string") env[key] = value.trim();
     else if (value === null) env[key] = "";
     else throw new BridgeError("provider_config_invalid", `Bridge runtime setting ${key} must be a string or null`);
+  }
+  if (explicitDataRoot) {
+    env["ZCODE_BRIDGE_DATA_DIR"] = explicitDataRoot;
   }
   return env;
 }
@@ -24960,6 +24965,31 @@ function isTransientLockFsError(error62) {
 function pauseBriefly() {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RETRY_PAUSE_MS);
 }
+async function withProcessLock(directory, operation, timeoutMs = 3e4) {
+  const deadline = Date.now() + timeoutMs;
+  let release;
+  while (!(release = tryAcquireProcessLock(directory))) {
+    if (Date.now() >= deadline) {
+      const owner = describeLockOwner(directory);
+      throw new Error(`timed out waiting for process lock: ${directory}${owner ? ` (live owner: ${owner})` : ""}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+function describeLockOwner(directory) {
+  try {
+    const owner = JSON.parse(readFileSync3(path8.join(directory, "owner.json"), "utf8"));
+    if (!Number.isSafeInteger(owner.pid)) return null;
+    return `pid ${String(owner.pid)}${owner.started_at ? `, started ${owner.started_at}` : ""}`;
+  } catch {
+    return null;
+  }
+}
 function tryAcquireProcessLock(directory) {
   return tryAcquireProcessLockWithRetry(directory, 0);
 }
@@ -25197,6 +25227,7 @@ var TaskStore = class {
   #tasksRoot;
   #maxLogBytes;
   #maxEventBytes;
+  #schedulingInitialization = null;
   constructor(dataRoot2, options = {}) {
     this.#dataRoot = dataRoot2;
     this.#tasksRoot = path9.join(dataRoot2, ".tasks");
@@ -25232,6 +25263,89 @@ var TaskStore = class {
       (entry) => existsSync6(path9.join(this.#tasksRoot, entry, "status.json"))
     );
   }
+  /** Migrate legacy records once, outside the manager lock. Writers publish
+   * candidates before status, so concurrent new work cannot escape the scan. */
+  async initializeSchedulingIndex() {
+    if (this.#schedulingIndexReady()) return;
+    if (this.#schedulingInitialization) return this.#schedulingInitialization;
+    const initialize = withProcessLock(path9.join(this.#tasksRoot, ".scheduling-init.lock"), async () => {
+      if (this.#schedulingIndexReady()) return;
+      privateMkdir(this.#schedulingRoot());
+      let scanned = 0;
+      for (const taskId2 of this.listTaskIds()) {
+        if (!existsSync6(this.taskDir(taskId2))) continue;
+        let inactive = false;
+        try {
+          const status = this.#validatedSchedulingStatus(taskId2);
+          inactive = isTerminalStatus(status.status) && status.cleanup_unverified !== true;
+        } catch {
+        }
+        if (!inactive && existsSync6(this.taskDir(taskId2))) this.#markSchedulingTask(taskId2);
+        if (++scanned % 64 === 0) await new Promise((resolve) => setImmediate(resolve));
+      }
+      this.#writeJsonAtomic(path9.join(this.#schedulingRoot(), ".ready.json"), { version: 1 });
+    });
+    this.#schedulingInitialization = initialize;
+    try {
+      await initialize;
+    } finally {
+      this.#schedulingInitialization = null;
+    }
+  }
+  listSchedulingTaskIds() {
+    if (!this.#schedulingIndexReady()) throw new Error("scheduling index has not been initialized");
+    return readdirSync(this.#schedulingRoot()).filter((entry) => TASK_ID_PATTERN.test(entry));
+  }
+  /** Only pruning needs the task lock; revalidate under it so a stale terminal
+   * snapshot can never hide a worker commit or continuation. */
+  readSchedulingStatus(taskId2) {
+    const observed = this.#validatedSchedulingStatus(taskId2);
+    if (!isTerminalStatus(observed.status) || observed.cleanup_unverified === true) return observed;
+    return withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
+      const status = this.#validatedSchedulingStatus(taskId2);
+      if (isTerminalStatus(status.status) && status.cleanup_unverified !== true) {
+        rmSync(path9.join(this.#schedulingRoot(), taskId2), { force: true });
+      }
+      return status;
+    });
+  }
+  #validatedSchedulingStatus(taskId2) {
+    const status = this.readStatus(taskId2);
+    this.readTask(taskId2);
+    this.readWorkspaceRef(taskId2);
+    this.readResult(taskId2);
+    this.readAttemptMeta(taskId2, status.attempt, "started.json");
+    this.readAttemptMeta(taskId2, status.attempt, "continue.json");
+    return status;
+  }
+  #schedulingRoot() {
+    return path9.join(this.#tasksRoot, ".scheduling");
+  }
+  #schedulingIndexReady() {
+    const file2 = path9.join(this.#schedulingRoot(), ".ready.json");
+    if (!existsSync6(file2)) return false;
+    let value;
+    try {
+      value = this.#readJson(file2);
+    } catch {
+      return false;
+    }
+    if (value && typeof value === "object" && "version" in value) {
+      if (value.version === 1) return true;
+      if (typeof value.version === "number" && value.version > 1) throw new Error("unsupported scheduling index version; upgrade all Bridge managers together");
+    }
+    return false;
+  }
+  #markSchedulingTask(taskId2) {
+    this.assertValidTaskId(taskId2);
+    privateMkdir(this.#schedulingRoot());
+    const marker = path9.join(this.#schedulingRoot(), taskId2);
+    try {
+      closeSync(openSync(marker, "wx", 384));
+    } catch (error62) {
+      if (error62.code !== "EEXIST") throw error62;
+    }
+  }
   createTask(task, createdAt) {
     this.assertValidTaskId(task.task_id);
     const dir = this.taskDir(task.task_id);
@@ -25239,6 +25353,7 @@ var TaskStore = class {
       throw new Error(`task already exists: ${task.task_id}`);
     }
     privateMkdir(path9.join(dir, "attempts"));
+    this.#markSchedulingTask(task.task_id);
     this.#writeJsonAtomic(path9.join(dir, "task.json"), task);
     const status = {
       task_id: task.task_id,
@@ -25298,6 +25413,7 @@ var TaskStore = class {
         task_id: current.task_id,
         updated_at: (/* @__PURE__ */ new Date()).toISOString()
       };
+      this.#markSchedulingTask(taskId2);
       this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "status.json"), next);
       return next;
     });
@@ -25318,6 +25434,7 @@ var TaskStore = class {
   commitWorkerResult(taskId2, attempt, result, patch) {
     withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       this.assertWorkerAttempt(taskId2, attempt);
+      this.#markSchedulingTask(taskId2);
       this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "result.json"), result);
       const current = this.readStatus(taskId2);
       let effective = patch;
@@ -25334,6 +25451,7 @@ var TaskStore = class {
     withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const current = this.readStatus(taskId2);
       if (current.attempt !== attempt || current.status !== "running") return;
+      this.#markSchedulingTask(taskId2);
       this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "status.json"), { ...current, ...patch, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
     });
   }

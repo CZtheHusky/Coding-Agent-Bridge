@@ -1,11 +1,11 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-10，仅核对上游审阅台账、局部回移状态及 ADR-019/Kimi 实测报告的路由；其余保留历史范围。
+> Last verified: 2026-11-10，ADR-020、20 并发与批量调度测量报告路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 5a66d71e5c4ad66702006fbed00e641ef2f80096
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -55,14 +55,14 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 语言 | 最后更新 | 最后核对 |
 |---|---|---|---|
-| [README.md](../README.md) | en | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
-| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
-| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-10 | 上游局部回移与 Linux 离线回归；Kimi 历史实测及其余范围见文档顶部 |
+| [README.md](../README.md) | en | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
+| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
+| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
+| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
 | [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
-| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
+| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
+| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
 | [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
 | [plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md) | zh | 2026-11-09 | 技能改名与精简、按需参考路由；API 参数验证边界同本轮记录 |
 
@@ -90,6 +90,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 | 文档 | 日期 | 说明 |
 |---|---|---|
 | [上游 stable / preview 审阅台账](reports/2026-11-10-upstream-review.md) | 2026-11-10 | 83 + 11 个完整提交处置、专项核查与专题审阅边界、部分采纳候选及后续增量范围 / Upstream review ledger and incremental-review baseline |
+| [批量调度、目录覆盖与 20 并发](reports/2026-11-10-batch-scheduling-and-data-root.md) | 2026-11-10 | 活动索引、两宿主目录解析、Linux 回归及双进程存储对照；保留共享盘排队超时 / Batch scheduling, explicit data roots, twenty-worker tests and storage limits |
 | [Kimi 代理修复与部署](reports/2026-11-04-kimi-proxy-fix.md) | 2026-11-04 | 代理边界回归、本机与远端安装验证、Desktop SSH 入口复核；公开脱敏记录 |
 | [Claude 入口与 Kimi 代理修复](reports/2026-11-08-claude-bridge-repair.md) | 2026-11-08 | 双实例根因、Claude 路径声明、独立宿主升级、真实模型执行与续作及待重连边界 |
 | [research/phase1-codex-zcode-2026-09-26.md](research/phase1-codex-zcode-2026-09-26.md) | 2026-09-26 | Phase 1 参考项目调研与 V0.1 架构建议 |
@@ -183,3 +184,5 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [结果诊断与构建观察验证 / Result diagnostics validation](reports/2026-11-09-result-diagnostics.md)：结构化诊断、同版本更新提示、回归及安装边界。
 
 - [ADR-019：Kimi 晚注册工具与真实用量](decisions/ADR-019-kimi-late-tools-and-usage.md)。
+
+- [ADR-020：活动调度索引与显式数据目录 / Active scheduling index and explicit data root](decisions/ADR-020-scheduling-index-and-data-root.md)：批量历史扫描与共享锁修复、一次迁移及同库统一升级要求。

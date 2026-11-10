@@ -11,7 +11,7 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type { TaskPackage, TaskProgressEvent, TaskResult, TaskStatus, TaskStatusRecord, WorkspaceRef, ZCodeInteractionRecord, ZCodeInteractionRequest } from "../interfaces.js";
-import { tryAcquireProcessLock } from "./process-lock.js";
+import { tryAcquireProcessLock, withProcessLock } from "./process-lock.js";
 import { atomicRenameSync } from "./atomic-rename.js";
 
 /** status.json shape: the frozen TaskStatusRecord plus internal fields. */
@@ -164,6 +164,7 @@ export class TaskStore {
   readonly #tasksRoot: string;
   readonly #maxLogBytes: number;
   readonly #maxEventBytes: number;
+  #schedulingInitialization: Promise<void> | null = null;
 
   constructor(dataRoot: string, options: TaskStoreOptions = {}) {
     this.#dataRoot = dataRoot;
@@ -207,6 +208,88 @@ export class TaskStore {
     );
   }
 
+  /** Migrate legacy records once, outside the manager lock. Writers publish
+   * candidates before status, so concurrent new work cannot escape the scan. */
+  async initializeSchedulingIndex(): Promise<void> {
+    if (this.#schedulingIndexReady()) return;
+    if (this.#schedulingInitialization) return this.#schedulingInitialization;
+    const initialize = withProcessLock(path.join(this.#tasksRoot, ".scheduling-init.lock"), async () => {
+      if (this.#schedulingIndexReady()) return;
+      privateMkdir(this.#schedulingRoot());
+      let scanned = 0;
+      for (const taskId of this.listTaskIds()) {
+        // A legacy history directory may have been removed after enumeration.
+        // Never invent a new candidate for it; existing markers stay intact.
+        if (!existsSync(this.taskDir(taskId))) continue;
+        let inactive = false;
+        try {
+          const status = this.#validatedSchedulingStatus(taskId);
+          inactive = isTerminalStatus(status.status) && status.cleanup_unverified !== true;
+        } catch { /* Corrupt records must still reserve their execution scope. */ }
+        if (!inactive && existsSync(this.taskDir(taskId))) this.#markSchedulingTask(taskId);
+        if (++scanned % 64 === 0) await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      this.#writeJsonAtomic(path.join(this.#schedulingRoot(), ".ready.json"), { version: 1 });
+    });
+    this.#schedulingInitialization = initialize;
+    try { await initialize; }
+    finally { this.#schedulingInitialization = null; }
+  }
+
+  listSchedulingTaskIds(): string[] {
+    if (!this.#schedulingIndexReady()) throw new Error("scheduling index has not been initialized");
+    return readdirSync(this.#schedulingRoot()).filter((entry) => TASK_ID_PATTERN.test(entry));
+  }
+
+  /** Only pruning needs the task lock; revalidate under it so a stale terminal
+   * snapshot can never hide a worker commit or continuation. */
+  readSchedulingStatus(taskId: string): InternalTaskStatus {
+    const observed = this.#validatedSchedulingStatus(taskId);
+    if (!isTerminalStatus(observed.status) || observed.cleanup_unverified === true) return observed;
+    return withEventLock(path.join(this.taskDir(taskId), "state.lock"), () => {
+      const status = this.#validatedSchedulingStatus(taskId);
+      if (isTerminalStatus(status.status) && status.cleanup_unverified !== true) {
+        rmSync(path.join(this.#schedulingRoot(), taskId), { force: true });
+      }
+      return status;
+    });
+  }
+
+  #validatedSchedulingStatus(taskId: string): InternalTaskStatus {
+    const status = this.readStatus(taskId);
+    this.readTask(taskId);
+    this.readWorkspaceRef(taskId);
+    this.readResult(taskId);
+    this.readAttemptMeta(taskId, status.attempt, "started.json");
+    this.readAttemptMeta(taskId, status.attempt, "continue.json");
+    return status;
+  }
+
+  #schedulingRoot(): string {
+    return path.join(this.#tasksRoot, ".scheduling");
+  }
+
+  #schedulingIndexReady(): boolean {
+    const file = path.join(this.#schedulingRoot(), ".ready.json");
+    if (!existsSync(file)) return false;
+    let value: unknown;
+    try { value = this.#readJson(file); }
+    catch { return false; }
+    if (value && typeof value === "object" && "version" in value) {
+      if (value.version === 1) return true;
+      if (typeof value.version === "number" && value.version > 1) throw new Error("unsupported scheduling index version; upgrade all Bridge managers together");
+    }
+    return false;
+  }
+
+  #markSchedulingTask(taskId: string): void {
+    this.assertValidTaskId(taskId);
+    privateMkdir(this.#schedulingRoot());
+    const marker = path.join(this.#schedulingRoot(), taskId);
+    try { closeSync(openSync(marker, "wx", 0o600)); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+  }
+
   createTask(task: TaskPackage, createdAt: string): void {
     this.assertValidTaskId(task.task_id);
     const dir = this.taskDir(task.task_id);
@@ -214,6 +297,7 @@ export class TaskStore {
       throw new Error(`task already exists: ${task.task_id}`);
     }
     privateMkdir(path.join(dir, "attempts"));
+    this.#markSchedulingTask(task.task_id);
     this.#writeJsonAtomic(path.join(dir, "task.json"), task);
     const status: InternalTaskStatus = {
       task_id: task.task_id,
@@ -280,6 +364,7 @@ export class TaskStore {
         task_id: current.task_id,
         updated_at: new Date().toISOString(),
       };
+      this.#markSchedulingTask(taskId);
       this.#writeJsonAtomic(path.join(this.taskDir(taskId), "status.json"), next);
       return next;
     });
@@ -303,6 +388,7 @@ export class TaskStore {
   commitWorkerResult(taskId: string, attempt: number, result: TaskResult, patch: Partial<InternalTaskStatus>): void {
     withEventLock(path.join(this.taskDir(taskId), "state.lock"), () => {
       this.assertWorkerAttempt(taskId, attempt);
+      this.#markSchedulingTask(taskId);
       this.#writeJsonAtomic(path.join(this.taskDir(taskId), "result.json"), result);
       const current = this.readStatus(taskId);
       // ADR-009 / review-round-1 R1 (worker-commit addendum): the worker's
@@ -327,6 +413,7 @@ export class TaskStore {
     withEventLock(path.join(this.taskDir(taskId), "state.lock"), () => {
       const current = this.readStatus(taskId);
       if (current.attempt !== attempt || current.status !== "running") return;
+      this.#markSchedulingTask(taskId);
       this.#writeJsonAtomic(path.join(this.taskDir(taskId), "status.json"), { ...current, ...patch, updated_at: new Date().toISOString() });
     });
   }

@@ -96,6 +96,24 @@ test("persisted runtime settings override inherited environment values", () => {
   }
 });
 
+test("an explicit data directory isolates batches while other persisted settings still win", () => {
+  const { root, cleanup } = makeFixture();
+  try {
+    const settingsDirectory = path.join(root, "settings");
+    mkdirSync(settingsDirectory);
+    const host = { name: "claude-test", settingsDirectory };
+    const saved = JSON.stringify({ ZCODE_BRIDGE_DATA_DIR: path.join(root, "saved-data"), ZCODE_BRIDGE_MODE: "build", ZCODE_BRIDGE_NODE: "saved-node" });
+    writeFileSync(path.join(settingsDirectory, "runtime-config.json"), saved);
+    const batch = path.join(root, "batch-data");
+    const env = loadPersistedRuntimeEnvironment({ ZCODE_BRIDGE_DATA_DIR: ` ${batch} `, ZCODE_BRIDGE_MODE: "yolo", ZCODE_BRIDGE_NODE: "inherited-node" }, root, host);
+    assert.equal(env.ZCODE_BRIDGE_DATA_DIR, batch);
+    assert.equal(env.ZCODE_BRIDGE_MODE, "build");
+    assert.equal(env.ZCODE_BRIDGE_NODE, "saved-node", "proxy/runtime wrappers retain their saved precedence");
+    assert.equal(loadPersistedRuntimeEnvironment({ ZCODE_BRIDGE_DATA_DIR: " " }, root, host).ZCODE_BRIDGE_DATA_DIR, path.join(root, "saved-data"));
+    assert.throws(() => loadPersistedRuntimeEnvironment({ ZCODE_BRIDGE_DATA_DIR: "relative" }, root, host), /must be an absolute path/);
+  } finally { cleanup(); }
+});
+
 test("discovery via ZCODE_WINDOWS_APP_INSTALL_DIR and data-dir personal config", async () => {
   const { root, cleanup } = makeFixture();
   try {

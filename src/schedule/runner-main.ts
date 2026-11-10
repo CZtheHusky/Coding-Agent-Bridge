@@ -29,7 +29,7 @@ const taskStore = new TaskStore(dataRoot);
 const manager = new BridgeTaskManager({
   store: taskStore,
   workspaceProvider: new DirectWorkspaceProvider(),
-  maxConcurrentWorkers: Number(process.env["ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"] ?? "8"),
+  maxConcurrentWorkers: Number(process.env["ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"] ?? "20"),
   spawnWorker: createWorkerSpawner(host),
   probe: createPlatformProbe(),
 });

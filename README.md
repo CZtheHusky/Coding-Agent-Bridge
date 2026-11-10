@@ -4,11 +4,12 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-10
-> Last verified: 2026-11-10 — Kimi API mode, native tools/usage and four installed entrypoints; OCR failures and platform limits are recorded in the live report.
+> Last verified: 2026-11-10 — ADR-020 scheduling, data-root overrides and twenty-worker Linux tests; shared-storage timeouts and untested scope are recorded in the [repair report](docs/reports/2026-11-10-batch-scheduling-and-data-root.md).
+> Prior verification: 2026-11-10 — Kimi API mode, native tools/usage and four installed entrypoints; OCR failures and platform limits are recorded in the live report.
 > Prior verification: 2026-11-09 — ADR-018 interfaces and implementation only; validation boundaries are recorded in the diagnostics report.
 > Prior verification: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
 > Prior verification: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
-> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
+> Verified against: 01748cd + ADR-020 working tree
 
 **Use ZCode as a coding worker inside Codex.**
 
@@ -108,7 +109,11 @@ Optional `runtime_session_usage` exposes ZCode's native **session-wide** request
 counts at `observed_at`; these are not per-turn counts or estimated billing.
 
 Tasks using the same or overlapping execution directories are serialized within one
-data root. The default eight-worker concurrency applies to non-overlapping paths.
+data root. The default twenty-worker concurrency applies to non-overlapping paths.
+The scheduler tracks active candidates instead of rereading healthy finished history on every dispatch. Legacy databases are validated once outside the scheduling lock. When upgrading to this index, upgrade and reconnect **all Bridge manager processes sharing that data root together**; older detached workers can finish already registered tasks, but old managers must not keep submitting or continuing tasks in that database. See [ADR-020](docs/decisions/ADR-020-scheduling-index-and-data-root.md).
+
+For batches, an explicit `ZCODE_BRIDGE_DATA_DIR=/absolute/batch-data` selects an independent task database and worker limit. Choose a persistent local directory for sustained load; slow shared storage can still exhaust the five-second operation queue. A tool response with `isError: true` is a failure; for `BRIDGE_BUSY` or `REQUEST_QUEUE_TIMEOUT`, retry the same task ID. Separate data roots do not coordinate workspace locks.
+
 After an upgrade, reconnect MCP or start a new host session: already-running servers
 keep their loaded code and tool schemas. Do not restart workers during active work.
 
@@ -225,10 +230,10 @@ To customize settings, edit `%USERPROFILE%\.codex\codex-zcode-bridge\runtime-con
 - `ZCODE_BRIDGE_DEFAULT_PROVIDER_ID` and `ZCODE_BRIDGE_DEFAULT_MODEL_ID`: default provider and model IDs; set both.
 - `ZCODE_BRIDGE_MODE`: initial execution mode: `plan`, `build`, `edit`, or `yolo`; defaults to `yolo`. `yolo` allows ordinary tool operations with the current operating-system account's permissions. Set it to `build` to use ZCode's approval rules.
 - `ZCODE_BRIDGE_TIMEOUT_MS`: default wall-clock limit for one task attempt when `timeout_ms` is omitted; 60,000–14,400,000 milliseconds, default 3,600,000 (60 minutes).
-- `ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS`: parallel task limit.
+- `ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS`: parallel task limit per data directory, 1–20, default 20. Managers sharing that directory should use the same setting; overlapping execution paths remain serialized. Existing saved limits remain effective until changed.
 - `ZCODE_BRIDGE_BROWSER_USE`: optional headless browser host for ZCode's native browser tools; `off` (default) or `headless`. When `headless`, the Bridge worker answers `interaction/browserList`/`interaction/browserExecute` reverse RPCs through a managed CDP backend that launches an installed system Chromium/Edge with an isolated temporary profile (nothing is downloaded and the user's own browser windows are never attached). Optional `ZCODE_BRIDGE_BROWSER_EXECUTABLE` sets an absolute executable path. The native model browser flow was verified on the recorded Windows/ZCode version; see `docs/reports/2026-10-15-browser-and-transport-fixes.md` for scope and remaining limitations.
 
-Save valid JSON; a newly started Bridge reads the config file, which takes precedence over legacy environment variables. `ZCODE_HOME` must point to the `.zcode` directory, and the personal provider config must be at `v2/provider_config.json` inside it. Copy provider/model IDs from your ZCode configuration, and do not edit ZCode's provider files.
+Save valid JSON; a newly started Bridge reads the config file, which takes precedence over environment variables except for a nonempty explicit `ZCODE_BRIDGE_DATA_DIR`. That absolute path selects a separate task database without moving old tasks or changing saved proxy/runtime settings. `ZCODE_HOME` must point to the `.zcode` directory, and the personal provider config must be at `v2/provider_config.json` inside it. Copy provider/model IDs from your ZCode configuration, and do not edit ZCode's provider files.
 
 See the [official OpenAI plugin documentation](https://developers.openai.com/plugins/build/plugins) for marketplace and plugin details.
 

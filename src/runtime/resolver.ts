@@ -36,11 +36,13 @@ const PERSISTED_RUNTIME_KEYS = [
 
 /**
  * Loads safe, non-secret runtime settings from the stable per-user config.
- * The config file takes precedence over process variables; environment values
- * remain a fallback for standalone use and migration from older installs.
+ * The config file takes precedence except for an explicit nonempty DATA_DIR,
+ * which selects an isolated task database without changing saved settings.
  */
 export function loadPersistedRuntimeEnvironment(source: NodeJS.ProcessEnv, homeDir = homedir(), host: BridgeHostProfile = codexHostProfile(homeDir)): NodeJS.ProcessEnv {
   validateHostProfile(host);
+  const explicitDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
+  if (explicitDataRoot && !path.isAbsolute(explicitDataRoot)) throw new BridgeError("provider_config_invalid", "ZCODE_BRIDGE_DATA_DIR must be an absolute path");
   const settingsPaths = [host.settingsDirectory, ...(host.legacySettingsDirectories ?? [])].map((directory) => path.join(directory, "runtime-config.json"));
   const legacyDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
   if (legacyDataRoot && path.isAbsolute(legacyDataRoot)) {
@@ -78,6 +80,9 @@ export function loadPersistedRuntimeEnvironment(source: NodeJS.ProcessEnv, homeD
     if (typeof value === "string") env[key] = value.trim();
     else if (value === null) env[key] = "";
     else throw new BridgeError("provider_config_invalid", `Bridge runtime setting ${key} must be a string or null`);
+  }
+  if (explicitDataRoot) {
+    env["ZCODE_BRIDGE_DATA_DIR"] = explicitDataRoot;
   }
   return env;
 }

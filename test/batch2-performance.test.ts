@@ -133,7 +133,7 @@ test("B3-05: status returns within budget while probes are slow; bounded scans r
       try {
         // A fresh heartbeat keeps the recovery fast path warm — but only for
         // tasks that actually hold a worker: the Bridge caps concurrent
-        // workers (maxConcurrentWorkers ≤ 8 by design), so in the 32-active
+        // workers (maxConcurrentWorkers ≤ 20 by design), so in the 32-active
         // tier the remainder are legitimately queued and have no executor.
         let runningActive = 0;
         const heartbeatStarted = performance.now();
@@ -168,8 +168,7 @@ test("B3-05: status returns within budget while probes are slow; bounded scans r
         const probesDuringStatus = benchProbeRef(fx) - before;
         assert.ok(p95 < 250, `status p95 ${p95.toFixed(1)}ms exceeded the 250ms budget (p50=${p50.toFixed(1)}, p99=${p99.toFixed(1)})`);
         assert.equal(probesDuringStatus, 0, "getStatus must not trigger OS probes");
-        assert.ok(runningActive >= 1, "at least one active task must hold a worker");
-        assert.ok(runningActive <= 8, `running workers (${String(runningActive)}) exceed the platform concurrency cap of 8`);
+        assert.equal(runningActive, Math.min(scenario.active, 20), "distinct directories fill available capacity without exceeding twenty workers");
         const diagnostics = fx.manager.diagnostics();
         const heapAfter = process.memoryUsage();
         summary.push({

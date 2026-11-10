@@ -295,6 +295,7 @@ var TaskStore = class {
   #tasksRoot;
   #maxLogBytes;
   #maxEventBytes;
+  #schedulingInitialization = null;
   constructor(dataRoot2, options = {}) {
     this.#dataRoot = dataRoot2;
     this.#tasksRoot = path2.join(dataRoot2, ".tasks");
@@ -330,6 +331,89 @@ var TaskStore = class {
       (entry) => existsSync2(path2.join(this.#tasksRoot, entry, "status.json"))
     );
   }
+  /** Migrate legacy records once, outside the manager lock. Writers publish
+   * candidates before status, so concurrent new work cannot escape the scan. */
+  async initializeSchedulingIndex() {
+    if (this.#schedulingIndexReady()) return;
+    if (this.#schedulingInitialization) return this.#schedulingInitialization;
+    const initialize = withProcessLock(path2.join(this.#tasksRoot, ".scheduling-init.lock"), async () => {
+      if (this.#schedulingIndexReady()) return;
+      privateMkdir(this.#schedulingRoot());
+      let scanned = 0;
+      for (const taskId2 of this.listTaskIds()) {
+        if (!existsSync2(this.taskDir(taskId2))) continue;
+        let inactive = false;
+        try {
+          const status = this.#validatedSchedulingStatus(taskId2);
+          inactive = isTerminalStatus(status.status) && status.cleanup_unverified !== true;
+        } catch {
+        }
+        if (!inactive && existsSync2(this.taskDir(taskId2))) this.#markSchedulingTask(taskId2);
+        if (++scanned % 64 === 0) await new Promise((resolve) => setImmediate(resolve));
+      }
+      this.#writeJsonAtomic(path2.join(this.#schedulingRoot(), ".ready.json"), { version: 1 });
+    });
+    this.#schedulingInitialization = initialize;
+    try {
+      await initialize;
+    } finally {
+      this.#schedulingInitialization = null;
+    }
+  }
+  listSchedulingTaskIds() {
+    if (!this.#schedulingIndexReady()) throw new Error("scheduling index has not been initialized");
+    return readdirSync(this.#schedulingRoot()).filter((entry) => TASK_ID_PATTERN.test(entry));
+  }
+  /** Only pruning needs the task lock; revalidate under it so a stale terminal
+   * snapshot can never hide a worker commit or continuation. */
+  readSchedulingStatus(taskId2) {
+    const observed = this.#validatedSchedulingStatus(taskId2);
+    if (!isTerminalStatus(observed.status) || observed.cleanup_unverified === true) return observed;
+    return withEventLock(path2.join(this.taskDir(taskId2), "state.lock"), () => {
+      const status = this.#validatedSchedulingStatus(taskId2);
+      if (isTerminalStatus(status.status) && status.cleanup_unverified !== true) {
+        rmSync(path2.join(this.#schedulingRoot(), taskId2), { force: true });
+      }
+      return status;
+    });
+  }
+  #validatedSchedulingStatus(taskId2) {
+    const status = this.readStatus(taskId2);
+    this.readTask(taskId2);
+    this.readWorkspaceRef(taskId2);
+    this.readResult(taskId2);
+    this.readAttemptMeta(taskId2, status.attempt, "started.json");
+    this.readAttemptMeta(taskId2, status.attempt, "continue.json");
+    return status;
+  }
+  #schedulingRoot() {
+    return path2.join(this.#tasksRoot, ".scheduling");
+  }
+  #schedulingIndexReady() {
+    const file = path2.join(this.#schedulingRoot(), ".ready.json");
+    if (!existsSync2(file)) return false;
+    let value;
+    try {
+      value = this.#readJson(file);
+    } catch {
+      return false;
+    }
+    if (value && typeof value === "object" && "version" in value) {
+      if (value.version === 1) return true;
+      if (typeof value.version === "number" && value.version > 1) throw new Error("unsupported scheduling index version; upgrade all Bridge managers together");
+    }
+    return false;
+  }
+  #markSchedulingTask(taskId2) {
+    this.assertValidTaskId(taskId2);
+    privateMkdir(this.#schedulingRoot());
+    const marker = path2.join(this.#schedulingRoot(), taskId2);
+    try {
+      closeSync(openSync(marker, "wx", 384));
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+    }
+  }
   createTask(task, createdAt) {
     this.assertValidTaskId(task.task_id);
     const dir = this.taskDir(task.task_id);
@@ -337,6 +421,7 @@ var TaskStore = class {
       throw new Error(`task already exists: ${task.task_id}`);
     }
     privateMkdir(path2.join(dir, "attempts"));
+    this.#markSchedulingTask(task.task_id);
     this.#writeJsonAtomic(path2.join(dir, "task.json"), task);
     const status = {
       task_id: task.task_id,
@@ -396,6 +481,7 @@ var TaskStore = class {
         task_id: current.task_id,
         updated_at: (/* @__PURE__ */ new Date()).toISOString()
       };
+      this.#markSchedulingTask(taskId2);
       this.#writeJsonAtomic(path2.join(this.taskDir(taskId2), "status.json"), next);
       return next;
     });
@@ -416,6 +502,7 @@ var TaskStore = class {
   commitWorkerResult(taskId2, attempt, result, patch) {
     withEventLock(path2.join(this.taskDir(taskId2), "state.lock"), () => {
       this.assertWorkerAttempt(taskId2, attempt);
+      this.#markSchedulingTask(taskId2);
       this.#writeJsonAtomic(path2.join(this.taskDir(taskId2), "result.json"), result);
       const current = this.readStatus(taskId2);
       let effective = patch;
@@ -432,6 +519,7 @@ var TaskStore = class {
     withEventLock(path2.join(this.taskDir(taskId2), "state.lock"), () => {
       const current = this.readStatus(taskId2);
       if (current.attempt !== attempt || current.status !== "running") return;
+      this.#markSchedulingTask(taskId2);
       this.#writeJsonAtomic(path2.join(this.taskDir(taskId2), "status.json"), { ...current, ...patch, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
     });
   }
@@ -3399,9 +3487,9 @@ var BridgeTaskManager = class _BridgeTaskManager {
     this.#probe = options.probe ?? null;
     this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.#dataRoot = options.store.dataRoot;
-    this.#maxConcurrentWorkers = options.maxConcurrentWorkers ?? 8;
-    if (!Number.isInteger(this.#maxConcurrentWorkers) || this.#maxConcurrentWorkers < 1 || this.#maxConcurrentWorkers > 8) {
-      throw new RangeError("maxConcurrentWorkers must be an integer from 1 to 8");
+    this.#maxConcurrentWorkers = options.maxConcurrentWorkers ?? 20;
+    if (!Number.isInteger(this.#maxConcurrentWorkers) || this.#maxConcurrentWorkers < 1 || this.#maxConcurrentWorkers > 20) {
+      throw new RangeError("maxConcurrentWorkers must be an integer from 1 to 20");
     }
     this.#workerStartGraceMs = options.workerStartGraceMs ?? 1e4;
     if (!Number.isInteger(this.#workerStartGraceMs) || this.#workerStartGraceMs < 0) {
@@ -3447,6 +3535,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
    * blocks the others. */
   async recoverTasks() {
     if (this.#recoveryPromise) return this.#recoveryPromise;
+    await this.#store.initializeSchedulingIndex();
     const releaseRecovery = tryAcquireProcessLock(path7.join(this.#store.tasksRoot, ".recovery.lock"));
     if (!releaseRecovery) return;
     const lastRunFile = path7.join(this.#store.tasksRoot, ".recovery-last-run");
@@ -3456,7 +3545,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
     }
     const run = (async () => {
       let hasQueuedTask = false;
-      for (const taskId2 of this.#store.listTaskIds()) {
+      for (const taskId2 of this.#store.listSchedulingTaskIds()) {
         try {
           const status = this.#safeStatus(taskId2);
           if (!status) continue;
@@ -4554,7 +4643,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
     return true;
   }
   #pumpLocked() {
-    const snapshot = this.#store.listTaskIds().map((taskId2) => ({ taskId: taskId2, status: this.#safeStatus(taskId2) }));
+    const snapshot = this.#store.listSchedulingTaskIds().map((taskId2) => ({ taskId: taskId2, status: this.#safeStatus(taskId2) }));
     const running = snapshot.filter(({ status }) => status?.status === "running" || status?.cleanup_unverified === true).map(({ taskId: taskId2 }) => taskId2);
     if (running.length >= this.#maxConcurrentWorkers) return;
     const occupiedPaths = running.map((taskId2) => this.#executionPathKeyLocked(taskId2));
@@ -4678,7 +4767,8 @@ var BridgeTaskManager = class _BridgeTaskManager {
       throw new TaskManagerError("TASK_INVALID", "model must include non-empty provider_id and model_id strings");
     }
   }
-  #exclusive(operation) {
+  async #exclusive(operation) {
+    await this.#store.initializeSchedulingIndex();
     if (this.#queuedOperations >= 32) return Promise.reject(new TaskManagerError("BRIDGE_BUSY", "Bridge operation queue is full; retry with the same task_id"));
     this.#queuedOperations += 1;
     let started = false;
@@ -4714,13 +4804,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
   }
   #safeStatus(taskId2) {
     try {
-      const status = this.#store.readStatus(taskId2);
-      this.#store.readTask(taskId2);
-      this.#store.readWorkspaceRef(taskId2);
-      this.#store.readResult(taskId2);
-      this.#store.readAttemptMeta(taskId2, status.attempt, "started.json");
-      this.#store.readAttemptMeta(taskId2, status.attempt, "continue.json");
-      return status;
+      return this.#store.readSchedulingStatus(taskId2);
     } catch (error) {
       console.error(`Bridge skipped corrupt task ${taskId2}: ${error instanceof Error ? error.message : String(error)}`);
       return null;
@@ -5950,7 +6034,7 @@ var taskStore = new TaskStore(dataRoot);
 var manager = new BridgeTaskManager({
   store: taskStore,
   workspaceProvider: new DirectWorkspaceProvider(),
-  maxConcurrentWorkers: Number(process.env["ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"] ?? "8"),
+  maxConcurrentWorkers: Number(process.env["ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"] ?? "20"),
   spawnWorker: createWorkerSpawner(host),
   probe: createPlatformProbe()
 });

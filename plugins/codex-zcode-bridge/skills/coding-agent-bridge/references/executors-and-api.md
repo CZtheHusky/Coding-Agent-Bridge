@@ -2,9 +2,10 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-10
-> Last verified: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
+> Last verified: 2026-11-10，ADR-020 的 20 并发 Linux 离线回归；本轮未运行真实执行器或替换安装。
+> Prior verification: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，ADR-012/014/016/017 参数及未验证边界。
-> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
+> Verified against: 01748cd + ADR-020 working tree
 > Prior verified against: 998670c
 
 ## 模型与执行
@@ -15,7 +16,7 @@ Kimi 设 `executor: "kimi"`，可传 `kimi: { model, reasoning_level, permission
 
 两执行器复用同一套 status/events/feedback/result/continue/cancel/interaction_reply 工具。兼容字段 zcode_session_id、zcode_pid、zcode_output 在 Kimi 任务中承载 Kimi 证据。请求值不是运行确认值，不能用默认档位冒充实际值。
 
-单次执行默认 60 分钟，timeout_ms 可设 60 秒至 4 小时；超时终止该次进程树，保留 attempt。默认最多 8 个 worker，仅非重叠目录可并行；多个宿主共享数据根时不要并行提交冲突任务。
+单次执行默认 60 分钟，timeout_ms 可设 60 秒至 4 小时；超时终止该次进程树，保留 attempt。同一数据目录默认最多 20 个 worker，可配置范围 1–20，已有较小配置仍生效；仅非重叠目录可并行。多个宿主须使用一致的并发设置；升级活动候选索引时，同库 Manager 须统一升级并重连。
 
 ## 原生附图
 

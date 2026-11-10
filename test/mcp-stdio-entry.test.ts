@@ -4,7 +4,7 @@
 // a ZCode worker (only initialize/initialized/tools/list/status-on-unknown-id).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -130,15 +130,40 @@ test("compiled stdio entry speaks pure JSON-RPC on stdout and diagnostics on std
   }
 });
 
-test("worker concurrency defaults to eight and rejects out-of-range configuration", () => {
-  assert.deepEqual(resolveMaxConcurrentWorkers({}), { maxConcurrentWorkers: 8 });
-  assert.deepEqual(resolveMaxConcurrentWorkers({ ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS: "3" }), {
-    maxConcurrentWorkers: 3,
-  });
-  const invalid = resolveMaxConcurrentWorkers({ ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS: "9" });
-  assert.equal(invalid.maxConcurrentWorkers, 1);
-  assert.match(invalid.warning ?? "", /integer from 1 to 8/);
+test("worker concurrency defaults to twenty and accepts only integers within the shared limit", () => {
+  assert.deepEqual(resolveMaxConcurrentWorkers({}), { maxConcurrentWorkers: 20 });
+  for (const limit of [1, 3, 8, 9, 10, 19, 20]) {
+    assert.deepEqual(resolveMaxConcurrentWorkers({ ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS: String(limit) }), {
+      maxConcurrentWorkers: limit,
+    });
+  }
+  for (const raw of ["0", "21", "1.5", "2e1", "020", "unlimited"]) {
+    const invalid = resolveMaxConcurrentWorkers({ ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS: raw });
+    assert.equal(invalid.maxConcurrentWorkers, 1);
+    assert.match(invalid.warning ?? "", /integer from 1 to 20/);
+  }
 });
+
+for (const custom of [false, true]) {
+  test(`${custom ? "custom Claude" : "default Codex"} stdio honors explicit data root over saved settings`, { timeout: 30_000 }, () => {
+    const root = mkdtempSync(path.join(tmpdir(), "bridge-data-root-"));
+    try {
+      const settingsDirectory = custom ? path.join(root, "claude-settings") : path.join(root, ".codex", "codex-zcode-bridge");
+      mkdirSync(settingsDirectory, { recursive: true });
+      const savedRoot = path.join(root, "saved"), explicitRoot = path.join(root, "batch");
+      writeFileSync(path.join(settingsDirectory, "runtime-config.json"), JSON.stringify({ ZCODE_BRIDGE_DATA_DIR: savedRoot }));
+      const args = custom ? ["--input-type=module", "--eval", `import { startBridge } from ${JSON.stringify(new URL("../src/host/stdio.js", import.meta.url).href)}; await startBridge(${JSON.stringify({ name: "claude-test", settingsDirectory, defaultDataRoot: savedRoot })});`] : [MAIN_JS];
+      const run = spawnSync(process.execPath, args, {
+        input: PROTOCOL_MESSAGES, encoding: "utf8", timeout: 20_000,
+        env: { PATH: process.env["PATH"], HOME: root, USERPROFILE: root, SystemRoot: process.env["SystemRoot"], ZCODE_BRIDGE_DATA_DIR: explicitRoot },
+      });
+      assert.equal(run.status, 0, run.stderr);
+      assert.ok(run.stderr.includes(`[bridge] data root: ${explicitRoot}`));
+      assert.equal(existsSync(path.join(explicitRoot, ".tasks")), true);
+      assert.equal(existsSync(path.join(savedRoot, ".tasks")), false, "batch must not touch the saved shared task database");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
 
 test("marketplace bundle starts from its plugin root without repo-local dependencies", { timeout: 30_000 }, () => {
   const dataRoot = mkdtempSync(path.join(tmpdir(), "zcode-bridge-plugin-stdio-"));

@@ -62,14 +62,14 @@ export interface WorkerLimitResolution {
   readonly warning?: string;
 }
 
-/** Defaults to eight concurrent workers; invalid values fail safely back to one worker. */
+/** Defaults to twenty concurrent workers; invalid values fail safely back to one worker. */
 export function resolveMaxConcurrentWorkers(env: NodeJS.ProcessEnv): WorkerLimitResolution {
   const raw = env["ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS"]?.trim();
-  if (!raw) return { maxConcurrentWorkers: 8 };
-  if (!/^[1-8]$/u.test(raw)) {
+  if (!raw) return { maxConcurrentWorkers: 20 };
+  if (!/^(?:[1-9]|1[0-9]|20)$/u.test(raw)) {
     return {
       maxConcurrentWorkers: 1,
-      warning: "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS must be an integer from 1 to 8; using 1",
+      warning: "ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS must be an integer from 1 to 20; using 1",
     };
   }
   return { maxConcurrentWorkers: Number(raw) };
