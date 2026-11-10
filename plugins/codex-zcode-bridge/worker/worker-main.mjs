@@ -19864,13 +19864,14 @@ ${task.objective}`,
       "TEST COMMANDS (run the applicable ones and report a status for each)",
       task.test_commands
     ),
-    DECISION_RULE
+    ...task.report_mode === "raw" ? [] : [DECISION_RULE]
   ];
   if (task.context && task.context.trim().length > 0) {
     sections.push(`CONTEXT
 ${bounded(task.context, MAX_CONTEXT_CHARS)}`);
   }
-  return joinBoundedPreservingTail([...sections, OUTPUT_CONTRACT], OUTPUT_CONTRACT);
+  const contract = outputContract(task);
+  return joinBoundedPreservingTail([...sections, contract], contract);
 }
 function buildContinuePrompt(input2) {
   const { task, feedback, additionalRequirements, previousSessionId, previousResult } = input2;
@@ -19885,7 +19886,7 @@ function buildContinuePrompt(input2) {
       `This run resumes persisted session ${previousSessionId}; earlier conversation context may be available.`
     );
   }
-  if (previousResult?.error_code === "invalid_agent_report") {
+  if (task.report_mode !== "raw" && previousResult?.error_code === "invalid_agent_report") {
     sections.push(
       "REPORT REPAIR MODE: The previous execution has ended. Only its final report failed validation. Do not use tools, edit files, rerun tests, or repeat task work. Return the corrected JSON report from the evidence below. Preserve claims as claims, including not_run and failures. Do not invent tests or missing facts. If needs_master_decision cannot be established, explicitly set it to true and record the uncertainty in issues.",
       `PROJECT WORKSPACE: ${task.workspace}`,
@@ -19919,7 +19920,10 @@ ${feedback}`);
   }
   sections.push(`ORIGINAL TASK
 ${buildTaskPrompt({ ...task, attachments: void 0 })}`);
-  return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
+  return joinBoundedPreservingTail(sections, outputContract(task));
+}
+function outputContract(task) {
+  return task.report_mode === "raw" ? "RAW OUTPUT: Follow the task's requested response format exactly. Do not add an AgentReport, summary wrapper, or markdown unless the task requests it. The caller validates the data independently." : OUTPUT_CONTRACT;
 }
 var OUTPUT_CONTRACT = [
   "OUTPUT CONTRACT (mandatory)",
@@ -21446,6 +21450,20 @@ var KimiAdapter = class {
       emit?.({ type: "session_ready", summary: "Kimi session ready", details: { session_id: sessionId, executor: "kimi" } });
       const config2 = await request("config", object({ default_model: string2().optional() }));
       const selectedModel = task.kimi?.model ?? (session.agent_config.model || config2.default_model);
+      let disabledTools;
+      if (task.session_profile === "minimal") {
+        const specResponse = await fetch(new URL("/openapi.json", address), {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.any([signal, AbortSignal.timeout(3e4)])
+        });
+        const spec = await specResponse.json();
+        if (!specResponse.ok || !supportsDisabledTools(spec)) {
+          throw new BridgeError("session_profile_unsupported", "Kimi minimal profile requires native disabled_tools support; no model prompt was submitted");
+        }
+        const catalog = await request(`tools?session_id=${encodeURIComponent(session.id)}`, object({ tools: array(object({ name: string2().min(1) })) }));
+        disabledTools = [...new Set(catalog.tools.map((tool) => tool.name))];
+        emit?.({ type: "session_profile", summary: "Kimi minimal profile requested through native disabled_tools; default system prompt retained", details: { session_profile: "minimal", disabled_tool_count: disabledTools.length } });
+      }
       const promptId = randomUUID();
       let turnId;
       let resolveTurn;
@@ -21564,6 +21582,7 @@ var KimiAdapter = class {
       await request(`sessions/${encodeURIComponent(session.id)}/prompts`, object2, {
         content: [{ type: "text", text: prompt }, ...images.map((image) => ({ type: "image", source: { kind: "path", path: image.path }, name: image.filename }))],
         prompt_id: promptId,
+        ...disabledTools === void 0 ? {} : { disabled_tools: disabledTools },
         permission_mode: task.kimi?.permission_mode ?? "yolo",
         ...selectedModel ? { model: selectedModel } : {},
         ...task.kimi?.reasoning_level !== void 0 ? { thinking: task.kimi.reasoning_level } : {}
@@ -21580,7 +21599,7 @@ var KimiAdapter = class {
       emit?.({ type: "model_selected", summary: "Kimi runtime model", details: { model_id: final.agent_config.model, ...final.agent_config.thinking ? { reasoning_level: final.agent_config.thinking } : {} } });
     } catch (error62) {
       if (!errorCode) {
-        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error62 instanceof BridgeError && (error62.code === "spawn_failed" || error62.code === "attachment_invalid") ? error62.code : "kimi_nonzero_exit";
+        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error62 instanceof BridgeError && (error62.code === "spawn_failed" || error62.code === "attachment_invalid" || error62.code === "session_profile_unsupported") ? error62.code : "kimi_nonzero_exit";
         reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error62 instanceof BridgeError ? error62.message : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
       }
     } finally {
@@ -21597,8 +21616,8 @@ var KimiAdapter = class {
         }
       }
     }
-    const parsed = parseAgentReport(response);
-    if (!errorCode && parsed.error) {
+    const parsed = task.report_mode === "raw" ? { report: null, candidate: null, error: null } : parseAgentReport(response);
+    if (task.report_mode !== "raw" && !errorCode && parsed.error) {
       errorCode = "invalid_agent_report";
       reportError = parsed.error;
     }
@@ -21614,8 +21633,8 @@ var KimiAdapter = class {
       cancelled: run.cancelled || errorCode === "cancelled",
       errorCode,
       reportError,
-      agentReport: errorCode ? null : parsed.report,
-      reportCandidate: parsed.candidate,
+      agentReport: errorCode || task.report_mode === "raw" ? null : parsed.report,
+      reportCandidate: task.report_mode === "raw" ? null : parsed.candidate,
       stdoutTruncated: truncated,
       stderrTruncated: false,
       attempts: 1,
@@ -21626,11 +21645,67 @@ var KimiAdapter = class {
     return outcome;
   }
 };
+function supportsDisabledTools(spec) {
+  const get = (value, key) => value && typeof value === "object" && !Array.isArray(value) ? value[key] : void 0;
+  let schema = ["paths", "/api/v1/sessions/{session_id}/prompts", "post", "requestBody", "content", "application/json", "schema"].reduce(get, spec);
+  for (let depth = 0; depth < 8; depth++) {
+    const ref = get(schema, "$ref");
+    if (typeof ref !== "string" || !ref.startsWith("#/")) break;
+    schema = ref.slice(2).split("/").map((key) => key.replace(/~1/g, "/").replace(/~0/g, "~")).reduce(get, spec);
+  }
+  return get(get(get(schema, "properties"), "disabled_tools"), "type") === "array";
+}
 
 // src/adapters/zcode-app-server-adapter.ts
 import { spawn as spawn4 } from "node:child_process";
 import { homedir as homedir3 } from "node:os";
 import path7 from "node:path";
+
+// src/adapters/provider-failure.ts
+function providerFailureDiagnostic(value) {
+  const details = {};
+  let contentFilter = false;
+  let code1301 = false;
+  const visit2 = (value2, depth) => {
+    if (typeof value2 === "string") {
+      if (/\[1301\]/u.test(value2.slice(0, 16384))) {
+        contentFilter = true;
+        code1301 = true;
+      }
+      return;
+    }
+    if (depth > 4 || !value2 || typeof value2 !== "object" || Array.isArray(value2)) return;
+    const record2 = value2;
+    for (const key of ["code", "errorCode", "error_code", "providerErrorCode", "type"]) {
+      const item = record2[key];
+      const text = typeof item === "string" ? item : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
+      if (/^(?:\d{3,6}|UNKNOWN_ERROR|MODEL_RATE_LIMITED|rate_limit_exceeded|content_filter|content_policy_violation)$/u.test(text)) {
+        details[key === "type" ? "type" : "code"] = text;
+        if (text === "1301" || text === "content_filter" || text === "content_policy_violation") contentFilter = true;
+        if (text === "1301") code1301 = true;
+      }
+    }
+    for (const key of ["status", "statusCode", "retryAfter", "retry_after"]) {
+      const item = record2[key];
+      if (typeof item === "number" && Number.isFinite(item) && item >= 0) details[key] = item;
+    }
+    if (typeof record2.retryable === "boolean") details.retryable = record2.retryable;
+    for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
+      const item = record2[key];
+      if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
+      if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
+    }
+    for (const key of ["error", "cause", "data", "detail", "attribution"]) visit2(record2[key], depth + 1);
+  };
+  visit2(value, 0);
+  if (contentFilter) {
+    if (code1301) details.code = "1301";
+    details.category = "content_filter";
+    return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
+  }
+  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
+  return { summary: `ZCode turn failed${suffix}`, details };
+}
 
 // src/runtime/resolver.ts
 import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
@@ -23494,6 +23569,7 @@ var ZCodeAppServerAdapter = class {
       if (resumeSessionId) {
         snapshot = asRecord2(await client.request("session/resume", {
           sessionId: resumeSessionId,
+          ...minimalSessionOptions(task),
           workspace: { workspacePath: workspace.canonicalPath, workspaceKey: projectPath }
         }));
         const returnedId = nestedString(snapshot, ["session", "sessionId"]);
@@ -23505,7 +23581,9 @@ var ZCodeAppServerAdapter = class {
         snapshot = asRecord2(await client.request("session/create", {
           workspace: { workspacePath: workspace.canonicalPath, workspaceKey: projectPath },
           mode: preferences.mode,
-          persistence: "immediate"
+          persistence: "immediate",
+          ...minimalSessionOptions(task),
+          ...task.session_profile === "minimal" ? { titleGenerationEnabled: false } : {}
         }));
       }
       const sessionId = nestedString(snapshot, ["session", "sessionId"]);
@@ -23780,7 +23858,7 @@ var ZCodeAppServerAdapter = class {
           modelProfile: this.#modelProfile(entry)
         };
       } else {
-        const parsed = parseAgentReport(turnResult.response);
+        const parsed = task.report_mode === "raw" ? { report: null, candidate: null, error: null } : parseAgentReport(turnResult.response);
         const stdout = turnResult.response;
         const base = {
           attempts: 1,
@@ -23797,7 +23875,9 @@ var ZCodeAppServerAdapter = class {
           timedOut: false,
           reportCandidate: parsed.candidate
         };
-        if (!parsed.report) {
+        if (task.report_mode === "raw") {
+          outcome = { ...base, agentReport: null, reportCandidate: null, reportError: null, errorCode: null, modelProfile: this.#modelProfile(entry), phaseTimestamps: { rpc_accepted_at: turnResult.rpcAcceptedAt, turn_started_at: turnResult.startedAt, turn_completed_at: turnResult.completedAt } };
+        } else if (!parsed.report) {
           outcome = {
             ...base,
             agentReport: null,
@@ -23837,6 +23917,23 @@ var ZCodeAppServerAdapter = class {
         this.#onOutcomeCheckpoint?.(outcome);
       } catch (error62) {
         entry.onEvent({ type: "outcome_checkpoint_failed", summary: error62 instanceof Error ? error62.message : String(error62) });
+      }
+      try {
+        const usage = asRecord2(await client.request("session/usage", { sessionId }));
+        const keys = ["modelRequestCount", "modelErrorCount"];
+        if (usage.sessionId !== sessionId || !keys.every((key) => typeof usage[key] === "number" && Number.isSafeInteger(usage[key]) && usage[key] >= 0)) throw new Error("invalid usage");
+        outcome = {
+          ...outcome,
+          runtimeSessionUsage: {
+            source: "zcode_runtime_session",
+            session_id: sessionId,
+            observed_at: this.#now().toISOString(),
+            model_request_count: usage.modelRequestCount,
+            model_error_count: usage.modelErrorCount
+          }
+        };
+      } catch {
+        entry.onEvent({ type: "session_usage_unavailable", summary: "Native session/usage is unavailable; request counts were not reported" });
       }
       try {
         await syncDesktopStatus(desktopTask, desktopStatus, entry.onEvent);
@@ -24142,7 +24239,7 @@ var ZCodeAppServerAdapter = class {
       pending.delete(id);
       if (message.error && typeof message.error === "object") {
         const error62 = asRecord2(message.error);
-        call.reject(providerReportedUsageExhaustion(error62, entry.selectedModelSelection?.providerId ?? null) ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE) : new Error(`ZCode app-server request failed for ${call.method}${typeof error62.code === "number" ? ` (code ${error62.code})` : ""}`));
+        call.reject(providerReportedUsageExhaustion(error62, entry.selectedModelSelection?.providerId ?? null) ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE) : new Error(`ZCode app-server request failed for ${call.method}: ${providerFailureDiagnostic(error62).summary}`));
       } else {
         call.resolve(message.result);
       }
@@ -24192,7 +24289,7 @@ var ZCodeAppServerAdapter = class {
         entry.acceptingTurn = false;
         entry.turnCompletedAt = this.#now().toISOString();
         const quotaExhausted = providerReportedUsageExhaustion(payload.error, entry.selectedModelSelection?.providerId ?? null);
-        const failure2 = quotaExhausted ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE) : new Error("ZCode turn failed");
+        const failure2 = quotaExhausted ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE) : new Error(providerFailureDiagnostic(payload.error).summary);
         this.#publishSessionEvent(type, payload, entry, params, quotaExhausted ? "zcode_usage_exhausted" : "zcode_nonzero_exit");
         entry.rejectTurn(failure2);
         return;
@@ -24521,8 +24618,8 @@ var ZCodeAppServerAdapter = class {
     } else if (type === "turn.failed") {
       entry.onEvent({
         type: "turn_failed",
-        summary: failureCode === "zcode_usage_exhausted" ? "ZCode \u63D0\u4F9B\u65B9\u62A5\u544A\u7528\u91CF\u989D\u5EA6\u5DF2\u8017\u5C3D\uFF1B\u5F53\u524D\u6267\u884C\u5DF2\u4E2D\u65AD\u3002\u8BF7\u7ACB\u5373\u505C\u6B62\u5F53\u524D\u4EFB\u52A1\u5E76\u544A\u77E5\u7528\u6237\uFF0C\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u989D\u5EA6\u6062\u590D\u3002" : "ZCode turn failed",
-        ...failureCode ? { details: { error_code: failureCode } } : {}
+        summary: failureCode === "zcode_usage_exhausted" ? "ZCode \u63D0\u4F9B\u65B9\u62A5\u544A\u7528\u91CF\u989D\u5EA6\u5DF2\u8017\u5C3D\uFF1B\u5F53\u524D\u6267\u884C\u5DF2\u4E2D\u65AD\u3002\u8BF7\u7ACB\u5373\u505C\u6B62\u5F53\u524D\u4EFB\u52A1\u5E76\u544A\u77E5\u7528\u6237\uFF0C\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u989D\u5EA6\u6062\u590D\u3002" : providerFailureDiagnostic(payload.error).summary,
+        details: { ...failureCode ? { error_code: failureCode } : {}, provider_error: providerFailureDiagnostic(payload.error).details }
       });
     }
   }
@@ -24709,6 +24806,9 @@ function stableSerialize(value) {
   }
   return JSON.stringify(value) ?? "undefined";
 }
+function minimalSessionOptions(task) {
+  return task.session_profile === "minimal" ? { toolAllowlist: [], mcpServers: [], dynamicWorkflowEnabled: false, offPeakToolEnabled: false } : {};
+}
 
 // src/manager/normalize.ts
 function buildTaskResult(input2) {
@@ -24719,6 +24819,8 @@ function buildTaskResult(input2) {
     started_at: startedAt,
     finished_at: finishedAt,
     zcode_output: outcome?.response ?? "",
+    ...outcome ? { output_truncated: outcome.stdoutTruncated } : {},
+    ...outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {},
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input2.sessionId ?? null,
     ...input2.usage !== void 0 ? { usage: input2.usage } : {},
@@ -24764,6 +24866,29 @@ function buildTaskResult(input2) {
       needs_master_decision: true,
       error_code: code,
       ...outcome.reportCandidate ? { report_candidate: outcome.reportCandidate } : {}
+    };
+  }
+  if (task.report_mode === "raw") {
+    if (outcome.exitCode !== 0 || outcome.timedOut || outcome.stdoutTruncated) {
+      return {
+        ...base,
+        status: "failed",
+        summary: "Raw execution failed or its output was truncated",
+        files_changed: [],
+        tests: [],
+        issues: ["Validate the captured output; it is not a complete successful response"],
+        needs_master_decision: true,
+        error_code: outcome.stdoutTruncated ? "output_truncated" : task.executor === "kimi" ? "kimi_nonzero_exit" : "zcode_nonzero_exit"
+      };
+    }
+    return {
+      ...base,
+      status: "completed",
+      summary: "Raw response captured; caller must validate zcode_output independently",
+      files_changed: [],
+      tests: [],
+      issues: [],
+      needs_master_decision: false
     };
   }
   const report = outcome.agentReport;
@@ -26419,6 +26544,8 @@ async function runWorkerTask(options) {
             signal: checkpoint.signal,
             session_id: checkpoint.sessionId,
             response: checkpoint.response,
+            stdout_truncated: checkpoint.stdoutTruncated,
+            runtime_session_usage: checkpoint.runtimeSessionUsage,
             usage: checkpoint.usage,
             error_code: checkpoint.errorCode,
             report_error: checkpoint.reportError,
@@ -26634,6 +26761,7 @@ async function runWorkerTask(options) {
         errorCode: outcome.errorCode,
         reportError: outcome.reportError,
         stdoutTruncated: outcome.stdoutTruncated,
+        runtimeSessionUsage: outcome.runtimeSessionUsage,
         stderrTruncated: outcome.stderrTruncated,
         agentReport: outcome.agentReport,
         reportCandidate: outcome.reportCandidate,

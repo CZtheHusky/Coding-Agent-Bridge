@@ -2,8 +2,10 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅图片参数、续作示例与模型模态；其余沿用原说明。
-> Verified against: 7c1d6f2 + ADR-016 working tree。
+> Last verified: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅图片参数、续作示例与模型模态；其余沿用原说明。
+> Prior verified against: 7c1d6f2 + ADR-016 working tree。
 
 **Coding Agent Bridge** 支持本机 ZCode / Kimi 后台编码任务。MCP server key 为 `coding_agent_bridge`，工具统一为 `coding_agent_*`。可选模型、查询进度、续作、处理审批和取消；ZCode 档位由 `coding_agent_model_catalog` 查询后传 `model.reasoning_level`，Kimi 支持 `kimi.model` 与可选 `kimi.reasoning_level`（原生 thinking；K3/K3.1 Pro 和标准模型当前支持 low/high/max，具体依模型而定）；省略时保留原生设置。环境支持时可一次预约并唤醒原 Codex 聊天验收，普通任务不会主动唤醒。升级后刷新工具列表，旧 `zcode_*` 名称不再注册；安装标识、路径、环境变量和任务数据名称保留。
 
@@ -59,6 +61,25 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 只附本轮新图，复用原 task_id、执行器和 session；重试保留原 operation_id、路径和顺序。预约使用 `task.attachments`，原图保留到执行时，Bridge 不保存快照。无效请求返回 TASK_INVALID / SCHEDULE_INVALID，执行时丢图返回 attachment_invalid；模型限制、识别正确率和 token 消耗需另行验收。
 
 升级后刷新或重连 MCP，以加载新增参数与技能说明。完整提交示例与验证范围见仓库中的 `README.zh-CN.md`「图片附件」及 `docs/reports/2026-11-09-native-image-attachments.md`。
+
+## API 模式
+
+分类、抽取或标注任务可在现有任务中设置：
+
+```json
+{
+  "report_mode": "raw",
+  "session_profile": "minimal"
+}
+```
+
+这是两个现有选项的组合名称，不是新增 HTTP 接口或 `mode` 参数。Kimi 另传 `"executor": "kimi"`，省略则为 ZCode。仍需通常的 TaskPackage 字段；文字和图片应随任务传入，精简会话无法依赖读文件、终端等禁用工具，需要工具时保留 default profile。
+
+两个执行器均保留默认系统提示，不改全局配置。ZCode 精简工具、MCP、workflow 和新会话标题；Kimi 通过原生 disabled_tools 禁用当前注册工具，不支持时在模型 prompt 前明确失败。原生基础上下文和技能目录仍可能存在，不承诺裸模型开销。
+
+读取 `coding_agent_result.zcode_output` 并独立验收数据，不从事件摘要拼接。raw 完成不等于数据正确，输出截断会失败；预约不支持 raw。续作沿用模式，不相关请求各建新任务。同目录及父子目录串行；更新后须重连 MCP 或开启新宿主会话。
+
+ZCode 双图实测输入 20,119 → 2,536 token（本样本减少 87.4%），Kimi 真实 token 降幅未测。完整示例、验证及边界见源码仓库 `README.zh-CN.md`「API 模式」和 `docs/reports/2026-11-09-data-task-repair.md`。
 
 ## 安全边界
 

@@ -23569,6 +23569,8 @@ function buildTaskResult(input) {
     started_at: startedAt,
     finished_at: finishedAt,
     zcode_output: outcome?.response ?? "",
+    ...outcome ? { output_truncated: outcome.stdoutTruncated } : {},
+    ...outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {},
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input.sessionId ?? null,
     ...input.usage !== void 0 ? { usage: input.usage } : {},
@@ -23614,6 +23616,29 @@ function buildTaskResult(input) {
       needs_master_decision: true,
       error_code: code,
       ...outcome.reportCandidate ? { report_candidate: outcome.reportCandidate } : {}
+    };
+  }
+  if (task.report_mode === "raw") {
+    if (outcome.exitCode !== 0 || outcome.timedOut || outcome.stdoutTruncated) {
+      return {
+        ...base,
+        status: "failed",
+        summary: "Raw execution failed or its output was truncated",
+        files_changed: [],
+        tests: [],
+        issues: ["Validate the captured output; it is not a complete successful response"],
+        needs_master_decision: true,
+        error_code: outcome.stdoutTruncated ? "output_truncated" : task.executor === "kimi" ? "kimi_nonzero_exit" : "zcode_nonzero_exit"
+      };
+    }
+    return {
+      ...base,
+      status: "completed",
+      summary: "Raw response captured; caller must validate zcode_output independently",
+      files_changed: [],
+      tests: [],
+      issues: [],
+      needs_master_decision: false
     };
   }
   const report = outcome.agentReport;
@@ -25057,13 +25082,14 @@ ${task.objective}`,
       "TEST COMMANDS (run the applicable ones and report a status for each)",
       task.test_commands
     ),
-    DECISION_RULE
+    ...task.report_mode === "raw" ? [] : [DECISION_RULE]
   ];
   if (task.context && task.context.trim().length > 0) {
     sections.push(`CONTEXT
 ${bounded(task.context, MAX_CONTEXT_CHARS)}`);
   }
-  return joinBoundedPreservingTail([...sections, OUTPUT_CONTRACT], OUTPUT_CONTRACT);
+  const contract = outputContract(task);
+  return joinBoundedPreservingTail([...sections, contract], contract);
 }
 function buildContinuePrompt(input) {
   const { task, feedback, additionalRequirements, previousSessionId, previousResult } = input;
@@ -25078,7 +25104,7 @@ function buildContinuePrompt(input) {
       `This run resumes persisted session ${previousSessionId}; earlier conversation context may be available.`
     );
   }
-  if (previousResult?.error_code === "invalid_agent_report") {
+  if (task.report_mode !== "raw" && previousResult?.error_code === "invalid_agent_report") {
     sections.push(
       "REPORT REPAIR MODE: The previous execution has ended. Only its final report failed validation. Do not use tools, edit files, rerun tests, or repeat task work. Return the corrected JSON report from the evidence below. Preserve claims as claims, including not_run and failures. Do not invent tests or missing facts. If needs_master_decision cannot be established, explicitly set it to true and record the uncertainty in issues.",
       `PROJECT WORKSPACE: ${task.workspace}`,
@@ -25112,7 +25138,10 @@ ${feedback}`);
   }
   sections.push(`ORIGINAL TASK
 ${buildTaskPrompt({ ...task, attachments: void 0 })}`);
-  return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
+  return joinBoundedPreservingTail(sections, outputContract(task));
+}
+function outputContract(task) {
+  return task.report_mode === "raw" ? "RAW OUTPUT: Follow the task's requested response format exactly. Do not add an AgentReport, summary wrapper, or markdown unless the task requests it. The caller validates the data independently." : OUTPUT_CONTRACT;
 }
 var OUTPUT_CONTRACT = [
   "OUTPUT CONTRACT (mandatory)",
@@ -25426,10 +25455,12 @@ var BridgeTaskManager = class _BridgeTaskManager {
       return;
     }
     const run = (async () => {
+      let hasQueuedTask = false;
       for (const taskId of this.#store.listTaskIds()) {
         try {
           const status = this.#safeStatus(taskId);
           if (!status) continue;
+          if (status.status === "queued") hasQueuedTask = true;
           if (status.status === "running") {
             await this.#reconcileRunningThreePhase(taskId, status);
           } else if (isTerminalStatus(status.status) && status.cleanup_unverified === true) {
@@ -25442,7 +25473,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
           }
         }
       }
-      await this.#exclusive(async () => {
+      if (hasQueuedTask) await this.#exclusive(async () => {
         this.#pumpLocked();
       });
     })();
@@ -26468,7 +26499,8 @@ var BridgeTaskManager = class _BridgeTaskManager {
     const outcome = {
       attempts: 1,
       cancelled: false,
-      stdoutTruncated: false,
+      stdoutTruncated: checkpoint.stdout_truncated === true,
+      runtimeSessionUsage: checkpoint.runtime_session_usage,
       stderrTruncated: false,
       stdout: checkpoint.response,
       stderr: "",
@@ -26618,6 +26650,12 @@ var BridgeTaskManager = class _BridgeTaskManager {
       if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
         throw new TaskManagerError("TASK_INVALID", `${field} must be an array of strings (may be empty)`);
       }
+    }
+    if (task.report_mode !== void 0 && !["structured", "raw"].includes(task.report_mode)) {
+      throw new TaskManagerError("TASK_INVALID", "report_mode must be structured or raw");
+    }
+    if (task.session_profile !== void 0 && !["default", "minimal"].includes(task.session_profile)) {
+      throw new TaskManagerError("TASK_INVALID", "session_profile must be default or minimal");
     }
     if (task.context !== void 0 && typeof task.context !== "string") {
       throw new TaskManagerError("TASK_INVALID", "context must be a string when present");
@@ -26791,7 +26829,9 @@ var zcodeTaskInputSchema = strictObject({
   acceptance_criteria: stringArray,
   test_commands: stringArray,
   context: string2().optional(),
-  attachments: imageAttachmentsSchema.optional()
+  attachments: imageAttachmentsSchema.optional(),
+  report_mode: _enum(["structured", "raw"]).optional().describe("API mode combines raw with session_profile=minimal; no separate mode field. Defaults to structured AgentReport. raw returns the exact captured answer in result.zcode_output, without a report contract; the caller must validate its data. Not supported for scheduled goals."),
+  session_profile: _enum(["default", "minimal"]).optional().describe("API mode combines minimal with report_mode=raw. Preserves the default system prompt. minimal reduces optional tools: ZCode requests no tools/MCP/workflows and disables new-session titles; Kimi disables currently registered tools using its native disabled_tools API (unsupported versions fail before submission). default keeps runtime settings. For data-only tasks.")
 }).refine(
   (task) => task.executor === "kimi" ? task.model === void 0 : task.kimi === void 0,
   { message: "Kimi tasks use kimi options; ZCode tasks use model" }
@@ -26928,6 +26968,14 @@ var taskResultSchema = object({
   issues: array(string2()),
   needs_master_decision: boolean2(),
   zcode_output: string2(),
+  output_truncated: boolean2().optional(),
+  runtime_session_usage: object({
+    source: literal("zcode_runtime_session"),
+    session_id: string2(),
+    observed_at: string2(),
+    model_request_count: number2().int().nonnegative(),
+    model_error_count: number2().int().nonnegative()
+  }).optional(),
   exit_code: number2().int().nullable(),
   session_id: string2().nullable(),
   attempt: number2().int(),
@@ -27053,7 +27101,7 @@ var defaultModelSchema = object({
 var START_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/u;
 var THREAD_ID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/u;
 var zcodeScheduleInputSchema = strictObject({
-  task: zcodeTaskInputSchema,
+  task: zcodeTaskInputSchema.refine((task) => task.report_mode !== "raw", { message: "Scheduled goals require structured reports and acceptance_met" }),
   start_at: string2().regex(START_AT_PATTERN, "start_at must be an ISO 8601 datetime carrying a timezone offset (Z or \xB1HH:MM)"),
   thread_id: string2().regex(THREAD_ID_PATTERN, "thread_id must be the UUID of the original Codex chat that will receive wakeups")
 });
@@ -27829,7 +27877,7 @@ function createBridgeServer(options) {
     "coding_agent_task",
     {
       title: "Submit one ZCode or Kimi coding task",
-      description: `Create a bounded coding task. Set executor="kimi" for Kimi Code (kimi.model is its local model alias; kimi.permission_mode defaults to yolo); omit executor for ZCode. All coding_agent_* task lifecycle tools also work with Kimi tasks; ZCode doctor/model tools remain ZCode-only. workspace is the the calling host project root and determines the ZCode Desktop project identity. the calling host decides whether to create a worktree; if it does, pass its existing absolute directory as optional worktree_path. The Bridge never creates, selects, or removes a worktree. Without worktree_path, ZCode runs directly in workspace. For ZCode, call coding_agent_model_catalog first, then pass model: { provider_id, model_id, reasoning_level? }; use exact reasoning_levels[].value, not a guessed level. This per-task override does not change the project default. Kimi supports kimi.model and optional kimi.reasoning_level (native thinking); K3/K3.1 Pro and standard models currently support low/high/max. Model support varies; omitted reasoning_level preserves native settings. Confirm the actual level from runtime events. timeout_ms defaults to 60 minutes and allows 60 seconds to 4 hours per attempt. Ordinary tasks do not send completion wakeups; use coding_agent_schedule when a scheduled original-chat wakeup is required and supported. Returns a TaskReceipt; the task runs asynchronously in a detached worker. ${EXECUTION_NOT_VERDICT}`,
+      description: `Create a bounded coding task. Set executor="kimi" for Kimi Code (kimi.model is its local model alias; kimi.permission_mode defaults to yolo); omit executor for ZCode. All coding_agent_* task lifecycle tools also work with Kimi tasks; ZCode doctor/model tools remain ZCode-only. workspace is the the calling host project root and determines the ZCode Desktop project identity. the calling host decides whether to create a worktree; if it does, pass its existing absolute directory as optional worktree_path. The Bridge never creates, selects, or removes a worktree. Without worktree_path, ZCode runs directly in workspace. For ZCode, call coding_agent_model_catalog first, then pass model: { provider_id, model_id, reasoning_level? }; use exact reasoning_levels[].value, not a guessed level. This per-task override does not change the project default. Kimi supports kimi.model and optional kimi.reasoning_level (native thinking); K3/K3.1 Pro and standard models currently support low/high/max. Model support varies; omitted reasoning_level preserves native settings. Confirm the actual level from runtime events. timeout_ms defaults to 60 minutes and allows 60 seconds to 4 hours per attempt. Ordinary tasks do not send completion wakeups; use coding_agent_schedule when a scheduled original-chat wakeup is required and supported. Same or overlapping execution directories are serialized within a data root; the default 8-worker limit only applies to non-overlapping directories. API mode combines report_mode="raw" and session_profile="minimal" through the same asynchronous task tools; supply all needed text/images in the task. Use report_mode="raw" for data-only answers and read result.zcode_output, not event summaries. session_profile="minimal" reduces optional tools while preserving the default system prompt; ZCode uses native session switches, Kimi uses native disabled_tools (unsupported versions fail before submitting a prompt). Updating files does not reload a running MCP server: reconnect MCP or open a new host session. Returns a TaskReceipt; the task runs asynchronously in a detached worker. ${EXECUTION_NOT_VERDICT}`,
       inputSchema: zcodeTaskInputSchema,
       outputSchema: taskReceiptSchema
     },
@@ -29012,6 +29060,7 @@ var ScheduleController = class {
     this.#store.writeRuntime({ app_pipe_path: pipePath, updated_at: this.#now().toISOString() });
   }
   async submit(input) {
+    if (input.task.report_mode === "raw") throw new ScheduleError("SCHEDULE_INVALID", "Scheduled goals require structured reports and acceptance_met");
     if (!Number.isFinite(Date.parse(input.start_at)) || !START_AT_PATTERN2.test(input.start_at)) {
       throw new ScheduleError("SCHEDULE_INVALID", "start_at must be an ISO 8601 datetime with a timezone offset");
     }

@@ -4,6 +4,7 @@
 
 export type BridgeErrorCode =
   | "attachment_invalid"
+  | "session_profile_unsupported"
   | "cleanup_failed"
   | "runtime_not_found"
   | "provider_config_missing"

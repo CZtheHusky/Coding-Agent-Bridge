@@ -2,8 +2,10 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-09
-> Last verified: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
+> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
+> Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
 > Prior verification: 2026-10-15，最新上游整合分支的验证结果见[审查说明](reports/2026-10-15-browser-and-transport-fixes.md)；旧版本实测与当前分支回归分别记录。
 > Prior verified against: 上游fae74e45033a50fb560c0014d1a6d60a7dc771d1 + 本分支修复；受测源码指纹见审查说明。
@@ -49,9 +51,9 @@ App pipe 是 Observed Linux App 26.1016.61520 / codex-app-tools 0.1.6 的内部�
 
 TaskPackage 的五个数组必须存在，可为空。workspace 是绝对项目路径；worktree_path 是宿主已准备的执行目录。Bridge 不创建或删除 worktree。task_id 只能是最多 64 字符的字母数字、下划线和连字符。单 attempt timeout 范围 60,000–14,400,000 ms。
 
-任务状态为 queued/running/completed/failed/cancelled/waiting_for_master。后四种结束当前 attempt；completed 表示执行及报告解析完成，宿主仍独立验收。续跑只接受 completed/failed/waiting_for_master，且清理必须已验证；保留同 task ID、执行目录和旧 attempt 证据。
+任务状态为 queued/running/completed/failed/cancelled/waiting_for_master。后四种结束当前 attempt；completed 表示执行及所选报告合同完成（raw 无报告解析），宿主仍独立验收。续跑只接受 completed/failed/waiting_for_master，且清理必须已验证；保留同 task ID、执行目录和旧 attempt 证据。
 
-AgentReport 必须包含布尔型 needs_master_decision；缺失或字符串值仍返回 invalid_agent_report，不静默合成。该错误的显式续作使用仅修复报告的 prompt，携带 candidate 与有界原始响应，不重发原实现任务或测试命令，禁止模型编辑或重跑。Bridge 不自动增加修复 turn；禁止工具操作是 prompt 约束，不是 OS 沙箱。心跳而无业务事件时 observation.activity 为 starting（启动宽限内）或 unknown，不声称业务执行。固定反馈模板区分原 attempt 的 cleanup_failed 与后续 cleanup=verified；未确认清理标为未验证，不能写成 NOT RUN。决策见 ADR-005。
+默认 structured 模式的 AgentReport 必须包含布尔型 needs_master_decision；缺失或字符串值仍返回 invalid_agent_report，不静默合成。该错误的显式续作使用仅修复报告的 prompt，携带 candidate 与有界原始响应，不重发原实现任务或测试命令，禁止模型编辑或重跑。Bridge 不自动增加修复 turn；禁止工具操作是 prompt 约束，不是 OS 沙箱。心跳而无业务事件时 observation.activity 为 starting（启动宽限内）或 unknown，不声称业务执行。固定反馈模板区分原 attempt 的 cleanup_failed 与后续 cleanup=verified；未确认清理标为未验证，不能写成 NOT RUN。决策见 ADR-005。
 
 任务 objective、requirements、路径、验收、测试命令及续跑 feedback 不截断；完整 prompt 超过 60,000 字符会返回 TASK_INVALID。参考 context 与旧结果摘要仍有明确的截断标记，不能把安全约束只放在参考 context。
 
@@ -84,3 +86,17 @@ KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复
 ## Coding Agent Bridge 命名（ADR-013）
 
 展示名为 **Coding Agent Bridge**，MCP server key 为 `coding_agent_bridge`，公开工具使用 `coding_agent_*`（可选 ledger 工具为 `coding_agent_ledger_*`）。旧 `zcode_*` / `ledger_*` 工具名不再注册；升级后刷新 MCP 工具列表并更新调用名。安装 ID、包名、路径、环境变量和已存任务字段保持原值。ZCode 支持模型与 `model.reasoning_level` 选择，档位取自 `coding_agent_model_catalog`；Kimi 支持 `kimi.model` 和可选 `kimi.reasoning_level`，透传原生 thinking，支持值依模型而定；见 [ADR-014](decisions/ADR-014-kimi-reasoning-level.md)。见 [ADR-013](decisions/ADR-013-coding-agent-bridge-discovery.md)。
+
+## 数据任务与精简会话（ADR-017）
+
+API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名称；沿用异步任务接口，没有额外 mode 字段或 HTTP 接口。
+
+普通 TaskPackage 可传 `report_mode: "structured" | "raw"`，缺省 structured，保留原 AgentReport 验证。raw 不追加报告合同，不解析报告；原生成功、捕获未截断且 cleanup 已验证时才 completed，不证明数据有效或主机验收通过。`needs_master_decision=false` 在 raw 中只表示已显式放弃报告合同，不能当作模型的决定声明。数据读取 `zcode_output` 原文，不拼接事件摘要。`output_truncated` 标注捕获截断；raw 截断为 failed / output_truncated。失败保留已有 outcome 的捕获回答。模式持久化，续作不可切换；预约拒绝 raw，因为目标循环依赖 acceptance_met。
+
+`session_profile: "default" | "minimal"` 缺省 default。两个执行器都保留原生默认系统提示，不发送 system_prompt 或自定义 agent。ZCode minimal 的 create/resume 传 toolAllowlist=[]、mcpServers=[]、dynamicWorkflowEnabled=false、offPeakToolEnabled=false，create 另传 titleGenerationEnabled=false。Kimi minimal 先核对认证 OpenAPI 对 prompt.disabled_tools 的支持，再从当前 session 的 /tools 枚举工具名，随每次 prompt 下发 disabled_tools；不支持为 session_profile_unsupported，在模型请求前失败。它只约束当前注册工具；技能目录、原生基础上下文与晚注册工具仍由运行时决定，不承诺裸模型上下文或 OS 沙箱。
+
+可选 `runtime_session_usage` 只返回 ZCode 原生 session/usage 的 session_id、observed_at、model_request_count、model_error_count 和固定 source=zcode_runtime_session。这是观测时的会话累计请求/错误数，可能包括辅助请求，不能标为单轮或逐请求统计；不复制该 RPC 中具有基线语义的 token 字段。不支持时字段缺省并发出 session_usage_unavailable，不估算为 0。
+
+turn.failed / RPC 错误的既有码不变；消息及事件 provider_error 可附白名单 code/type/status/retryable/retry-after 数值与固定分类说明。1301 为内容安全拒绝，不自动原样重试；未知原始消息、URL、headers、metadata、请求体不外发。额度耗尽判断优先，停止策略不变。不能据此承诺任意未知失败都已完整诊断。
+
+同目录和父子目录互斥保持不变；8 worker 只适用于互不重叠执行目录。文件升级不使运行中 MCP 进程热更新，须重连 MCP 或新建宿主会话。决策见 [ADR-017](decisions/ADR-017-data-task-output-and-diagnostics.md)。

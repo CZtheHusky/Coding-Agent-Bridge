@@ -24,10 +24,14 @@ function complete() {
     event('turn.step.started', {});
     event('assistant.delta', { delta: report.slice(0, 40) }, { offset: 0 });
     event('assistant.delta', { delta: report.slice(40) }, { offset: 40 });
-  } else event('assistant.delta', { delta: scenario.kind === 'invalid' ? '{}' : report }, { offset: scenario.kind === 'gap' ? 99 : 0 });
+  } else event('assistant.delta', { delta: scenario.kind === 'raw' ? '[{"label":true}]' : scenario.kind === 'invalid' ? '{}' : report }, { offset: scenario.kind === 'gap' ? 99 : 0 });
   event('turn.ended', { reason: scenario.kind === 'failure' ? 'failed' : 'completed', ...(scenario.kind === 'failure' ? { error: { code: 'provider.rate_limit', message: scenario.message ?? 'Usage quota exhausted', details: { api_key: 'SECRET_MUST_NOT_LEAK' } } } : {}) });
 }
 const server = http.createServer(async (req, res) => {
+  if (req.url === '/openapi.json') {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ paths: { '/api/v1/sessions/{session_id}/prompts': { post: { requestBody: { content: { 'application/json': { schema: { properties: scenario.kind === 'old_profile' ? {} : { disabled_tools: { type: 'array', items: { type: 'string' } } } } } } } } } } })); return;
+  }
   let text = ''; for await (const part of req) text += part;
   const body = text ? JSON.parse(text) : undefined;
   record(req.url, body);
@@ -35,6 +39,7 @@ const server = http.createServer(async (req, res) => {
   let data = {};
   if (req.url.endsWith('/snapshot')) { loaded = true; data = { session, as_of_seq: 0, epoch: 'fixture-epoch' }; }
   else if (req.url === '/api/v1/config') data = { default_model: 'fixture/default' };
+  else if (req.url.startsWith('/api/v1/tools?')) data = { tools: [{ name: 'Read' }, { name: 'Shell' }, { name: 'mcp__fixture__lookup' }] };
   else if (req.url === '/api/v1/sessions' || req.url === '/api/v1/sessions/session_fixture') data = { ...session, metadata: { cwd: scenario.kind === 'wrong_workspace' && req.method === 'GET' ? '/wrong' : process.cwd() } };
   else if (req.url.endsWith('/prompts')) {
     if (scenario.kind === 'envelope_error') { res.end(JSON.stringify({ code: 40110, msg: 'SECRET_MUST_NOT_LEAK', data: {} })); return; }

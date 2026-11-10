@@ -1363,6 +1363,8 @@ function buildTaskResult(input) {
     started_at: startedAt,
     finished_at: finishedAt,
     zcode_output: outcome?.response ?? "",
+    ...outcome ? { output_truncated: outcome.stdoutTruncated } : {},
+    ...outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {},
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input.sessionId ?? null,
     ...input.usage !== void 0 ? { usage: input.usage } : {},
@@ -1408,6 +1410,29 @@ function buildTaskResult(input) {
       needs_master_decision: true,
       error_code: code,
       ...outcome.reportCandidate ? { report_candidate: outcome.reportCandidate } : {}
+    };
+  }
+  if (task.report_mode === "raw") {
+    if (outcome.exitCode !== 0 || outcome.timedOut || outcome.stdoutTruncated) {
+      return {
+        ...base,
+        status: "failed",
+        summary: "Raw execution failed or its output was truncated",
+        files_changed: [],
+        tests: [],
+        issues: ["Validate the captured output; it is not a complete successful response"],
+        needs_master_decision: true,
+        error_code: outcome.stdoutTruncated ? "output_truncated" : task.executor === "kimi" ? "kimi_nonzero_exit" : "zcode_nonzero_exit"
+      };
+    }
+    return {
+      ...base,
+      status: "completed",
+      summary: "Raw response captured; caller must validate zcode_output independently",
+      files_changed: [],
+      tests: [],
+      issues: [],
+      needs_master_decision: false
     };
   }
   const report = outcome.agentReport;
@@ -2832,13 +2857,14 @@ ${task.objective}`,
       "TEST COMMANDS (run the applicable ones and report a status for each)",
       task.test_commands
     ),
-    DECISION_RULE
+    ...task.report_mode === "raw" ? [] : [DECISION_RULE]
   ];
   if (task.context && task.context.trim().length > 0) {
     sections.push(`CONTEXT
 ${bounded(task.context, MAX_CONTEXT_CHARS)}`);
   }
-  return joinBoundedPreservingTail([...sections, OUTPUT_CONTRACT], OUTPUT_CONTRACT);
+  const contract = outputContract(task);
+  return joinBoundedPreservingTail([...sections, contract], contract);
 }
 function buildContinuePrompt(input) {
   const { task, feedback, additionalRequirements, previousSessionId, previousResult } = input;
@@ -2853,7 +2879,7 @@ function buildContinuePrompt(input) {
       `This run resumes persisted session ${previousSessionId}; earlier conversation context may be available.`
     );
   }
-  if (previousResult?.error_code === "invalid_agent_report") {
+  if (task.report_mode !== "raw" && previousResult?.error_code === "invalid_agent_report") {
     sections.push(
       "REPORT REPAIR MODE: The previous execution has ended. Only its final report failed validation. Do not use tools, edit files, rerun tests, or repeat task work. Return the corrected JSON report from the evidence below. Preserve claims as claims, including not_run and failures. Do not invent tests or missing facts. If needs_master_decision cannot be established, explicitly set it to true and record the uncertainty in issues.",
       `PROJECT WORKSPACE: ${task.workspace}`,
@@ -2887,7 +2913,10 @@ ${feedback}`);
   }
   sections.push(`ORIGINAL TASK
 ${buildTaskPrompt({ ...task, attachments: void 0 })}`);
-  return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
+  return joinBoundedPreservingTail(sections, outputContract(task));
+}
+function outputContract(task) {
+  return task.report_mode === "raw" ? "RAW OUTPUT: Follow the task's requested response format exactly. Do not add an AgentReport, summary wrapper, or markdown unless the task requests it. The caller validates the data independently." : OUTPUT_CONTRACT;
 }
 var OUTPUT_CONTRACT = [
   "OUTPUT CONTRACT (mandatory)",
@@ -3373,10 +3402,12 @@ var BridgeTaskManager = class _BridgeTaskManager {
       return;
     }
     const run = (async () => {
+      let hasQueuedTask = false;
       for (const taskId2 of this.#store.listTaskIds()) {
         try {
           const status = this.#safeStatus(taskId2);
           if (!status) continue;
+          if (status.status === "queued") hasQueuedTask = true;
           if (status.status === "running") {
             await this.#reconcileRunningThreePhase(taskId2, status);
           } else if (isTerminalStatus(status.status) && status.cleanup_unverified === true) {
@@ -3389,7 +3420,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
           }
         }
       }
-      await this.#exclusive(async () => {
+      if (hasQueuedTask) await this.#exclusive(async () => {
         this.#pumpLocked();
       });
     })();
@@ -4415,7 +4446,8 @@ var BridgeTaskManager = class _BridgeTaskManager {
     const outcome = {
       attempts: 1,
       cancelled: false,
-      stdoutTruncated: false,
+      stdoutTruncated: checkpoint.stdout_truncated === true,
+      runtimeSessionUsage: checkpoint.runtime_session_usage,
       stderrTruncated: false,
       stdout: checkpoint.response,
       stderr: "",
@@ -4565,6 +4597,12 @@ var BridgeTaskManager = class _BridgeTaskManager {
       if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
         throw new TaskManagerError("TASK_INVALID", `${field} must be an array of strings (may be empty)`);
       }
+    }
+    if (task.report_mode !== void 0 && !["structured", "raw"].includes(task.report_mode)) {
+      throw new TaskManagerError("TASK_INVALID", "report_mode must be structured or raw");
+    }
+    if (task.session_profile !== void 0 && !["default", "minimal"].includes(task.session_profile)) {
+      throw new TaskManagerError("TASK_INVALID", "session_profile must be default or minimal");
     }
     if (task.context !== void 0 && typeof task.context !== "string") {
       throw new TaskManagerError("TASK_INVALID", "context must be a string when present");
@@ -5112,6 +5150,7 @@ var ScheduleController = class {
     this.#store.writeRuntime({ app_pipe_path: pipePath, updated_at: this.#now().toISOString() });
   }
   async submit(input) {
+    if (input.task.report_mode === "raw") throw new ScheduleError("SCHEDULE_INVALID", "Scheduled goals require structured reports and acceptance_met");
     if (!Number.isFinite(Date.parse(input.start_at)) || !START_AT_PATTERN.test(input.start_at)) {
       throw new ScheduleError("SCHEDULE_INVALID", "start_at must be an ISO 8601 datetime with a timezone offset");
     }

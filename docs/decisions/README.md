@@ -2,8 +2,8 @@
 
 > Status: AUTHORITATIVE（仅指本索引）
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对新增 ADR-016；ADR-015 保留 2026-11-08 核对，其余范围不变。
-> Verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree。
+> Last verified: 2026-11-09，仅核对 ADR-017 API 模式决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree。
 
 本目录保存已批准的架构决策和带日期的决策记录。决策回答"为什么这样定"，当前实现仍以 `ARCHITECTURE.md` / `INTERFACES.md` 为准。
 
@@ -47,3 +47,5 @@ ADR-001 到 ADR-003 只搬运权威文档里已经写明的结论。ADR-004 原�
 - [ADR-015](ADR-015-claude-plugin-entry-path.md)：Claude 独立 manifest 使用宿主插件根目录变量，保留 Codex 入口，并分别升级独立部署。
 
 - [ADR-016](ADR-016-native-image-attachments.md)：任务与续作的原生图片附件，ZCode/Kimi 字段、持久化和失败边界。
+
+- [ADR-017：API 模式、数据输出与诊断](ADR-017-data-task-output-and-diagnostics.md)：raw/minimal 组合、保留原生系统提示、失败诊断及扫描边界。

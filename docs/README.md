@@ -2,9 +2,11 @@
 
 > Status: AUTHORITATIVE（仅指本索引）
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
+> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
-> Verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
+> Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
 > Prior verification: 2026-10-28，核对本次修改文档的调度路由、额度诊断与状态标记；离线运行验证范围见 ADR-010，另已核对真实 ZCode/当前 App 消息送达与 Codex 独立验收；新版调度空闲聊天新轮次仍未验证。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度与 ADR-011 额度诊断）。
 
@@ -51,16 +53,16 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 语言 | 最后更新 | 最后核对 |
 |---|---|---|---|
-| [README.md](../README.md) | en | 2026-11-09 | 本次附图示例/模型模态与 Linux 实测；其余沿用历史范围； 调度静态核对 + systemd 离线闭环；真实消息送达/独立验收；空闲新轮次未验证 |
-| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-09 | 本次附图参数、示例和模型模态；其余未重验 |
-| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-09 | 本次附图与安装验收；其余沿用历史范围； 调度静态核对 + systemd 离线闭环；详见文档顶部 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-10-28 | 调度静态核对 + systemd 离线闭环；详见文档顶部 |
-| [INTERFACES.md](INTERFACES.md) | zh | 2026-10-28 | 工具/schema 静态核对 + 离线闭环；详见文档顶部 |
-| [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-10-28 | 可选注入静态核对 + 离线闭环；详见文档顶部 |
-| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-04 | Kimi 代理两处 spawn 回归与两端安装后真实调用；其余范围见文档顶部 |
-| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-09 | 本次附图参数、续作示例和模型模态 |
+| [README.md](../README.md) | en | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-09 | API 模式用法、默认系统提示与工具边界；ZCode 实测，Kimi 仅离线/API 能力核对 |
 | [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
-| [plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md) | zh | 2026-11-09 | 本次附图参数与视觉模型边界； 调度/验收静态核对 + 离线闭环 |
+| [plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md) | zh | 2026-11-09 | API 模式用法、默认系统提示与工具边界；ZCode 实测，Kimi 仅离线/API 能力核对 |
 
 `最后核对` 表示上一次有人把文档内容与代码对照的日期及范围；标记为未记录的条目仍缺少核对证据。新建和修改文档时必须填写，否则该文档只能算"最后更新"，不能算"已验证"。本地回归不代表真实 provider 或长期运行通过。
 
@@ -164,3 +166,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [附图实测](reports/2026-11-09-native-image-attachments.md)：ZCode/Kimi 批量附图、同会话补图与视觉能力边界。
 
 - [附图提交与安装验收](reports/2026-11-09-native-image-deployment.md)：两端四入口替换、ZCode 实测、Kimi 额度与测试启动环境边界 / Deployment verification and remaining Kimi limits.
+
+- [ADR-017：数据任务输出与精简会话 / Data output and minimal sessions](decisions/ADR-017-data-task-output-and-diagnostics.md) — DECISION；raw 输出、保留默认系统提示的工具精简、失败诊断及扫描边界。
+
+- [数据任务修复与对照测试 / Data-task repair and controlled tests](reports/2026-11-09-data-task-repair.md)：raw/minimal、ZCode 实测、Kimi API 核对与未运行边界、扫描测量及完整回归。

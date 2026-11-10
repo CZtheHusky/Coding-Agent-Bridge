@@ -62,6 +62,43 @@ After the attempt ends, add **only new images** with `coding_agent_continue`:
 
 Continuation retains the same executor and session. Do not attach earlier images again. Request retries must keep the same task/operation ID, paths and array order. Scheduled tasks use the same attachments inside `task`; files are not copied, so keep originals until execution. Invalid input fails as `TASK_INVALID` / `SCHEDULE_INVALID`; files lost before execution fail as `attachment_invalid`. Model/provider image limits still apply; OCR accuracy and token savings are not guaranteed. Refresh/reconnect MCP after upgrading to load the new parameters and skill. See the [attachment contract](docs/INTERFACES.md#图片附件adr-016) and [validation evidence](docs/reports/2026-11-09-native-image-attachments.md).
 
+## API mode: data-only calls with less context
+
+API mode names the combination below for classification, extraction, or image labeling. It uses the existing asynchronous Bridge task tools; no separate HTTP endpoint or new `mode` field is required. Set these optional task fields:
+
+```json
+{
+  "report_mode": "raw",
+  "session_profile": "minimal"
+}
+```
+
+Keep the usual TaskPackage fields and attachments. For Kimi, add `"executor": "kimi"`; omit it for ZCode. Put all needed text in the task and images in attachments: minimal sessions cannot depend on file-reading, shell, browsing, or other disabled tools. Use the default profile when those tools are needed. Read the answer from
+`coding_agent_result.zcode_output`, then validate the data yourself. Event summaries
+are progress views and may be compressed. `completed` confirms execution, not data
+correctness; `output_truncated: true` means the captured answer is incomplete (raw
+mode fails explicitly). The default remains the structured coding report. Raw mode
+is unavailable for scheduled goals, which require `acceptance_met`.
+
+Both executors preserve their default system prompt. ZCode minimal sessions request
+no tools or MCP servers, disable workflows/off-peak tools, and disable new-session
+title generation. Kimi minimal sessions enumerate registered tools and send their
+names through the native `disabled_tools` option on each submission; older servers
+without that option fail before a model prompt. Kimi may still include native skill
+catalogs and other base context. This mode does not promise bare-model API context
+or an OS sandbox, and never changes global agent settings.
+
+A controlled two-image ZCode 3.16.3 / GLM-5.3-Flash test used 20,119 input tokens by
+default and 2,536 with minimal sessions (87.4% lower in this sample), with correct
+answers and one main request each. Kimi token savings have not been measured.
+Optional `runtime_session_usage` exposes ZCode's native **session-wide** request/error
+counts at `observed_at`; these are not per-turn counts or estimated billing.
+
+Tasks using the same or overlapping execution directories are serialized within one
+data root. The default eight-worker concurrency applies to non-overlapping paths.
+After an upgrade, reconnect MCP or start a new host session: already-running servers
+keep their loaded code and tool schemas. Do not restart workers during active work.
+
 ## Kimi Code support
 
 The same bridge can run local **Kimi Code CLI 2.3.3** tasks. Install and log in to Kimi first. Submit `coding_agent_task` with `executor: "kimi"`; omit it to keep using ZCode. Existing status, events, feedback, result, continue, cancel, interaction reply and schedule tools work for both executors.

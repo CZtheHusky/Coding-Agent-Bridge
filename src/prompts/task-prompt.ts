@@ -40,12 +40,13 @@ export function buildTaskPrompt(task: TaskPackage): string {
       "TEST COMMANDS (run the applicable ones and report a status for each)",
       task.test_commands,
     ),
-    DECISION_RULE,
+    ...(task.report_mode === "raw" ? [] : [DECISION_RULE]),
   ];
   if (task.context && task.context.trim().length > 0) {
     sections.push(`CONTEXT\n${bounded(task.context, MAX_CONTEXT_CHARS)}`);
   }
-  return joinBoundedPreservingTail([...sections, OUTPUT_CONTRACT], OUTPUT_CONTRACT);
+  const contract = outputContract(task);
+  return joinBoundedPreservingTail([...sections, contract], contract);
 }
 
 export function buildContinuePrompt(input: ContinuePromptInput): string {
@@ -61,7 +62,7 @@ export function buildContinuePrompt(input: ContinuePromptInput): string {
       `This run resumes persisted session ${previousSessionId}; earlier conversation context may be available.`,
     );
   }
-  if (previousResult?.error_code === "invalid_agent_report") {
+  if (task.report_mode !== "raw" && previousResult?.error_code === "invalid_agent_report") {
     // Do not reintroduce implementation instructions or test commands in a
     // report-only continuation. Candidate claims precede the bounded raw
     // response so a long response cannot hide the useful structured evidence.
@@ -91,7 +92,13 @@ export function buildContinuePrompt(input: ContinuePromptInput): string {
     sections.push(renderList("ADDITIONAL REQUIREMENTS", [...additionalRequirements]));
   }
   sections.push(`ORIGINAL TASK\n${buildTaskPrompt({ ...task, attachments: undefined })}`);
-  return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
+  return joinBoundedPreservingTail(sections, outputContract(task));
+}
+
+function outputContract(task: TaskPackage): string {
+  return task.report_mode === "raw"
+    ? "RAW OUTPUT: Follow the task's requested response format exactly. Do not add an AgentReport, summary wrapper, or markdown unless the task requests it. The caller validates the data independently."
+    : OUTPUT_CONTRACT;
 }
 
 const OUTPUT_CONTRACT = [

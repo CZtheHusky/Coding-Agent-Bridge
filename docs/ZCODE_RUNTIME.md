@@ -1,9 +1,11 @@
 # ZCode 运行配置边界
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-04
-> Last verified: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
-> Verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
+> Prior verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
 > Prior verification: 2026-10-28，静态核对本次 systemd runner 配置、App pipe 私有记录与环境转发边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
 > Prior verification: 2026-10-16，独立验证 Windows/Linux worker 环境转发、Windows 自动发现及真实浏览器后端（见[修复报告](reports/2026-10-16-environment-portability-fixes.md#codex-独立验收2026-10-16)）；其余条目沿用 2026-10-15 核对范围。
@@ -44,3 +46,13 @@ KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复
 即时 Kimi 任务继承 Bridge 进程已有的 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 及对应小写变量，分别通过 detached worker 和 Kimi 子进程的 env 原样传递。代理 URL 可含凭据，因此不写入命令参数、任务记录或日志；其余任意秘密仍不透传。不读取 shell 文件补代理；启动 Bridge 的环境必须已经配置代理。通用 OS/Bridge 配置白名单和 ZCode 子进程策略不变。预约 runner 仍遵循上述环境清空策略，本次不支持从 MCP 宿主继承代理，见 [ADR-012 代理补充](decisions/ADR-012-kimi-executor.md#代理环境补充2026-11-04)。
 
 配置、版本与验证范围见 [ADR-012](decisions/ADR-012-kimi-executor.md) 和[验证报告](reports/2026-10-28-kimi-validation.md)。本节不扩展原有 ZCode 的历史验证结论。
+
+## 可选精简会话（ADR-017）
+
+API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名称；沿用异步任务接口，没有额外 mode 字段或 HTTP 接口。
+
+数据任务可使用 `report_mode: "raw", session_profile: "minimal"`。ZCode 的 native create/resume 只通过公开协议中的工具白名单、MCP、workflow/off-peak 开关减少工具面，create 关闭标题生成；保留默认系统提示，不修改运行时安装包。Observed ZCode 3.16.3 对照：同样两张图、GLM-5.3-Flash/max、各一次主模型请求，输入 20,119 → 2,536，输出均独立核对正确，精简 session 的原会话续作也通过。该降幅不是固定开销保证。
+
+Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或修改全局工具设置。Observed SSH 远端 Kimi 2.4.1：认证 OpenAPI 确认字段存在、原生目录返回 26 个具名工具；本轮未提交 Kimi 模型 prompt，额度恢复前不重试，因此 token 降幅及实际模型工具面仍未验证。协议 fixture 已覆盖参数、续作、系统提示不被覆盖及不支持时提前失败。
+
+精简不等于 OS 沙箱，不会清除调用工作区原生 AGENTS/技能/基础上下文。互不相关的 API 请求使用新 task_id/session，可避免历史累积；需要前文的请求才使用 continue。代码更新后重连 MCP，已加载旧代码的服务器不会自动生效。

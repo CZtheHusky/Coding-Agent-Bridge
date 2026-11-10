@@ -155,6 +155,7 @@ export class ScheduleController {
   }
 
   async submit(input: SubmitScheduleInput): Promise<ScheduleSubmitReceipt> {
+    if (input.task.report_mode === "raw") throw new ScheduleError("SCHEDULE_INVALID", "Scheduled goals require structured reports and acceptance_met");
     // Boundary: core hosts and MCP supply an absolute, timezone-qualified start and explicit chat UUID.
     if (!Number.isFinite(Date.parse(input.start_at)) || !START_AT_PATTERN.test(input.start_at)) {
       throw new ScheduleError("SCHEDULE_INVALID", "start_at must be an ISO 8601 datetime with a timezone offset");

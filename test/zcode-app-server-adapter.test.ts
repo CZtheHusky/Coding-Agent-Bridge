@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { ZCodeAppServerAdapter } from "../src/adapters/zcode-app-server-adapter.js";
 import { isProcessRunning } from "../src/adapters/process-spawn.js";
 import { BridgeError } from "../src/runtime/errors.js";
+import { buildTaskResult } from "../src/manager/normalize.js";
 import type { TaskPackage, ZCodeRuntimeConfig } from "../src/interfaces.js";
 import { makeWorkspace, SESSION_ID, validReport } from "./helpers.js";
 
@@ -26,6 +28,7 @@ async function makeFakeRuntime(
   interactionRequest = false,
   turnFailure?: unknown,
   failureDelivery: "event" | "rpc" = "event",
+  terminal: { response?: string; resultType?: string | null } = {},
 ): Promise<{ root: string; config: ZCodeRuntimeConfig; requestLog: string }> {
   const root = await mkdtemp(path.join(tmpdir(), "bridge-app-server-test-"));
   const entrypoint = path.join(root, "fake-app-server.cjs");
@@ -44,7 +47,7 @@ function finishTurn() {
   if (turnFinished) return;
   turnFinished = true;
   const params = turnFailure === null
-    ? { seq: 1, type: "turn.completed", payload: { response: JSON.stringify(report), usage: { totalTokens: 4 }, resultType: "success" } }
+    ? { seq: 1, type: "turn.completed", payload: { response: ${terminal.response === undefined ? "JSON.stringify(report)" : JSON.stringify(terminal.response)}, usage: { totalTokens: 4 }, resultType: ${JSON.stringify(terminal.resultType === undefined ? "success" : terminal.resultType)} } }
     : { seq: 1, type: "turn.failed", payload: { error: turnFailure } };
   process.stdout.write(JSON.stringify({ method: "session/event", params }) + "\n");
 }
@@ -66,6 +69,8 @@ input.on("line", (line) => {
   } else if (message.method === "session/setModel") {
     selected = message.params.model;
     process.stdout.write(JSON.stringify({ id: message.id, result: snapshot() }) + "\n");
+  } else if (message.method === "session/usage") {
+    process.stdout.write(JSON.stringify({ id: message.id, result: { sessionId, modelRequestCount: 7, modelErrorCount: 2, inputTokens: 120, outputTokens: 12, privateField: "HIDDEN_USAGE" } }) + "\n");
   } else if (message.method === "session/subscribe") {
     process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\n");
   } else if (message.method === "session/send") {
@@ -126,6 +131,8 @@ test("applies a per-task model override, verifies the selection, and does not pe
     assert.equal(result.sessionId, SESSION_ID);
     const requests = (await readFile(runtime.requestLog, "utf8"))
       .trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+    const create = requests.find((request) => request.method === "session/create")!.params as Record<string, unknown>;
+    for (const key of ["toolAllowlist", "mcpServers", "dynamicWorkflowEnabled", "offPeakToolEnabled", "titleGenerationEnabled", "systemPrompt"]) assert.equal(create[key], undefined, "default tasks retain the native prompt and tools");
     const setModel = requests.find((request) => request.method === "session/setModel");
     assert.ok(setModel);
     assert.deepEqual(setModel.params, {
@@ -197,7 +204,7 @@ test("does not misclassify request rate limits or generic 429s as exhausted usag
       await assert.rejects(adapter.getResult(handle), (error: unknown) => {
         assert.ok(error instanceof BridgeError);
         assert.equal(error.code, "zcode_nonzero_exit");
-        assert.equal(error.message, "ZCode turn failed");
+        assert.match(error.message, /^ZCode turn failed/);
         return true;
       });
       const failureEvents = events.filter((event) => event.type === "turn_failed" || event.type === "error");
@@ -485,4 +492,76 @@ test("a deleted ZCode image fails explicitly before starting the runtime", async
   const handle = await adapter.startTask({ task: { ...task, attachments: [{ path: path.join(tmpdir(), "bridge-image-missing-file.png") }] }, workspace: makeWorkspace(tmpdir()), attempt: 1 });
   await assert.rejects(adapter.getResult(handle), { code: "attachment_invalid" });
   assert.equal(events.some(e => (e as { type: string }).type === "app_server_started"), false);
+});
+
+
+test("raw native data is returned without report claims, including same-session continuation", async () => {
+  const response = '[{"label":true},{"label":false}]';
+  const runtime = await makeFakeRuntime(undefined, true, false, undefined, "event", { response });
+  const events: { type: string }[] = [];
+  let firstCheckpointBeforeUsage: boolean | undefined;
+  try {
+    const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, onEvent: e => events.push(e), onOutcomeCheckpoint: () => { firstCheckpointBeforeUsage ??= !readFileSync(runtime.requestLog, "utf8").includes('"method":"session/usage"'); }, childEnvBase: { PATH: process.env.PATH } });
+    const rawTask = { ...task, report_mode: "raw" as const, session_profile: "minimal" as const };
+    const input = { task: rawTask, workspace: makeWorkspace(runtime.root), attempt: 1 };
+    const result = await adapter.getResult(await adapter.startTask(input));
+    assert.equal(result.response, response); assert.equal(result.errorCode, null); assert.equal(result.agentReport, null);
+    assert.equal(result.cleanupVerified, true); assert.equal(result.runtimeSessionUsage?.model_request_count, 7);
+    assert.equal(firstCheckpointBeforeUsage, true, "completed work is durable before a supplementary usage RPC can hang or fail");
+    assert.equal(events.some(e => e.type === "report_ready"), false, "data is not an AgentReport or acceptance verdict");
+    const next = await adapter.getResult(await adapter.continueTask({ ...input, attempt: 2, feedback: "Return updated data", additionalRequirements: [], previousSessionId: result.sessionId, previousResult: null }));
+    assert.equal(next.response, response); assert.equal(next.sessionId, result.sessionId);
+    const requests = (await readFile(runtime.requestLog, "utf8")).trim().split("\n").map(line => JSON.parse(line));
+    const create = requests.find(r => r.method === "session/create").params;
+    const resume = requests.find(r => r.method === "session/resume").params;
+    for (const params of [create, resume]) {
+      assert.deepEqual(params.toolAllowlist, []); assert.deepEqual(params.mcpServers, []);
+      assert.equal(params.dynamicWorkflowEnabled, false); assert.equal(params.offPeakToolEnabled, false);
+    }
+    assert.equal(create.titleGenerationEnabled, false); assert.equal(resume.titleGenerationEnabled, undefined);
+    for (const send of requests.filter(r => r.method === "session/send")) {
+      assert.doesNotMatch(send.params.content, /OUTPUT CONTRACT \(mandatory\)|Required fields: summary|DECISION RULE/);
+      assert.match(send.params.content, /RAW OUTPUT/);
+    }
+    assert.doesNotMatch(JSON.stringify(result), /HIDDEN_USAGE/);
+  } finally { await rm(runtime.root, { recursive: true, force: true }); }
+});
+
+test("raw mode cannot convert an unknown or failed native terminal into success", async () => {
+  for (const resultType of [null, "error"]) {
+    const runtime = await makeFakeRuntime(undefined, true, false, undefined, "event", { response: "[]", resultType });
+    try {
+      const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, childEnvBase: { PATH: process.env.PATH } });
+      const outcome = await adapter.getResult(await adapter.startTask({ task: { ...task, report_mode: "raw" }, workspace: makeWorkspace(runtime.root), attempt: 1 }));
+      assert.ok(outcome.errorCode); assert.equal(outcome.response, "[]");
+    } finally { await rm(runtime.root, { recursive: true, force: true }); }
+  }
+});
+
+test("content safety rejection survives native event and RPC wrappers without private error text", async () => {
+  for (const delivery of ["event", "rpc"] as const) {
+    const runtime = await makeFakeRuntime(undefined, true, false, { code: "UNKNOWN_ERROR", message: "Turn failed", underlyingErrorMessage: "[1301][unsafe][PRIVATE_REQUEST_ID]", data: { error: { message: "[1301][系统检测到输入或生成内容可能包含不安全或敏感内容][PRIVATE_REQUEST_ID]", retryable: false }, headers: { Authorization: "SECRET" }, url: "https://private.invalid/SECRET" } }, delivery);
+    const events: unknown[] = [];
+    try {
+      const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, onEvent: e => events.push(e), childEnvBase: { PATH: process.env.PATH } });
+      await assert.rejects(adapter.getResult(await adapter.startTask({ task, workspace: makeWorkspace(runtime.root), attempt: 1 })), error => {
+        assert.match(String(error), /content safety rejection \(1301\)/); assert.doesNotMatch(String(error), /PRIVATE|SECRET|private.invalid/); return true;
+      });
+      assert.doesNotMatch(JSON.stringify(events), /PRIVATE|SECRET|private.invalid/);
+    } finally { await rm(runtime.root, { recursive: true, force: true }); }
+  }
+});
+
+
+test("raw native capture overflow is explicit instead of silently returning incomplete data", async () => {
+  const runtime = await makeFakeRuntime(undefined, true, false, undefined, "event", { response: "x".repeat(2_000_001) });
+  try {
+    const rawTask = { ...task, report_mode: "raw" as const };
+    const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, childEnvBase: { PATH: process.env.PATH } });
+    const outcome = await adapter.getResult(await adapter.startTask({ task: rawTask, workspace: makeWorkspace(runtime.root), attempt: 1 }));
+    assert.equal(outcome.stdoutTruncated, true); assert.equal(outcome.response?.length, 2_000_000);
+    const result = buildTaskResult({ task: rawTask, attempt: 1, startedAt: null, finishedAt: new Date().toISOString(), outcome });
+    assert.equal(result.status, "failed"); assert.equal(result.error_code, "output_truncated");
+    assert.equal(result.zcode_output.length, 2_000_000);
+  } finally { await rm(runtime.root, { recursive: true, force: true }); }
 });

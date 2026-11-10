@@ -1,9 +1,11 @@
 # 当前架构
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，静态核对本次 src/schedule 的监督、持久化、续作与唤醒装配；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-10-28，静态核对本次 src/schedule 的监督、持久化、续作与唤醒装配；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
+> Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
 > Prior verification: 2026-10-18，PR #47 claimant 扫描返修（P1-A/P1-B、逐边持有证明的外来代排除、hold 响应校验、终止预算语义）经专项、Manager baseline-RED 复验与 evaluator 契约探针回归（worker 自测；Codex 独立矩阵待运行），证据索引见[公开返修报告](reports/2026-10-18-pr47-claimant-repair.md)；其余沿承 2026-10-17 的 ADR-009 全量矩阵核对范围。
 > Prior verified against: 0902236c488adf7a3280dfdc38401dfa9f41cb49 + 本分支修复；受测源码指纹见各修复记录。
@@ -102,3 +104,7 @@ Desktop 索引同步是 best effort，事务内检查 schema 与 Bridge owner、
 KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复冷会话并取得游标，再订阅确认并提交独立 prompt_id。只接受当前 session/main agent/prompt/turn，失败、断流、文本偏移不符及无效报告均不得完成；thinking 不外发。审批/问题走既有 interaction 存储；成功和失败均验证进程树清理。Kimi 明确额度耗尽使用 kimi_usage_exhausted，普通 429 为 kimi_nonzero_exit；调度额度故障只升级通知，不自动续作。
 
 配置、版本与验证范围见 [ADR-012](decisions/ADR-012-kimi-executor.md) 和[验证报告](reports/2026-10-28-kimi-validation.md)。本节不扩展原有 ZCode 的历史验证结论。
+
+## ADR-017 增量
+
+默认编码报告合同不变。普通数据任务显式选 raw 后，PromptBuilder 不追加 AgentReport 合同，adapter 保留原生成功/未知终态的判定，worker/manager 规范化原文且独立验证清理；raw completed 不是数据验收。精简会话只使用各执行器原生工具配置，保留默认系统提示。详见 [接口增量](INTERFACES.md#数据任务与精简会话adr-017)。恢复周期仍检查历史状态，只有未观察到 queued 时省掉无用的第二次 pump 扫描。

@@ -16,6 +16,7 @@ import type {
   ZCodeInteractionRequest,
   ZCodeRuntimeConfig,
 } from "../interfaces.js";
+import { providerFailureDiagnostic } from "./provider-failure.js";
 import { parseAgentReport } from "./agent-report.js";
 import type { ZCodeRunOutcome } from "./zcode-adapter.js";
 import { buildContinuePrompt, buildTaskPrompt } from "../prompts/task-prompt.js";
@@ -450,6 +451,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
       if (resumeSessionId) {
         snapshot = asRecord(await client.request("session/resume", {
           sessionId: resumeSessionId,
+          ...minimalSessionOptions(task),
           workspace: { workspacePath: workspace.canonicalPath, workspaceKey: projectPath },
         }));
         const returnedId = nestedString(snapshot, ["session", "sessionId"]);
@@ -462,6 +464,8 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
           workspace: { workspacePath: workspace.canonicalPath, workspaceKey: projectPath },
           mode: preferences.mode,
           persistence: "immediate",
+          ...minimalSessionOptions(task),
+          ...(task.session_profile === "minimal" ? { titleGenerationEnabled: false } : {}),
         }));
       }
       const sessionId = nestedString(snapshot, ["session", "sessionId"]);
@@ -760,7 +764,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
           modelProfile: this.#modelProfile(entry),
         };
       } else {
-        const parsed = parseAgentReport(turnResult.response);
+        const parsed = task.report_mode === "raw" ? { report: null, candidate: null, error: null } : parseAgentReport(turnResult.response);
         const stdout = turnResult.response;
         const base = {
         attempts: 1,
@@ -777,7 +781,9 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         timedOut: false,
         reportCandidate: parsed.candidate,
         };
-        if (!parsed.report) {
+        if (task.report_mode === "raw") {
+          outcome = { ...base, agentReport: null, reportCandidate: null, reportError: null, errorCode: null, modelProfile: this.#modelProfile(entry), phaseTimestamps: { rpc_accepted_at: turnResult.rpcAcceptedAt, turn_started_at: turnResult.startedAt, turn_completed_at: turnResult.completedAt } };
+        } else if (!parsed.report) {
           outcome = {
             ...base,
             agentReport: null,
@@ -818,6 +824,20 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
       try { this.#onOutcomeCheckpoint?.(outcome); }
       catch (error) {
         entry.onEvent({ type: "outcome_checkpoint_failed", summary: error instanceof Error ? error.message : String(error) });
+      }
+      try {
+        const usage = asRecord(await client.request("session/usage", { sessionId }));
+        const keys = ["modelRequestCount", "modelErrorCount"] as const;
+        if (usage.sessionId !== sessionId || !keys.every(key => typeof usage[key] === "number" && Number.isSafeInteger(usage[key]) && (usage[key] as number) >= 0)) throw new Error("invalid usage");
+        outcome = {
+          ...outcome,
+          runtimeSessionUsage: {
+            source: "zcode_runtime_session", session_id: sessionId, observed_at: this.#now().toISOString(),
+            model_request_count: usage.modelRequestCount as number, model_error_count: usage.modelErrorCount as number,
+          },
+        };
+      } catch {
+        entry.onEvent({ type: "session_usage_unavailable", summary: "Native session/usage is unavailable; request counts were not reported" });
       }
       try {
         await syncDesktopStatus(desktopTask, desktopStatus, entry.onEvent);
@@ -1161,7 +1181,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         const error = asRecord(message.error);
         call.reject(providerReportedUsageExhaustion(error, entry.selectedModelSelection?.providerId ?? null)
           ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE)
-          : new Error(`ZCode app-server request failed for ${call.method}${typeof error.code === "number" ? ` (code ${error.code})` : ""}`));
+          : new Error(`ZCode app-server request failed for ${call.method}: ${providerFailureDiagnostic(error).summary}`));
       } else {
         call.resolve(message.result);
       }
@@ -1216,7 +1236,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         const quotaExhausted = providerReportedUsageExhaustion(payload.error, entry.selectedModelSelection?.providerId ?? null);
         const failure = quotaExhausted
           ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE)
-          : new Error("ZCode turn failed");
+          : new Error(providerFailureDiagnostic(payload.error).summary);
         this.#publishSessionEvent(type, payload, entry, params, quotaExhausted ? "zcode_usage_exhausted" : "zcode_nonzero_exit");
         entry.rejectTurn(failure);
         return;
@@ -1567,8 +1587,8 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         type: "turn_failed",
         summary: failureCode === "zcode_usage_exhausted"
           ? "ZCode 提供方报告用量额度已耗尽；当前执行已中断。请立即停止当前任务并告知用户，等待用户确认额度恢复。"
-          : "ZCode turn failed",
-        ...(failureCode ? { details: { error_code: failureCode } } : {}),
+          : providerFailureDiagnostic(payload.error).summary,
+        details: { ...(failureCode ? { error_code: failureCode } : {}), provider_error: providerFailureDiagnostic(payload.error).details },
       });
     }
   }
@@ -1783,4 +1803,8 @@ function stableSerialize(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value) ?? "undefined";
+}
+
+function minimalSessionOptions(task: TaskPackage): JsonRecord {
+  return task.session_profile === "minimal" ? { toolAllowlist: [], mcpServers: [], dynamicWorkflowEnabled: false, offPeakToolEnabled: false } : {};
 }

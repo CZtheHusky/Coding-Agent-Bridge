@@ -6,9 +6,11 @@ description: 通过 Coding Agent Bridge 委派本机 ZCode 或 Kimi 编码任务
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，静态核对调度工具/schema、静默推进及独立验收指令，并核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture，无模型调用）；另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码）。
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-10-28，静态核对调度工具/schema、静默推进及独立验收指令，并核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture，无模型调用）；另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
+> Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码）。
 
 你是 Master，ZCode 是执行一个有明确边界任务的 worker。仅委派用户已授权的实现工作。不同执行目录可并发；不得让 Codex 与 ZCode 同时修改同一个实际执行目录。Bridge 会串行化共享执行目录的任务。
 
@@ -108,3 +110,12 @@ description: 通过 Coding Agent Bridge 委派本机 ZCode 或 Kimi 编码任务
 用户选择 Kimi 时，在 coding_agent_task（预约时 task）传 `executor: "kimi"`，可传 `kimi: { model: "本地别名", reasoning_level: "max", permission_mode: "manual" | "yolo" | "auto" }`；默认 yolo，省略 model 使用会话模型或 Kimi 默认。可选 `kimi.reasoning_level` 透传原生 thinking，K3/K3.1 Pro 和标准模型当前支持 low/high/max，旧 highspeed 未报告可调档位；省略档位保留原生设置，不保证所有模型支持。续作保留同一设置，实际档位只认运行时确认值。尚未提供 Kimi 模型目录工具；不要传 ZCode 的 model，不要用 ZCode doctor/catalog/default_model 配置 Kimi。需要已登录的 Kimi Code CLI 2.3.3；KIMI_BRIDGE_EXECUTABLE/KIMI_CODE_HOME 是可选环境配置。
 
 仍用 `coding_agent_status`、`coding_agent_events`、`coding_agent_feedback`、`coding_agent_result`、`coding_agent_continue`、`coding_agent_interaction_reply` 和 `coding_agent_cancel` 跟进；zcode_session_id/zcode_pid/zcode_output 是兼容字段，在这些任务里记录 Kimi。模式属于请求配置；除非运行时明确报告，不声称实际档位或模式已确认。续作必须复用同 task ID、原执行器和 session。Kimi 请求审批/回答时沿用本技能的授权和完整请求检查规则；yolo 不代表所有请求已授权。kimi_usage_exhausted 表示本次已中断，立即告知用户并停止自动工作/重试/续作，等待用户确认额度恢复；普通限流与其区分。completed 仍须 Codex 独立验收。
+
+## API 模式与数据任务
+
+- API 模式指 `report_mode: "raw"` + `session_profile: "minimal"`，仍使用异步任务工具，没有独立 HTTP 接口或 `mode` 字段。文字/图片应随任务传入，不能依赖被禁用的工具；需要工具时保留 default profile。
+- 标注、抽取等只需模型回答的任务可设置 `report_mode: "raw"`；终态直接读 `coding_agent_result.zcode_output`，不要从事件摘要拼数据。独立验证 JSON 格式、条目数、顺序和字段；completed 不能当作数据正确。output_truncated=true 表示捕获不完整，raw 会失败；调度目标不支持 raw。
+- 可同时设置 `session_profile: "minimal"` 减少工具预填；两个执行器均保留原生默认系统提示。ZCode 使用空工具/MCP 列表并关闭工作流与新会话标题生成；Kimi 使用原生 disabled_tools 禁用当前注册工具，不改全局配置。旧 Kimi API 不支持时在模型请求前报 session_profile_unsupported，不得静默回退或改系统提示。Kimi 仍可能有原生技能目录/基础上下文，不承诺裸模型开销。
+- 不相关的 API 请求分别建新任务；需要历史才 continue，续作沿用原模式。ZCode 的 runtime_session_usage 是观测时的会话累计请求/错误数，不是本轮或逐请求统计。
+- 默认仍是 structured 编码报告模式。遇到旧任务 invalid_agent_report，应先检查 zcode_output，不能丢弃已正常生成的数据或自动重做标注。遇到 1301 固定诊断时报告内容安全拒绝，不原样自动重试；额度耗尽仍按既有停止规则处理。
+- 同执行目录及父子目录串行；8 worker 只对互不重叠目录生效。安装更新后重连 MCP 或启动新的宿主会话；现有服务不会热加载新版 schema，不要中断正在执行的任务。

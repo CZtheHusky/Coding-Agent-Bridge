@@ -2,8 +2,10 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
-> Verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
+> Last verified: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
+> Prior verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
 
 **Coding Agent Bridge** 支持本机 ZCode / Kimi 后台编码任务。MCP server key 为 `coding_agent_bridge`，工具统一为 `coding_agent_*`。可选模型、查询进度、续作、处理审批和取消；ZCode 档位由 `coding_agent_model_catalog` 查询后传 `model.reasoning_level`，Kimi 支持 `kimi.model` 与可选 `kimi.reasoning_level`（原生 thinking；K3/K3.1 Pro 和标准模型当前支持 low/high/max，具体依模型而定）；省略时保留原生设置。环境支持时可一次预约并唤醒原 Codex 聊天验收，普通任务不会主动唤醒。升级后刷新工具列表，旧 `zcode_*` 名称不再注册；安装标识、路径、环境变量和任务数据名称保留。
 
@@ -48,6 +50,45 @@ Codex 插件与本地 MCP 服务，用于把明确授权的开发任务交给本
 续作保留原执行器和 session，先前图片保留在会话历史中，不要重复附上。重试同一请求应保持相同 task_id / operation_id、路径及数组顺序。预约使用 `coding_agent_schedule.task.attachments`；Bridge 只保存路径，不复制图像，原文件须保留到执行时。
 
 无效输入返回 `TASK_INVALID` / `SCHEDULE_INVALID`，执行前文件失效返回 `attachment_invalid`，不能把丢图当作成功。模型和供应商自身的图片限制仍适用；识别正确率和 token 降幅需要实际验收。升级后刷新或重连 MCP，加载新增参数及技能说明。详见[接口合同](docs/INTERFACES.md#图片附件adr-016)与[实测记录](docs/reports/2026-11-09-native-image-attachments.md)。
+
+## API 模式
+
+分类、抽取、标注等只需要模型回答时，在现有 TaskPackage 中设置：
+
+```json
+{
+  "report_mode": "raw",
+  "session_profile": "minimal"
+}
+```
+
+API 模式是上述两个选项的组合名称，没有新增 `mode` 参数或 HTTP 接口，仍通过 Bridge 的异步任务工具执行。Kimi 增加 `"executor": "kimi"`，省略则使用 ZCode。完整文字任务示例：
+
+```json
+{
+  "task_id": "api-classify-001",
+  "executor": "kimi",
+  "workspace": "/absolute/project",
+  "report_mode": "raw",
+  "session_profile": "minimal",
+  "objective": "Classify apple and carrot as fruit or vegetable. Return only a JSON array of two category strings in input order.",
+  "requirements": [],
+  "allowed_paths": [],
+  "forbidden_paths": [],
+  "acceptance_criteria": ["Valid JSON array with two correct categories in order"],
+  "test_commands": []
+}
+```
+
+所需文字直接放进任务，图片通过 `attachments` 附上；不能要求精简会话依赖读文件、终端、浏览器等已禁用工具。需要这些工具时保留 `session_profile: "default"`。两个选项也可单独使用；普通编码任务缺省仍为 structured/default。
+
+终态从 `coding_agent_result.zcode_output` 读取原文，独立验证 JSON、字段、顺序和条目数；不要从事件摘要拼数据。`completed` 只表示执行结束，`output_truncated: true` 表示捕获不完整，raw 会显式失败。预约任务依赖 `acceptance_met`，不支持 raw。续作保留原模式和 session；不相关的 API 请求各建新任务，避免历史累积。
+
+**两个执行器均保留原生默认系统提示**，不改全局配置。ZCode 使用原生工具/MCP/workflow 开关；Kimi 用原生 `disabled_tools` 禁用当前注册工具，每次续作重新枚举，不支持的 API 版本在模型请求前报 `session_profile_unsupported`，不会静默回退。原生技能目录、工作区说明及基础上下文仍可能存在，工具精简不等于 OS 沙箱。
+
+ZCode 3.16.3 / GLM-5.3-Flash 双图对照输入为 20,119 → 2,536 token，本样本减少 87.4%，答案及同 session 续作通过；不承诺固定降幅。Kimi 已核对原生 API 并通过离线协议测试，真实 token 降幅未验证。`runtime_session_usage` 是 ZCode 会话累计请求/错误计数，不是逐轮计费。
+
+同目录及父子目录任务串行，8 worker 仅适用于不重叠目录。更新后重连 MCP 或开启新宿主会话；正在运行的服务不会热加载新参数。详见[接口合同](docs/INTERFACES.md#数据任务与精简会话adr-017)与[测试报告](docs/reports/2026-11-09-data-task-repair.md)。
 
 ## 功能
 

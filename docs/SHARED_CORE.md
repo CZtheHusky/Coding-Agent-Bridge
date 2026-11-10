@@ -1,9 +1,11 @@
 # 共享核心与宿主适配
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-08
-> Last verified: 2026-11-08，仅核对 ADR-015 的 Claude 入口声明、跨项目目录启动回归及真实 Claude MCP 健康检查；其余范围沿用历史记录。
-> Verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口修复。
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-08，仅核对 ADR-015 的 Claude 入口声明、跨项目目录启动回归及真实 Claude MCP 健康检查；其余范围沿用历史记录。
+> Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口修复。
 > Prior verification: 2026-10-28，createBridgeServer 可选调度注入、默认 Codex stdio 装配与 Linux 离线闭环，详见 ADR-010；新版调度在对话空闲时启动新轮次仍未验证。
 > Prior verification: 2026-10-16，仅核对本次新增的浏览器后端打包分层说明；其余条目仍未逐条核对
 > Prior verified against: 183611e9c9bfc619b543933c7ad7204b2f646ea2（加载与构建源码，本次未改动）
@@ -55,3 +57,9 @@ fork 接入顺序：构建并锁定本项目制品 → 用宿主入口替换公�
 KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复冷会话并取得游标，再订阅确认并提交独立 prompt_id。只接受当前 session/main agent/prompt/turn，失败、断流、文本偏移不符及无效报告均不得完成；thinking 不外发。审批/问题走既有 interaction 存储；成功和失败均验证进程树清理。Kimi 明确额度耗尽使用 kimi_usage_exhausted，普通 429 为 kimi_nonzero_exit；调度额度故障只升级通知，不自动续作。
 
 配置、版本与验证范围见 [ADR-012](decisions/ADR-012-kimi-executor.md) 和[验证报告](reports/2026-10-28-kimi-validation.md)。本节不扩展原有 ZCode 的历史验证结论。
+
+## 数据调用增量（ADR-017）
+
+API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名称；沿用异步任务接口，没有额外 mode 字段或 HTTP 接口。
+
+TaskPackage 的 report_mode 与 session_profile、TaskResult 的 output_truncated/runtime_session_usage 是可选增量。直接调用共享 core 也会验证枚举值；调度入口在任何落盘前拒绝 raw。TaskManager 仍拥有状态和清理裁决；模型完成不替代调用方的数据验收。无 queued 的恢复周期不再额外 pump 全扫描，新提交自行 pump，遗留并发提交下一周期接管，仍核对历史状态及 cleanup；未引入跨周期状态缓存、历史删除或活动索引。

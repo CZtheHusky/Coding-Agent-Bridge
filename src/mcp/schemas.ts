@@ -45,6 +45,8 @@ export const zcodeTaskInputSchema = z
     test_commands: stringArray,
     context: z.string().optional(),
     attachments: imageAttachmentsSchema.optional(),
+    report_mode: z.enum(["structured", "raw"]).optional().describe("API mode combines raw with session_profile=minimal; no separate mode field. Defaults to structured AgentReport. raw returns the exact captured answer in result.zcode_output, without a report contract; the caller must validate its data. Not supported for scheduled goals."),
+    session_profile: z.enum(["default", "minimal"]).optional().describe("API mode combines minimal with report_mode=raw. Preserves the default system prompt. minimal reduces optional tools: ZCode requests no tools/MCP/workflows and disables new-session titles; Kimi disables currently registered tools using its native disabled_tools API (unsupported versions fail before submission). default keeps runtime settings. For data-only tasks."),
   })
   // MCP is the uncontrolled input boundary; shared-core callers use this documented contract.
   .refine(task => task.executor === "kimi" ? task.model === undefined : task.kimi === undefined,
@@ -200,6 +202,12 @@ export const taskResultSchema = z.object({
   issues: z.array(z.string()),
   needs_master_decision: z.boolean(),
   zcode_output: z.string(),
+  output_truncated: z.boolean().optional(),
+  runtime_session_usage: z.object({
+    source: z.literal("zcode_runtime_session"), session_id: z.string(),
+    observed_at: z.string(),
+    model_request_count: z.number().int().nonnegative(), model_error_count: z.number().int().nonnegative(),
+  }).optional(),
   exit_code: z.number().int().nullable(),
   session_id: z.string().nullable(),
   attempt: z.number().int(),
@@ -337,7 +345,7 @@ const START_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{
 const THREAD_ID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/u;
 
 export const zcodeScheduleInputSchema = z.strictObject({
-  task: zcodeTaskInputSchema,
+  task: zcodeTaskInputSchema.refine(task => task.report_mode !== "raw", { message: "Scheduled goals require structured reports and acceptance_met" }),
   start_at: z.string().regex(START_AT_PATTERN, "start_at must be an ISO 8601 datetime carrying a timezone offset (Z or ±HH:MM)"),
   thread_id: z.string().regex(THREAD_ID_PATTERN, "thread_id must be the UUID of the original Codex chat that will receive wakeups"),
 });

@@ -49,6 +49,8 @@ import {
 
 export type AdapterErrorCode =
   | "attachment_invalid"
+  | "session_profile_unsupported"
+  | "output_truncated"
   | "spawn_failed"
   | "timeout"
   | "cancelled"
@@ -66,6 +68,7 @@ export type AdapterErrorCode =
  * successful on invalid JSON or an invalid report).
  */
 export interface ZCodeRunOutcome extends AgentRunOutcome {
+  readonly runtimeSessionUsage?: import("../interfaces.js").RuntimeSessionUsage;
   readonly agentReport: AgentReport | null;
   readonly reportCandidate: Partial<AgentReport> | null;
   readonly reportError: string | null;
@@ -133,6 +136,7 @@ interface RunEntry {
   readonly promptFile: string;
   readonly cliArgs: string[];
   readonly resumeSessionId: string | null;
+  readonly rawOutput: boolean;
   readonly timeoutMs: number;
   child: SpawnedProcess | null;
   zcodePid: number | null;
@@ -279,6 +283,7 @@ export class ZCodeAdapter implements CodingAgentAdapter {
     prompt: string;
     resumeSessionId: string | null;
   }): Promise<AgentHandle> {
+    if (input.task.session_profile === "minimal") throw new BridgeError("session_profile_unsupported", "Minimal ZCode sessions require the production app-server adapter");
     if (!existsSync(this.#loaderPath)) {
       throw new Error(
         `zcode-loader.cjs asset is missing next to the compiled adapter (build incomplete): ${this.#loaderPath}`,
@@ -304,6 +309,7 @@ export class ZCodeAdapter implements CodingAgentAdapter {
       promptFile,
       cliArgs,
       resumeSessionId: input.resumeSessionId,
+      rawOutput: input.task.report_mode === "raw",
       timeoutMs: this.#timeoutMs ?? resolveTaskTimeout(input.task, this.#childEnvBase ?? process.env),
       child: null,
       zcodePid: null,
@@ -619,8 +625,8 @@ export class ZCodeAdapter implements CodingAgentAdapter {
         reportError: `resume session mismatch: requested ${entry.resumeSessionId}, runtime returned ${envelope.sessionId}`,
       };
     }
-    const parsedReport = parseAgentReport(envelope.response);
-    if (!parsedReport.report) {
+    const parsedReport = entry.rawOutput ? { report: null, candidate: null, error: null } : parseAgentReport(envelope.response);
+    if (!entry.rawOutput && !parsedReport.report) {
       return {
         ...base,
         exitCode: 0,

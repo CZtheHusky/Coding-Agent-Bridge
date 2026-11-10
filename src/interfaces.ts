@@ -110,6 +110,10 @@ export interface TaskPackage {
   test_commands: string[];
   context?: string;
   attachments?: ImageAttachment[];
+  /** Raw data tasks opt out of AgentReport; completion still requires host validation. */
+  report_mode?: "structured" | "raw";
+  /** Native tool reduction; default preserves runtime settings and system prompt. */
+  session_profile?: "default" | "minimal";
 }
 
 export interface ZCodeModelSelection {
@@ -125,6 +129,14 @@ export interface TestReport {
   details?: string;
 }
 
+export interface RuntimeSessionUsage {
+  source: "zcode_runtime_session";
+  session_id: string;
+  observed_at: string;
+  model_request_count: number;
+  model_error_count: number;
+}
+
 export interface TaskResult {
   task_id: string;
   status: "completed" | "failed" | "cancelled" | "waiting_for_master";
@@ -134,6 +146,8 @@ export interface TaskResult {
   issues: string[];
   needs_master_decision: boolean;
   zcode_output: string;
+  output_truncated?: boolean;
+  runtime_session_usage?: RuntimeSessionUsage;
   exit_code: number | null;
   session_id: string | null;
   attempt: number;

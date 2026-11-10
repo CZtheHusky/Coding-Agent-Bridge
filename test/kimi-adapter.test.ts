@@ -59,6 +59,7 @@ test("Kimi native completion requires current prompt/main turn and emits no toke
     assert.doesNotMatch(JSON.stringify({ events, result }), /private-fixture-token|HIDDEN_REASONING|HIDDEN_SUBAGENT/);
     const prompt = f.requests().find((r: { route: string }) => r.route.endsWith("/prompts"));
     assert.equal(prompt.body.thinking, undefined, "omitting the override must preserve native defaults");
+    assert.equal(prompt.body.disabled_tools, undefined, "default tasks preserve the native tool configuration");
     assert.equal(prompt.body.model, "fixture/default"); assert.equal(prompt.body.permission_mode, "yolo");
     assert.equal((await adapter.getStatus(handle)).state, "exited");
     const next = await adapter.continueTask({ ...f, attempt: 2, feedback: "continue", additionalRequirements: [], previousSessionId: result.sessionId, previousResult: null });
@@ -221,5 +222,36 @@ test("Kimi returns a specific attachment error without launching a server for mi
     const result = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
     assert.equal(result.errorCode, "attachment_invalid"); assert.equal(result.cleanupVerified, true);
     assert.equal(events.some(e => (e as { type: string }).type === "app_server_started"), false);
+  } finally { f.cleanup(); }
+});
+
+
+test("Kimi raw data bypasses the report contract while preserving native completion checks", async () => {
+  const f = fixture("raw");
+  try {
+    f.task.report_mode = "raw"; f.task.session_profile = "minimal";
+    const adapter = new KimiAdapter();
+    const outcome = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(outcome.response, '[{"label":true}]'); assert.equal(outcome.errorCode, null);
+    assert.equal(outcome.agentReport, null); assert.equal(outcome.cleanupVerified, true);
+    const prompt = f.requests().find((r: { route: string }) => r.route.endsWith("/prompts"));
+    assert.doesNotMatch(JSON.stringify(prompt), /OUTPUT CONTRACT \(mandatory\)/);
+    assert.deepEqual(prompt.body.disabled_tools, ["Read", "Shell", "mcp__fixture__lookup"]);
+    assert.doesNotMatch(JSON.stringify(f.requests()), /system_prompt|agent_file|base_prompt/, "native system prompt must not be replaced");
+    const next = await adapter.getResult(await adapter.continueTask({ ...f, attempt: 2, feedback: "Update data", additionalRequirements: [], previousSessionId: outcome.sessionId, previousResult: null }));
+    assert.equal(next.errorCode, null); assert.equal(next.sessionId, outcome.sessionId);
+    assert.deepEqual(f.requests().filter((r: { route: string }) => r.route.endsWith("/prompts")).at(-1).body.disabled_tools, ["Read", "Shell", "mcp__fixture__lookup"]);
+  } finally { f.cleanup(); }
+});
+
+
+test("Kimi minimal mode fails before a model prompt when the native API lacks disabled_tools", async () => {
+  const f = fixture("old_profile");
+  try {
+    f.task.session_profile = "minimal";
+    const adapter = new KimiAdapter();
+    const outcome = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(outcome.errorCode, "session_profile_unsupported"); assert.equal(outcome.cleanupVerified, true);
+    assert.equal(f.requests().some((r: { route: string }) => r.route.endsWith("/prompts")), false);
   } finally { f.cleanup(); }
 });

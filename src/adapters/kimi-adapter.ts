@@ -136,6 +136,21 @@ export class KimiAdapter implements CodingAgentAdapter {
       emit?.({ type: "session_ready", summary: "Kimi session ready", details: { session_id: sessionId, executor: "kimi" } });
       const config = await request("config", z.object({ default_model: z.string().optional() }));
       const selectedModel = task.kimi?.model ?? (session.agent_config.model || config.default_model);
+      let disabledTools: string[] | undefined;
+      if (task.session_profile === "minimal") {
+        // Inspect the installed server, not an assumed version: older APIs may
+        // silently ignore unsupported prompt fields. Never edit the system prompt.
+        const specResponse = await fetch(new URL("/openapi.json", address), {
+          headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+        });
+        const spec: unknown = await specResponse.json();
+        if (!specResponse.ok || !supportsDisabledTools(spec)) {
+          throw new BridgeError("session_profile_unsupported", "Kimi minimal profile requires native disabled_tools support; no model prompt was submitted");
+        }
+        const catalog = await request(`tools?session_id=${encodeURIComponent(session.id)}`, z.object({ tools: z.array(z.object({ name: z.string().min(1) })) }));
+        disabledTools = [...new Set(catalog.tools.map(tool => tool.name))];
+        emit?.({ type: "session_profile", summary: "Kimi minimal profile requested through native disabled_tools; default system prompt retained", details: { session_profile: "minimal", disabled_tool_count: disabledTools.length } });
+      }
       const promptId = randomUUID();
       let turnId: number | undefined;
       let resolveTurn: (payload: Record<string, unknown>) => void;
@@ -227,7 +242,7 @@ export class KimiAdapter implements CodingAgentAdapter {
         };
       });
       await request(`sessions/${encodeURIComponent(session.id)}/prompts`, object, {
-        content: [{ type: "text", text: prompt }, ...images.map(image => ({ type: "image", source: { kind: "path", path: image.path }, name: image.filename }))], prompt_id: promptId, permission_mode: task.kimi?.permission_mode ?? "yolo", ...(selectedModel ? { model: selectedModel } : {}), ...(task.kimi?.reasoning_level !== undefined ? { thinking: task.kimi.reasoning_level } : {}),
+        content: [{ type: "text", text: prompt }, ...images.map(image => ({ type: "image", source: { kind: "path", path: image.path }, name: image.filename }))], prompt_id: promptId, ...(disabledTools === undefined ? {} : { disabled_tools: disabledTools }), permission_mode: task.kimi?.permission_mode ?? "yolo", ...(selectedModel ? { model: selectedModel } : {}), ...(task.kimi?.reasoning_level !== undefined ? { thinking: task.kimi.reasoning_level } : {}),
       });
       const turn = await ended;
       signal.removeEventListener("abort", abort);
@@ -241,7 +256,7 @@ export class KimiAdapter implements CodingAgentAdapter {
       emit?.({ type: "model_selected", summary: "Kimi runtime model", details: { model_id: final.agent_config.model, ...(final.agent_config.thinking ? { reasoning_level: final.agent_config.thinking } : {}) } });
     } catch (error) {
       if (!errorCode) {
-        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error instanceof BridgeError && (error.code === "spawn_failed" || error.code === "attachment_invalid") ? error.code : "kimi_nonzero_exit";
+        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error instanceof BridgeError && (error.code === "spawn_failed" || error.code === "attachment_invalid" || error.code === "session_profile_unsupported") ? error.code : "kimi_nonzero_exit";
         reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error instanceof BridgeError ? error.message : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
       }
     } finally {
@@ -256,15 +271,28 @@ export class KimiAdapter implements CodingAgentAdapter {
         } catch { cleanupError = "Kimi process-tree cleanup could not be verified"; }
       }
     }
-    const parsed = parseAgentReport(response);
-    if (!errorCode && parsed.error) { errorCode = "invalid_agent_report"; reportError = parsed.error; }
+    const parsed = task.report_mode === "raw" ? { report: null, candidate: null, error: null } : parseAgentReport(response);
+    if (task.report_mode !== "raw" && !errorCode && parsed.error) { errorCode = "invalid_agent_report"; reportError = parsed.error; }
     const outcome: ZCodeRunOutcome = {
       exitCode: errorCode ? 1 : 0, signal: null, stdout: response, stderr: reportError ?? "", sessionId, response, usage,
       timedOut: run.timedOut, cancelled: run.cancelled || errorCode === "cancelled", errorCode, reportError,
-      agentReport: errorCode ? null : parsed.report, reportCandidate: parsed.candidate,
+      agentReport: errorCode || task.report_mode === "raw" ? null : parsed.report, reportCandidate: task.report_mode === "raw" ? null : parsed.candidate,
       stdoutTruncated: truncated, stderrTruncated: false, attempts: 1, cleanupError, cleanupVerified: cleanupError === null,
     };
     this.#options.onOutcomeCheckpoint?.(outcome);
     return outcome;
   }
+}
+
+// OpenAPI is supplied by the installed authenticated server. Unsupported or
+// unfamiliar schemas fail before submitting a model prompt, never fall back.
+function supportsDisabledTools(spec: unknown): boolean {
+  const get = (value: unknown, key: string): unknown => value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>)[key] : undefined;
+  let schema = ["paths", "/api/v1/sessions/{session_id}/prompts", "post", "requestBody", "content", "application/json", "schema"].reduce(get, spec);
+  for (let depth = 0; depth < 8; depth++) {
+    const ref = get(schema, "$ref");
+    if (typeof ref !== "string" || !ref.startsWith("#/")) break;
+    schema = ref.slice(2).split("/").map(key => key.replace(/~1/g, "/").replace(/~0/g, "~")).reduce(get, spec);
+  }
+  return get(get(get(schema, "properties"), "disabled_tools"), "type") === "array";
 }

@@ -5,7 +5,9 @@
 // needs_master_decision policy: the subordinate report's value is used
 // verbatim; when a run fails without a valid report the flag is true (the
 // master must review), and a master-requested cancellation is false. The flag
-// is never silently defaulted to false from missing evidence.
+// is never silently defaulted to false from missing evidence. Explicit raw
+// tasks opt out of AgentReport: a clean native completion carries no decision
+// claim and still requires independent data validation.
 import type { AttemptTiming, ExecutionProfile, NormalizedUsage, TaskPackage, TaskResult, TestReport } from "../interfaces.js";
 import type { ZCodeRunOutcome } from "../adapters/zcode-adapter.js";
 
@@ -39,6 +41,8 @@ export function buildTaskResult(input: BuildTaskResultInput): TaskResult {
     started_at: startedAt,
     finished_at: finishedAt,
     zcode_output: outcome?.response ?? "",
+    ...(outcome ? { output_truncated: outcome.stdoutTruncated } : {}),
+    ...(outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {}),
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input.sessionId ?? null,
     ...(input.usage !== undefined ? { usage: input.usage } : {}),
@@ -89,6 +93,21 @@ export function buildTaskResult(input: BuildTaskResultInput): TaskResult {
       needs_master_decision: true,
       error_code: code,
       ...(outcome.reportCandidate ? { report_candidate: outcome.reportCandidate } : {}),
+    };
+  }
+
+  if (task.report_mode === "raw") {
+    if (outcome.exitCode !== 0 || outcome.timedOut || outcome.stdoutTruncated) {
+      return {
+        ...base, status: "failed", summary: "Raw execution failed or its output was truncated",
+        files_changed: [], tests: [], issues: ["Validate the captured output; it is not a complete successful response"],
+        needs_master_decision: true,
+        error_code: outcome.stdoutTruncated ? "output_truncated" : task.executor === "kimi" ? "kimi_nonzero_exit" : "zcode_nonzero_exit",
+      };
+    }
+    return {
+      ...base, status: "completed", summary: "Raw response captured; caller must validate zcode_output independently",
+      files_changed: [], tests: [], issues: [], needs_master_decision: false,
     };
   }
 

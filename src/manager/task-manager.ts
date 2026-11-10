@@ -166,10 +166,12 @@ export class BridgeTaskManager implements ProgressTaskManager {
       return;
     }
     const run = (async () => {
+      let hasQueuedTask = false;
       for (const taskId of this.#store.listTaskIds()) {
         try {
           const status = this.#safeStatus(taskId);
           if (!status) continue;
+          if (status.status === "queued") hasQueuedTask = true;
           if (status.status === "running") {
             await this.#reconcileRunningThreePhase(taskId, status);
           } else if (isTerminalStatus(status.status) && status.cleanup_unverified === true) {
@@ -182,7 +184,10 @@ export class BridgeTaskManager implements ProgressTaskManager {
           }
         }
       }
-      await this.#exclusive(async () => { this.#pumpLocked(); });
+      // With no observed queue there is nothing to dispatch. New submissions
+      // pump themselves; a concurrently abandoned submission is seen next tick.
+      // Never cache terminal state across ticks or skip cleanup reconciliation.
+      if (hasQueuedTask) await this.#exclusive(async () => { this.#pumpLocked(); });
     })();
     this.#recoveryPromise = run;
     try { await run; }
@@ -1398,7 +1403,8 @@ export class BridgeTaskManager implements ProgressTaskManager {
     const outcome = {
       attempts: 1,
       cancelled: false,
-      stdoutTruncated: false,
+      stdoutTruncated: checkpoint.stdout_truncated === true,
+      runtimeSessionUsage: checkpoint.runtime_session_usage,
       stderrTruncated: false,
       stdout: checkpoint.response,
       stderr: "",
@@ -1554,6 +1560,12 @@ export class BridgeTaskManager implements ProgressTaskManager {
       if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
         throw new TaskManagerError("TASK_INVALID", `${field} must be an array of strings (may be empty)`);
       }
+    }
+    if (task.report_mode !== undefined && !["structured", "raw"].includes(task.report_mode)) {
+      throw new TaskManagerError("TASK_INVALID", "report_mode must be structured or raw");
+    }
+    if (task.session_profile !== undefined && !["default", "minimal"].includes(task.session_profile)) {
+      throw new TaskManagerError("TASK_INVALID", "session_profile must be default or minimal");
     }
     if (task.context !== undefined && typeof task.context !== "string") {
       throw new TaskManagerError("TASK_INVALID", "context must be a string when present");
