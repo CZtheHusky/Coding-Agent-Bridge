@@ -1,11 +1,11 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-10，仅核对 ADR-019 与 Kimi 实测报告、当前说明的路由；其余保留历史范围。
+> Last verified: 2026-11-10，仅核对上游审阅台账、局部回移状态及 ADR-019/Kimi 实测报告的路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
+> Verified against: 5a66d71e5c4ad66702006fbed00e641ef2f80096
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -57,7 +57,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 |---|---|---|---|
 | [README.md](../README.md) | en | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
 | [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
-| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
+| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-10 | 上游局部回移与 Linux 离线回归；Kimi 历史实测及其余范围见文档顶部 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
 | [INTERFACES.md](INTERFACES.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
 | [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |

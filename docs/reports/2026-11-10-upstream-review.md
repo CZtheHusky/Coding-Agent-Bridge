@@ -7,11 +7,12 @@
 > Merge base: `0e74ee1c64b179752a24317574916a98c77a5ef1`
 > Recorded upstream master: `aabbb0a959ee234508c62731ed5122f28dfcf5b0`（stable 1.6.0）
 > Recorded upstream preview: `61c78b7c637432d3d39768c48030609d6dbf253a`（2.0.0-preview.2）
+> Local backport: `5a66d71e5c4ad66702006fbed00e641ef2f80096`（两个局部 hunk，非整提交合并）
 > Verification scope: Git 历史与固定提交最终树、选定代码路径专项核查、Linux 打包启动与离线内存 fixture；未运行上游全量测试、Windows 真机或真实模型。
 
 本台账记录哪些提交已经看过、按什么强度看过、为何采纳或搁置，供下一轮增量审阅使用。它不是当前运行合同，也不表示这些上游提交已经进入 fork。下面完整覆盖 master 自 merge base 以来的 83 个提交，以及 preview 相对该 master 的 11 个提交，共 94 个不重复 SHA；包含 merge commit，未以 first-parent 清单代替完整范围。
 
-本轮结论是保留 fork 的生产路径，只选两个有确定反例的局部修复：`a6ba76c` 的 ACK 合帧去重 guard，以及 `4a3763e` 的 Windows cleanup helper stdin error 处理。此处状态为**选中、待本地落地与回归**，不把部分采纳写成整 commit 已合入。以 fork baseline 对 stable 执行 `git merge-tree --write-tree --name-only --no-messages HEAD upstream/master`，exit 1，列出 30 个冲突路径，未改工作区；代表路径包括 `src/host/stdio.ts`、`src/mcp/server.ts`、`src/worker/run-task.ts`、`src/adapters/zcode-app-server-adapter.ts`，以及文档和 skill。该冲突数只对应 stable，不是 preview 的试合并结果。结合以下运行与接口差异，不建议全量整合 stable 或 preview。
+本轮保留 fork 的生产路径，已回移两个有确定反例的局部修复：`a6ba76c` 的 ACK 合帧去重 guard，以及 `4a3763e` 的 Windows cleanup helper stdin error 处理。状态为**已落地、部分采纳**，本地提交与回归结果见下文，不表示整 commit 已合入。以 fork baseline 对 stable 执行 `git merge-tree --write-tree --name-only --no-messages HEAD upstream/master`，exit 1，列出 30 个冲突路径，未改工作区；代表路径包括 `src/host/stdio.ts`、`src/mcp/server.ts`、`src/worker/run-task.ts`、`src/adapters/zcode-app-server-adapter.ts`，以及文档和 skill。该冲突数只对应 stable，不是 preview 的试合并结果。结合以下运行与接口差异，不建议全量整合 stable 或 preview。
 
 ## 如何理解审阅强度与处置
 
@@ -20,7 +21,7 @@
 | 逐代码专项核查 | 对表中注明的局部 hunk、调用链或字段流作了核对；不表示整 commit 每一行均已深审。 |
 | 按最终树/专题分组审阅 | 将相关提交放到该分支最终树，围绕启动、存储、worker、路径、技能等专题判断；不逐提交重演中间状态，也不宣称逐行审阅。 |
 | 发布/合并元数据 | 核对其在范围内的身份及归属；发布、合并、版本、渠道、生成物或无行为格式调整不独立移植。 |
-| 选中待落地（部分采纳） | 仅选择明确列出的 hunk；实现与回归完成前仍为 pending。后续应补本地提交与验证结果，不能用上游 SHA 宣称整 commit merged。 |
+| 已落地（部分采纳） | 仅回移明确列出的 hunk，并记录本地提交与回归；上游 commit 的其他部分仍按本表处置，不能据此宣称整 commit merged。 |
 | 候选，按需抽取 | 留下价值与已知缺陷；本轮不实现，不表示已获完整兼容认证。 |
 | 不取 / 暂缓 | 在本次 fork 基线及范围内作出的处置；上游实现或 fork 需求变化后可以重新评估。 |
 
@@ -54,8 +55,8 @@ preview 自带报告记载，2026-11-09 的一次真实 Start Plan turn 进入�
 
 | 来源 | 本轮处置 | 理由及边界 |
 |---|---|---|
-| `a6ba76c7a3ddb97e4c7f37754eb85c7eb9c9d82b` | **选中待落地（部分采纳）**：只取合帧 ACK 的 `!entry.turnStartedAt` guard，并按 fork 测试/构建方式补回归和生成物。 | 同一 stdout chunk 含 ACK、`turn.started`、终态时，先处理强 runtime 事件、后恢复 send promise 会再合成一次 start。离线反例为 2 次，内存应用该 guard 后为 1 次，前后 cleanup 均 verified。[上游局部源码](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/adapters/zcode-app-server-adapter.ts#L767-L772)。 |
-| `4a3763ebbd61f8b9d12b9464e2e406df70d0ce88` | **选中待落地（部分采纳）**：只取 Windows cleanup helper stdin error 转换为既有失败路径的 hunk。 | helper 提前关闭后 stdin 的异步 EPIPE 无 listener 会逸出；处理后仍须保持 cleanup unverified，不得把错误吞掉。[stdin fail 路径](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/adapters/windows-process-cleanup.ts#L1159-L1170)。本 commit 其余 worker/teardown 变化不取，尤其 [stdout/stderr 空 error listener](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/adapters/zcode-app-server-adapter.ts#L1231-L1237)缺乏运行期读错的分类，可能吞掉重要故障。 |
+| `a6ba76c7a3ddb97e4c7f37754eb85c7eb9c9d82b` | **已落地（部分采纳）**：只取合帧 ACK 的 `!entry.turnStartedAt` guard，并按 fork 测试/构建方式补回归和生成物。 | 同一 stdout chunk 含 ACK、`turn.started`、终态时，先处理强 runtime 事件、后恢复 send promise 会再合成一次 start。离线反例为 2 次，内存应用该 guard 后为 1 次，前后 cleanup 均 verified。[上游局部源码](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/adapters/zcode-app-server-adapter.ts#L767-L772)。 |
+| `4a3763ebbd61f8b9d12b9464e2e406df70d0ce88` | **已落地（部分采纳）**：只取 Windows cleanup helper stdin error 转换为既有失败路径的 hunk。 | helper 提前关闭后 stdin 的异步 EPIPE 无 listener 会逸出；处理后仍须保持 cleanup unverified，不得把错误吞掉。[stdin fail 路径](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/adapters/windows-process-cleanup.ts#L1159-L1170)。本 commit 其余 worker/teardown 变化不取，尤其 [stdout/stderr 空 error listener](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/adapters/zcode-app-server-adapter.ts#L1231-L1237)缺乏运行期读错的分类，可能吞掉重要故障。 |
 | `d91913a2c1b4b04485ee2815bb3b9fb80be2f131` | 候选，按需抽取 host token 观测模块；不取整 commit。 | 观测有价值，但 commit 为 825 files、392,158 insertions，混入大量 evidence。若后续有需求应只抽最小模块、补隐私边界与回归。[上游提交](https://github.com/Sandyzzx/codex-zcode-bridge/commit/d91913a2c1b4b04485ee2815bb3b9fb80be2f131)。 |
 | `c39909a…32ed22f` 路径专题 | 候选，按需抽取；本轮不整组移植。 | 统一路径发现和 doctor 分类有价值，但 [sameCleanPath](https://github.com/Sandyzzx/codex-zcode-bridge/blob/aabbb0a959ee234508c62731ed5122f28dfcf5b0/src/runtime/paths.ts#L302-L314)只 normalize 后比较，尾斜杠仍可能产生不相等；fork 已有 Linux dataBaseDir 迁移支持，不能为同一问题再引入一套。 |
 | `fc73947`、`bfab338`、`6050e1e` | Windows 低优先候选，暂缓。 | 分别涉及 helper 启动预算或有界锁重试；本轮没有 Windows 真机测量，不以延长超时作为已证实修复。 |
@@ -79,11 +80,23 @@ preview 自带报告记载，2026-11-09 的一次真实 Start Plan turn 进入�
 
 ## 本地落地与回归记录
 
-截至本台账初稿，两项局部修复已选中，尚未在本节记录实现与回归结果。实施方完成后应补本地提交、实际测试及 skip/fail 边界，并同步更新下表的“部分采纳”状态；在此之前保持 pending，不以“审阅完成”代替“修复完成”。
+审阅初稿先以 `6d1e9db` 提交并推送；用户确认的两个局部修复随后以 `5a66d71e5c4ad66702006fbed00e641ef2f80096` 回移，提交信息含两个 `Backport-of` 来源与限定范围。每条来源的剩余 hunk 未合入，上游分支也未成为 fork 的祖先。
+
+| 来源与实现 | 本地回归意图及结果 |
+|---|---|
+| `a6ba76c` 的 `!entry.turnStartedAt` guard | `test/zcode-app-server-adapter.test.ts` 新增两个合成 app-server 用例。旧源码合帧用例为 2 次 start、断言失败；仅 ACK 的兼容用例通过。修复后两项均通过，合帧只保留原生 start，ACK-only 仍有合成 start，结果及清理均正常。 |
+| `4a3763e` 的 helper stdin `error` → `#fail` | `test/windows-transport-bounds.test.ts` 新增 enum/hold 两项 fake-stream 用例。旧源码为 11 pass / 2 EPIPE fail；修复后 13/13 pass。主任务还在隔离编译副本中仅移除新监听器，独立取得同样的 11 pass / 2 fail。验证错误不逃逸、立即拒绝 pending 请求、首错锁存，后续成功帧和 clean helper exit 不能使 cleanup 变为 verified。 |
+
+- Node 22.22.2 的 fork 完整回归：680 tests，676 pass、4 skip、0 fail。四项跳过为 Windows startup hook、两项 Windows-only process tree 子例，以及 Linux 下不适用的 non-Linux scheduling 用例。
+- Node 24.22.1 的四个受影响套件：ZCode adapter、session frames、Windows transport bounds、Windows process cleanup，共 126/126 pass、0 skip。
+- `npm run typecheck`、`npm run build`、`npm run validate:plugin`、`git diff --check` 通过；`npm run test:clean-entrypoints` 6/6 pass。三个跟踪的插件 bundle 已用 fork 构建脚本重建，只包含上述行为差异。
+- 两处生产改动与选定上游 hunk 一致；独立审查未发现阻断。默认系统提示、yolo、Kimi/proxy、API 参数、原生附图、预约执行及公共 schema 沿用 fork，未引入 SQLite 或新依赖。
+
+最初受限测试启动只给出文件级失败，改用有权限的隔离测试环境后取得明确断言及上述通过结果，未将启动失败当作反例证明。两处修复的新增回归采用 fake/synthetic，完整回归在 Linux 运行；没有运行真实 PowerShell、真实模型，也未替换两端安装或重启服务，不将这些结果写成 Windows 真机或真实 provider 认证。
 
 ## 下一轮增量审阅
 
-先更新远端引用，并确认下面 recorded HEAD 仍是对应新分支的祖先；若上游 rebase、force-push 或更换谱系，应重新确定共同祖先和范围，不直接把“旧 HEAD 之后”当作完整增量。以下为人工审阅命令，不创建自动 gate，也不冻结 hash 合同：
+先更新远端引用，并确认下面 recorded HEAD 仍是对应新分支的祖先；若上游 rebase、force-push 或更换谱系，应重新确定共同祖先和范围，不直接把“旧 HEAD 之后”当作完整增量。确认祖先后，只审查新增提交：
 
 ```bash
 git fetch upstream
@@ -178,12 +191,12 @@ git log --reverse --format='%H %s' 61c78b7c637432d3d39768c48030609d6dbf253a..ups
 | [`020d138af77c747a46762805b1ef34360abb282a`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/020d138af77c747a46762805b1ef34360abb282a) | build: regenerate wait-task bundle from integrated source | 按最终树/专题分组审阅；waiter | 不取；上游 SQLite attention/waiter 未与 fork 预约路径认证 |
 | [`28c132546284c8d774da871eff0b8baf97174c48`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/28c132546284c8d774da871eff0b8baf97174c48) | test: use a writable scratch root for waiter fixtures on POSIX | 按最终树/专题分组审阅；waiter | 不取；上游 SQLite attention/waiter 未与 fork 预约路径认证 |
 | [`c7703451b51d6cb7d0922671a739e672bd690b7e`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/c7703451b51d6cb7d0922671a739e672bd690b7e) | Merge pull request #58 from Sandyzzx/codex/adr024-m2-integration-publish-20261105 | 发布/合并元数据；发布/合并/生成元数据 | 记录身份；不独立移植 |
-| [`4a3763ebbd61f8b9d12b9464e2e406df70d0ce88`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/4a3763ebbd61f8b9d12b9464e2e406df70d0ce88) | fix: keep worker alive through app-server and cleanup-helper teardown races | 逐代码专项核查；helper stdin | 选中待落地（部分采纳）；仅 stdin error hunk，其余不取 |
+| [`4a3763ebbd61f8b9d12b9464e2e406df70d0ce88`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/4a3763ebbd61f8b9d12b9464e2e406df70d0ce88) | fix: keep worker alive through app-server and cleanup-helper teardown races | 逐代码专项核查；helper stdin | 已落地（部分采纳）；仅 stdin error hunk；本地 5a66d71 已回归，其余不取 |
 | [`7fbbfceca166eba7e51110c8c64727b8bceaf19f`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/7fbbfceca166eba7e51110c8c64727b8bceaf19f) | fix: exit claim-only workers deterministically after result write | 按最终树/专题分组审阅；SQLite worker | 不取；claim-only SQLite worker 专用退出路径 |
 | [`78115c188c66233b4f83561d2fca1e5fec70b1da`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/78115c188c66233b4f83561d2fca1e5fec70b1da) | fix: keep the MVP fake app-server alive in hosted CI | 按最终树/专题分组审阅；fixture | 不取；MVP fake app-server fixture，不是生产修复 |
 | [`b8f1679631f494ace1ae41180599b17dbe8a4c91`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/b8f1679631f494ace1ae41180599b17dbe8a4c91) | test: surface bounded Windows cleanup failure summaries | 按最终树/专题分组审阅；Windows | 暂缓；平台/fixture/诊断变化，本轮未实测 |
 | [`fc739471d0a566d19ec6d9a308c8b5c34b53d7da`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/fc739471d0a566d19ec6d9a308c8b5c34b53d7da) | fix: allow bounded startup time for Windows cleanup helper | 按最终树/专题分组审阅；Windows | 低优先候选；锁重试/helper 启动预算未实测，不取整 commit |
-| [`a6ba76c7a3ddb97e4c7f37754eb85c7eb9c9d82b`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/a6ba76c7a3ddb97e4c7f37754eb85c7eb9c9d82b) | fix: avoid duplicate turn-start events on coalesced ACKs | 逐代码专项核查；合帧 ACK | 选中待落地（部分采纳）；仅去重 guard，待本地回归 |
+| [`a6ba76c7a3ddb97e4c7f37754eb85c7eb9c9d82b`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/a6ba76c7a3ddb97e4c7f37754eb85c7eb9c9d82b) | fix: avoid duplicate turn-start events on coalesced ACKs | 逐代码专项核查；合帧 ACK | 已落地（部分采纳）；仅去重 guard；本地 5a66d71 已回归 |
 | [`f8cfb510c9ba8a0be31b5887277a7ff7cf7c4dfa`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/f8cfb510c9ba8a0be31b5887277a7ff7cf7c4dfa) | Merge pull request #60 from Sandyzzx/codex/mvp-real-adapter-ci-fix-20261105 | 发布/合并元数据；发布/合并/生成元数据 | 记录身份；不独立移植 |
 | [`97c8280a7c914820723938d430e4a7906b85ffed`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/97c8280a7c914820723938d430e4a7906b85ffed) | chore(master): release codex-zcode-bridge 1.6.0 | 发布/合并元数据；发布/合并/生成元数据 | 记录身份；不独立移植 |
 | [`aabbb0a959ee234508c62731ed5122f28dfcf5b0`](https://github.com/Sandyzzx/codex-zcode-bridge/commit/aabbb0a959ee234508c62731ed5122f28dfcf5b0) | Merge pull request #59 from Sandyzzx/release-please--branches--master--components--codex-zcode-bridge | 发布/合并元数据；发布/合并/生成元数据 | 记录身份；不独立移植 |
