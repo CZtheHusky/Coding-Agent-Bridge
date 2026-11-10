@@ -37,11 +37,15 @@ const server = http.createServer(async (req, res) => {
   record(req.url, body);
   if (req.headers.authorization !== 'Bearer private-fixture-token') { res.writeHead(401); return res.end(JSON.stringify({ code: 40101, data: null })); }
   let data = {};
-  if (req.url.endsWith('/snapshot')) { loaded = true; data = { session, as_of_seq: 0, epoch: 'fixture-epoch' }; }
+  if (req.url.endsWith('/snapshot')) { loaded = true; data = { session: { ...session, usage: { input_tokens: 7, output_tokens: 3, cache_read_tokens: 11 } }, as_of_seq: 0, epoch: 'fixture-epoch' }; }
   else if (req.url === '/api/v1/config') data = { default_model: 'fixture/default' };
   else if (req.url.startsWith('/api/v1/tools?')) data = { tools: [{ name: 'Read' }, { name: 'Shell' }, { name: 'mcp__fixture__lookup' }] };
-  else if (req.url === '/api/v1/sessions' || req.url === '/api/v1/sessions/session_fixture') data = { ...session, metadata: { cwd: scenario.kind === 'wrong_workspace' && req.method === 'GET' ? '/wrong' : process.cwd() } };
+  else if (req.url === '/api/v1/sessions' || req.url === '/api/v1/sessions/session_fixture') data = { ...session, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { cwd: scenario.kind === 'wrong_workspace' && req.method === 'GET' ? '/wrong' : process.cwd() } };
   else if (req.url.endsWith('/prompts')) {
+    // Native MCP discovery and attachment registration finish after /tools.
+    if (scenario.kind === 'late_tools' && !['mcp__late__lookup', 'ReadMediaFile'].every(name => body.disabled_tools?.some(pattern => pattern === name || (pattern === 'mcp__*' && name.startsWith('mcp__'))))) {
+      res.end(JSON.stringify({ code: 40111, data: {} })); return;
+    }
     if (scenario.kind === 'envelope_error') { res.end(JSON.stringify({ code: 40110, msg: 'SECRET_MUST_NOT_LEAK', data: {} })); return; }
     prompt = body;
     if (body.thinking !== undefined) session.agent_config.thinking = scenario.kind === 'thinking_fallback' ? 'high' : body.thinking;

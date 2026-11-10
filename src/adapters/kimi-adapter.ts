@@ -150,7 +150,9 @@ export class KimiAdapter implements CodingAgentAdapter {
           throw new BridgeError("session_profile_unsupported", "Kimi minimal profile requires native disabled_tools support; no model prompt was submitted");
         }
         const catalog = await request(`tools?session_id=${encodeURIComponent(session.id)}`, z.object({ tools: z.array(z.object({ name: z.string().min(1) })) }));
-        disabledTools = [...new Set(catalog.tools.map(tool => tool.name))];
+        // MCP discovery and image-tool registration can happen after /tools.
+        // Native MCP globs also cover tools registered after this prompt is queued.
+        disabledTools = [...new Set([...catalog.tools.map(tool => tool.name), "mcp__*", "ReadMediaFile"])];
         emit?.({ type: "session_profile", summary: "Kimi minimal profile requested through native disabled_tools; default system prompt retained", details: { session_profile: "minimal", disabled_tool_count: disabledTools.length } });
       }
       const promptId = randomUUID();
@@ -256,7 +258,10 @@ export class KimiAdapter implements CodingAgentAdapter {
         emit?.({ type: "error", summary: reportError, details: { error_code: errorCode, ...(providerError ? { provider_error: providerError } : {}) } });
       } else emit?.({ type: "turn_completed", summary: "Kimi execution completed; host review required" });
       const final = await request(`sessions/${encodeURIComponent(session.id)}`, sessionSchema.extend({ usage: object }));
-      usage = Object.fromEntries(Object.entries(final.usage).filter(([k, v]) => ["input_tokens", "output_tokens", "cache_read_tokens"].includes(k) && typeof v === "number"));
+      // GET session exposes cold-index usage placeholders, even after a real turn.
+      const finalSnapshot = await request(`sessions/${encodeURIComponent(session.id)}/snapshot`, z.object({ session: z.object({ usage: object }) }));
+      usage = Object.fromEntries(Object.entries(finalSnapshot.session.usage).filter(([k, v]) => ["input_tokens", "output_tokens"].includes(k) && typeof v === "number"));
+      if (typeof finalSnapshot.session.usage["cache_read_tokens"] === "number") usage["cached_input_tokens"] = finalSnapshot.session.usage["cache_read_tokens"];
       emit?.({ type: "model_selected", summary: "Kimi runtime model", details: { model_id: final.agent_config.model, ...(final.agent_config.thinking ? { reasoning_level: final.agent_config.thinking } : {}) } });
     } catch (error) {
       if (!errorCode) {

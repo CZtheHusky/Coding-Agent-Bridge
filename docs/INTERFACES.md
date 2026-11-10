@@ -1,10 +1,12 @@
 # 当前接口与兼容边界
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-09
+> Last verified: 2026-11-10，仅核对 ADR-019 的 Kimi 晚注册工具和原生用量语义；实际安装范围见本轮测试记录。
+> Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
+> Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 2318201 + ADR-018 working tree
+> Verified against: a665ea2 + ADR-019 working tree
+> Prior verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
@@ -94,7 +96,9 @@ API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名
 
 普通 TaskPackage 可传 `report_mode: "structured" | "raw"`，缺省 structured，保留原 AgentReport 验证。raw 不追加报告合同，不解析报告；原生成功、捕获未截断且 cleanup 已验证时才 completed，不证明数据有效或主机验收通过。`needs_master_decision=false` 在 raw 中只表示已显式放弃报告合同，不能当作模型的决定声明。数据读取 `zcode_output` 原文，不拼接事件摘要。`output_truncated` 标注捕获截断；raw 截断为 failed / output_truncated。失败保留已有 outcome 的捕获回答。模式持久化，续作不可切换；预约拒绝 raw，因为目标循环依赖 acceptance_met。
 
-`session_profile: "default" | "minimal"` 缺省 default。两个执行器都保留原生默认系统提示，不发送 system_prompt 或自定义 agent。ZCode minimal 的 create/resume 传 toolAllowlist=[]、mcpServers=[]、dynamicWorkflowEnabled=false、offPeakToolEnabled=false，create 另传 titleGenerationEnabled=false。Kimi minimal 先核对认证 OpenAPI 对 prompt.disabled_tools 的支持，再从当前 session 的 /tools 枚举工具名，随每次 prompt 下发 disabled_tools；不支持为 session_profile_unsupported，在模型请求前失败。它只约束当前注册工具；技能目录、原生基础上下文与晚注册工具仍由运行时决定，不承诺裸模型上下文或 OS 沙箱。
+`session_profile: "default" | "minimal"` 缺省 default。两个执行器都保留原生默认系统提示，不发送 system_prompt 或自定义 agent。ZCode minimal 的 create/resume 传 toolAllowlist=[]、mcpServers=[]、dynamicWorkflowEnabled=false、offPeakToolEnabled=false，create 另传 titleGenerationEnabled=false。Kimi minimal 先核对认证 OpenAPI 对 prompt.disabled_tools 的支持，再从当前 session 的 /tools 枚举工具名，并追加原生 `mcp__*` 模式与图片触发的 `ReadMediaFile`，随每次 prompt 下发 disabled_tools；不支持为 session_profile_unsupported，在模型请求前失败。MCP 模式覆盖异步注册；技能目录、原生基础上下文与未知未来内置工具仍由运行时决定，不承诺裸模型上下文或 OS 沙箱。
+
+Kimi 的 `usage` 从原生 `snapshot.session.usage` 读取，不能读取 GET session 的零占位索引。source 为 kimi_runtime_session，范围是会话累计；input_tokens 保留原生非缓存输入，cached_input_tokens 单列原生 cache_read_tokens，output_tokens 保留原生输出。缺失不估算，不把非缓存输入与缓存命中差异当作预填降幅。见 [ADR-019](decisions/ADR-019-kimi-late-tools-and-usage.md)。
 
 可选 `runtime_session_usage` 只返回 ZCode 原生 session/usage 的 session_id、observed_at、model_request_count、model_error_count 和固定 source=zcode_runtime_session。这是观测时的会话累计请求/错误数，可能包括辅助请求，不能标为单轮或逐请求统计；不复制该 RPC 中具有基线语义的 token 字段。不支持时字段缺省并发出 session_usage_unavailable，不估算为 0。
 

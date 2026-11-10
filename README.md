@@ -88,7 +88,8 @@ is unavailable for scheduled goals, which require `acceptance_met`.
 Both executors preserve their default system prompt. ZCode minimal sessions request
 no tools or MCP servers, disable workflows/off-peak tools, and disable new-session
 title generation. Kimi minimal sessions enumerate registered tools and send their
-names through the native `disabled_tools` option on each submission; older servers
+names plus the native `mcp__*` pattern and `ReadMediaFile` through `disabled_tools`
+on each submission, covering asynchronous MCP and image-tool registration; older servers
 without that option fail before a model prompt. Kimi may still include native skill
 catalogs and other base context. This mode does not promise bare-model API context
 or an OS sandbox, and never changes global agent settings.

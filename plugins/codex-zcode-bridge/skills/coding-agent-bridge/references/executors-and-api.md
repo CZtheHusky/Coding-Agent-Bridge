@@ -1,9 +1,11 @@
 # 执行器、图片与 API 模式
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09，ADR-012/014/016/017 参数及未验证边界。
-> Verified against: 998670c
+> Last updated: 2026-11-10
+> Last verified: 2026-11-10，仅核对 ADR-019 的 Kimi 晚注册工具和原生用量语义；实际安装范围见本轮测试记录。
+> Prior verification: 2026-11-09，ADR-012/014/016/017 参数及未验证边界。
+> Verified against: a665ea2 + ADR-019 working tree
+> Prior verified against: 998670c
 
 ## 模型与执行
 
@@ -29,8 +31,8 @@ API 模式是 raw + minimal 的组合名称，沿用异步任务工具，没有 
 
 raw 不要求 AgentReport；`zcode_output` 是捕获原文，`output_truncated` 标记截断，截断时 raw 失败。completed 只表示原生成功及清理验证，不证明数据正确，也不生成 acceptance_met。调用方验证 JSON、字段、顺序和数量。预约依赖 acceptance_met，因此拒绝 raw。
 
-ZCode minimal 用原生空工具白名单、空 MCP 列表、关闭动态 workflow/off-peak 工具；新会话关闭标题生成。Kimi 在每次提交前核对安装版本的 OpenAPI，从会话工具目录枚举名称，经原生 disabled_tools 禁用；不支持时在模型请求前返回 session_profile_unsupported，不静默回退或改全局配置。Kimi 原生技能目录、基础上下文及晚注册工具仍由 runtime 决定。
+ZCode minimal 用原生空工具白名单、空 MCP 列表、关闭动态 workflow/off-peak 工具；新会话关闭标题生成。Kimi 在每次提交前核对安装版本的 OpenAPI，从会话工具目录枚举名称，并追加原生 `mcp__*` 模式与 `ReadMediaFile`，经原生 disabled_tools 禁用（包括异步注册的 MCP 和图片工具）；不支持时在模型请求前返回 session_profile_unsupported，不静默回退或改全局配置。Kimi 原生技能目录、基础上下文及未知未来内置工具仍由 runtime 决定。
 
-两个执行器都保留默认系统提示，不发送自定义 agent/system_prompt 或私有模型请求。工作区说明、技能及历史仍可能增加输入上下文。ZCode 的 runtime_session_usage 是 observed_at 时的会话累计请求/错误数，不能当逐轮计费；普通 usage 缺失时写未报告，不填 0 或估算。主会话 token 只有宿主实际提供时才能报告。
+两个执行器都保留默认系统提示，不发送自定义 agent/system_prompt 或私有模型请求。工作区说明、技能及历史仍可能增加输入上下文。ZCode 的 runtime_session_usage 是 observed_at 时的会话累计请求/错误数，不能当逐轮计费；普通 usage 缺失时写未报告，不填 0 或估算。Kimi 的 usage 是原生 snapshot 的会话累计：input_tokens 为非缓存输入，cached_input_tokens 为缓存读取，分别报告；不要仅比较非缓存输入就宣称上下文减少。主会话 token 只有宿主实际提供时才能报告。
 
 功能实测与安装边界见仓库 docs/reports/2026-11-09-data-task-repair.md 及 2026-11-09-api-mode-deployment.md；这些记录不构成其他版本或额度恢复后的认证。

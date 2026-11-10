@@ -21512,7 +21512,7 @@ var KimiAdapter = class {
           throw new BridgeError("session_profile_unsupported", "Kimi minimal profile requires native disabled_tools support; no model prompt was submitted");
         }
         const catalog = await request(`tools?session_id=${encodeURIComponent(session.id)}`, object({ tools: array(object({ name: string2().min(1) })) }));
-        disabledTools = [...new Set(catalog.tools.map((tool) => tool.name))];
+        disabledTools = [.../* @__PURE__ */ new Set([...catalog.tools.map((tool) => tool.name), "mcp__*", "ReadMediaFile"])];
         emit?.({ type: "session_profile", summary: "Kimi minimal profile requested through native disabled_tools; default system prompt retained", details: { session_profile: "minimal", disabled_tool_count: disabledTools.length } });
       }
       const promptId = randomUUID();
@@ -21648,7 +21648,9 @@ var KimiAdapter = class {
         emit?.({ type: "error", summary: reportError, details: { error_code: errorCode, ...providerError ? { provider_error: providerError } : {} } });
       } else emit?.({ type: "turn_completed", summary: "Kimi execution completed; host review required" });
       const final = await request(`sessions/${encodeURIComponent(session.id)}`, sessionSchema.extend({ usage: object2 }));
-      usage = Object.fromEntries(Object.entries(final.usage).filter(([k, v]) => ["input_tokens", "output_tokens", "cache_read_tokens"].includes(k) && typeof v === "number"));
+      const finalSnapshot = await request(`sessions/${encodeURIComponent(session.id)}/snapshot`, object({ session: object({ usage: object2 }) }));
+      usage = Object.fromEntries(Object.entries(finalSnapshot.session.usage).filter(([k, v]) => ["input_tokens", "output_tokens"].includes(k) && typeof v === "number"));
+      if (typeof finalSnapshot.session.usage["cache_read_tokens"] === "number") usage["cached_input_tokens"] = finalSnapshot.session.usage["cache_read_tokens"];
       emit?.({ type: "model_selected", summary: "Kimi runtime model", details: { model_id: final.agent_config.model, ...final.agent_config.thinking ? { reasoning_level: final.agent_config.thinking } : {} } });
     } catch (error62) {
       if (!errorCode) {

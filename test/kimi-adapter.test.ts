@@ -254,11 +254,34 @@ test("Kimi raw data bypasses the report contract while preserving native complet
     assert.equal(outcome.agentReport, null); assert.equal(outcome.cleanupVerified, true);
     const prompt = f.requests().find((r: { route: string }) => r.route.endsWith("/prompts"));
     assert.doesNotMatch(JSON.stringify(prompt), /OUTPUT CONTRACT \(mandatory\)/);
-    assert.deepEqual(prompt.body.disabled_tools, ["Read", "Shell", "mcp__fixture__lookup"]);
+    assert.deepEqual(prompt.body.disabled_tools, ["Read", "Shell", "mcp__fixture__lookup", "mcp__*", "ReadMediaFile"]);
     assert.doesNotMatch(JSON.stringify(f.requests()), /system_prompt|agent_file|base_prompt/, "native system prompt must not be replaced");
     const next = await adapter.getResult(await adapter.continueTask({ ...f, attempt: 2, feedback: "Update data", additionalRequirements: [], previousSessionId: outcome.sessionId, previousResult: null }));
     assert.equal(next.errorCode, null); assert.equal(next.sessionId, outcome.sessionId);
-    assert.deepEqual(f.requests().filter((r: { route: string }) => r.route.endsWith("/prompts")).at(-1).body.disabled_tools, ["Read", "Shell", "mcp__fixture__lookup"]);
+    assert.deepEqual(f.requests().filter((r: { route: string }) => r.route.endsWith("/prompts")).at(-1).body.disabled_tools, ["Read", "Shell", "mcp__fixture__lookup", "mcp__*", "ReadMediaFile"]);
+  } finally { f.cleanup(); }
+});
+
+test("Kimi minimal disables MCP and image tools that register after catalog enumeration on every turn", async () => {
+  const f = fixture("late_tools");
+  try {
+    f.task.session_profile = "minimal";
+    const adapter = new KimiAdapter();
+    const first = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(first.errorCode, null, "late registration must not leave model tools enabled");
+    const next = await adapter.getResult(await adapter.continueTask({ ...f, attempt: 2, feedback: "Continue", additionalRequirements: [], previousSessionId: first.sessionId, previousResult: null }));
+    assert.equal(next.errorCode, null);
+    assert.equal(next.sessionId, first.sessionId);
+  } finally { f.cleanup(); }
+});
+
+test("Kimi reports live snapshot usage instead of the session index's zero placeholders", async () => {
+  const f = fixture();
+  try {
+    const adapter = new KimiAdapter();
+    const outcome = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(outcome.errorCode, null);
+    assert.deepEqual(outcome.usage, { input_tokens: 7, output_tokens: 3, cached_input_tokens: 11 }, "uncached input and cached reads must retain their separate native meanings");
   } finally { f.cleanup(); }
 });
 

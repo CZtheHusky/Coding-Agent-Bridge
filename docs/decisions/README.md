@@ -1,7 +1,7 @@
 # 决策记录 / Decisions
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last updated: 2026-11-09
+> Last updated: 2026-11-10
 > Last verified: 2026-11-09，仅核对 ADR-017/018 决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
 > Verified against: 2318201 + ADR-018 working tree。
 
@@ -51,3 +51,5 @@ ADR-001 到 ADR-003 只搬运权威文档里已经写明的结论。ADR-004 原�
 - [ADR-017：API 模式、数据输出与诊断](ADR-017-data-task-output-and-diagnostics.md)：raw/minimal 组合、保留原生系统提示、失败诊断及扫描边界。
 
 - [ADR-018：结果诊断与运行构建](ADR-018-result-diagnostics-and-running-build.md)：结构化 provider_error、同版执行文件变化观察与重连提示。
+
+- [ADR-019：Kimi 晚注册工具与真实用量](ADR-019-kimi-late-tools-and-usage.md)：原生 MCP 名称模式覆盖异步工具注册，snapshot 提供会话累计用量。

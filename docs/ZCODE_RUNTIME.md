@@ -1,9 +1,11 @@
 # ZCode 运行配置边界
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Last updated: 2026-11-10
+> Last verified: 2026-11-10，仅核对 ADR-019 的 Kimi 晚注册工具和原生用量语义；实际安装范围见本轮测试记录。
+> Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: a665ea2 + ADR-019 working tree
+> Prior verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
 > Prior verification: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
 > Prior verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
 > Prior verification: 2026-10-28，静态核对本次 systemd runner 配置、App pipe 私有记录与环境转发边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
@@ -53,6 +55,6 @@ API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名
 
 数据任务可使用 `report_mode: "raw", session_profile: "minimal"`。ZCode 的 native create/resume 只通过公开协议中的工具白名单、MCP、workflow/off-peak 开关减少工具面，create 关闭标题生成；保留默认系统提示，不修改运行时安装包。Observed ZCode 3.16.3 对照：同样两张图、GLM-5.3-Flash/max、各一次主模型请求，输入 20,119 → 2,536，输出均独立核对正确，精简 session 的原会话续作也通过。该降幅不是固定开销保证。
 
-Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或修改全局工具设置。Observed SSH 远端 Kimi 2.4.1：认证 OpenAPI 确认字段存在、原生目录返回 26 个具名工具；本轮未提交 Kimi 模型 prompt，额度恢复前不重试，因此 token 降幅及实际模型工具面仍未验证。协议 fixture 已覆盖参数、续作、系统提示不被覆盖及不支持时提前失败。
+Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或修改全局工具设置。每次 prompt 枚举当前工具，并追加 `mcp__*` 与 `ReadMediaFile`，覆盖已观察到的异步 MCP / 图片工具注册；不替换默认系统提示。完成后的会话用量来自原生 snapshot，GET session 的零占位索引不作为实际消耗。input_tokens 为非缓存输入，cached_input_tokens 单列缓存读取。此修复依据额度恢复后的 Kimi 2.3.3 实测；跨版本及安装范围以本轮报告为准，见 [ADR-019](decisions/ADR-019-kimi-late-tools-and-usage.md)。
 
 精简不等于 OS 沙箱，不会清除调用工作区原生 AGENTS/技能/基础上下文。互不相关的 API 请求使用新 task_id/session，可避免历史累积；需要前文的请求才使用 continue。代码更新后重连 MCP，已加载旧代码的服务器不会自动生效。
