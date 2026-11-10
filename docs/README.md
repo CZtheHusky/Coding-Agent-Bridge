@@ -53,7 +53,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 |---|---|---|---|
 | [README.md](../README.md) | en | 2026-11-09 | 本次附图示例/模型模态与 Linux 实测；其余沿用历史范围； 调度静态核对 + systemd 离线闭环；真实消息送达/独立验收；空闲新轮次未验证 |
 | [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-09 | 本次附图参数、示例和模型模态；其余未重验 |
-| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-10-28 | 调度静态核对 + systemd 离线闭环；详见文档顶部 |
+| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-09 | 本次附图与安装验收；其余沿用历史范围； 调度静态核对 + systemd 离线闭环；详见文档顶部 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-10-28 | 调度静态核对 + systemd 离线闭环；详见文档顶部 |
 | [INTERFACES.md](INTERFACES.md) | zh | 2026-10-28 | 工具/schema 静态核对 + 离线闭环；详见文档顶部 |
 | [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-10-28 | 可选注入静态核对 + 离线闭环；详见文档顶部 |

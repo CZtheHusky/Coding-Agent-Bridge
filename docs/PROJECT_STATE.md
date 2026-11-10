@@ -1,8 +1,9 @@
 # Project State
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
+> Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
 > Prior verification: 2026-10-18，PR #47 返修行为已由 Codex 独立验收：冻结候选上六组 fake 探针（契约 10、已死父跨根 4、记录外来边 5、根行代 3、观察历史 2 模式、真实 Manager 重建 2 模式）× Node 22.18.0/24.16.0 全过；完整独立平台矩阵——Windows 22.18.0 全量 509/508/1 skip、Windows 24.16.0 全量 509/507/2 skip、Windows 24.19.0 受影响九套件 152/152/0、Linux 22.18.0 全量 511/508/3 skip、Linux 24.20.0 全量 511/507/4 skip，均 0 fail，各平台 typecheck/build/validate:plugin/clean-entrypoints(4/4) 通过（git diff --check 于 Windows 工作区通过；Linux 首次聚合 bundle 比较失败为评估器符号链接致来源注释差异，实体依赖重建后字节一致并 validate 通过，原失败保留）；跳过项为平台专有用例如实记录。维护者机器特定 process-lock 失败未在本机自然复现，仅机制修复有确定性证据（见 ADR-009 与返修报告）。本轮（attempt-7）仅注释/文档/记录收尾，源码行为字节不变（bundle 重建后字节一致）。worker 分版本自测计数见各 attempt 记录，与独立结果不混计；最终源码冻结、任务资源清理与 PR 更新由 Codex 负责。
 > Prior verified against: 628984ca625a4d307b859d9f32d49e52e2d21ee6 + 本分支修复；受测源码指纹见修复记录与本轮私有归档。
@@ -13,7 +14,7 @@
 
 ## 版本与发布
 
-- 当前源码版本：`1.2.7`（`package.json`、`plugins/codex-zcode-bridge/plugin.json`）；本次调度改动仍在 working tree，未提交、未发布。
+- 当前源码版本：`1.2.7`（`package.json`、`plugins/codex-zcode-bridge/plugin.json`）；当前改动已提交并推送；本轮附图代码为 d1bf2fe，未新建 release。
 - 发布方式：release-please 监听 `master`，合并后自动开版本 PR；合并版本 PR 才产生 tag 与 GitHub Release。
 - CI：`.github/workflows/ci.yml`，ubuntu 与 windows 两个作业，跑 typecheck、build、test、validate:plugin，并校验生成的 bundle 已随源码提交。
 
@@ -28,6 +29,8 @@ Windows 进程树身份绑定归属与终止（ADR-009，2026-10-17 轮）：生
 PR #47 claimant 扫描与预算返修（本轮，2026-10-18，含 review-round-1 R1–R4 与 review-round-2 S1/S2 返工）：S1——多记录根证据单调合并，claimant 路径优先于相对其他根的外来排除；S2——扫描 false/拒绝时任务相关观察经既有 cleanup-failure/marker 持久化并入后续 scanTargets（不含已证外来者与响应载荷任意 PID），空闭包正常释放。其余：P1-A——枚举与 hold 之间消失的记录 PID 视为已死，其存活子代计入 claimant，不再被过期枚举 live 集合漏掉；P1-B——外来换代父的后代仅在每条边持有证明成立时排除（边的父代被持有且与枚举行同代一致、子代创建表示区间严格晚于该持有精确创建时间、子代自身再被持有核验后递归同判），相等精度/更早/跨界/未知/中间代消失-拒绝-换代的子代保持占用，"外来换代父排除整棵子树"的旧保证撤回；hold 响应按请求校验（数量、PID、ok 必含可用精确身份字段），畸形证据拒绝扫描而非证明 clean；终止预算语义——kill 截止只对无句柄确认退出时间的成员报 `process_tree_cleanup_unverified`，全部已确认退出的成员继续闭包确认轮直至证明为空（仍受 120 s 传输会话预算约束），修复"全表枚举慢 + WMI 滞留已终止成员行"时对已证明退出的误报。维护者 Node 24.16.0 两项 process-lock 失败在本机 24.16.0 未复现（阶段计时与边界见 ADR-009 与[公开返修报告](reports/2026-10-18-pr47-claimant-repair.md)），不宣称版本归因或根治。
 
 ## 稳定
+
+- 原生附图（ADR-016）：task、continue 与 schedule.task 接收 `attachments: [{ path: "/absolute/image.png" }]`；续作只发送本轮新图并复用原 session。GLM-5.3 普通版仅支持文本，Flash/FlashX 原生多模态，本轮只实测 Flash。Linux 本机与 SSH 实际安装的四入口首图/补图均通过；Kimi 隔离测试通过，本轮安装复测受额度耗尽及测试 PATH 缺口限制，未完成。预约仅覆盖离线传播；完整证据见[功能实测](reports/2026-11-09-native-image-attachments.md)与[安装验收](reports/2026-11-09-native-image-deployment.md)。
 
 - Windows 进程树终止（ADR-009）：本机 Node 22/24 全量、专项单测、有界真实 fixture（正向身份绑定终止、错误指纹拒绝且零信号、缺身份拒绝、独立收束）与 Codex 九脚本十用例反例通过；2026-10-18 PR #47 返修后维护者原始反例、组合矩阵、真实 Manager 消费门禁与预算语义回归通过（attempt-1 版本 44/3/93/19 项为分文件历史计数；attempt-2 版本为 53/4 项加 evaluator 探针 10/10×3 Node）。claimant 闭包外（未观察中间祖先）不可证明，外来换代父不排除未证明的后代，不以完整清理名义宣称。
 - TaskManager 生命周期：`queued` / `running` / `completed` / `failed` / `cancelled` / `waiting_for_master`，含 attempt 独占、续跑归档、清理验证。
