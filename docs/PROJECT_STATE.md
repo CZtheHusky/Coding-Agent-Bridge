@@ -4,7 +4,7 @@
 > Last updated: 2026-11-09
 > Last verified: 2026-11-09，仅本次 ADR-018 接口及 Linux 回归；安装边界见本轮诊断报告，其余沿用下列历史范围。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 对照及 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)，两端四入口八次真实执行见[安装验收](reports/2026-11-09-api-mode-deployment.md)。其余保留历史核对范围。
-> Verified against: 2318201 + ADR-018 working tree
+> Verified against: 2a293d04662553f0e32dca030afb1fb024bc0ab8（诊断与运行构建功能）
 > Prior verification: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
 > Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
@@ -39,7 +39,7 @@ ADR-017：新增显式 raw 输出、两执行器可选 minimal 工具精简、�
 
 ## 2026-11-09 结果诊断与运行构建
 
-ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原生失败并保留额度/清理优先；MCP 回执及 doctor 提供 bridge 版本、启动时间和同版本执行文件变化观察，提示重连，不热更新或自动重启。验证及部署范围见[本轮报告](reports/2026-11-09-result-diagnostics.md)。更早进程需要首次重连才能具备后续更新识别能力。
+ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原生失败并保留额度/清理优先；MCP 回执及 doctor 提供 bridge 版本、启动时间和同版本执行文件变化观察，提示重连，不热更新或自动重启。功能提交 2a293d0 已推送并同步两端四入口，670 项通过、4 项平台跳过，四入口新连接与独立副本的运行中变更识别检查通过；验证及部署范围见[本轮报告](reports/2026-11-09-result-diagnostics.md)。更早进程需要首次重连才能具备后续更新识别能力。
 
 ## 稳定
 

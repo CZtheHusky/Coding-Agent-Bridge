@@ -2,7 +2,7 @@
 
 > Status: RESEARCH
 > Date: 2026-11-09（客户端日期；实际测试日志为 2026-11-10 UTC）
-> Verified against: 2318201 + ADR-018 working tree
+> Verified against: 2a293d04662553f0e32dca030afb1fb024bc0ab8（功能代码与安装产物）
 > Scope: Linux / Node 22.22.2，原生协议 fixture、MCP、worker/manager 恢复与打包检查；真实提供方拒绝未主动制造。
 
 ## 完成的修改
@@ -15,7 +15,7 @@
 
 ## 验证
 
-针对性回归 90/90，通过。主仓库最终检查：typecheck、build、validate:plugin、git diff --check 通过；完整 674 项中 670 通过、0 失败、4 平台相关跳过；clean-entrypoints 6/6。收尾自定义入口读取范围限制另补受影响测试与最终重建。。
+针对性回归 90/90，通过。主仓库最终检查：typecheck、build、validate:plugin、git diff --check 通过；完整 674 项中 670 通过、0 失败、4 平台相关跳过；clean-entrypoints 6/6。收尾自定义入口读取范围限制另补 2/2 受影响测试，最终重新构建、validate:plugin 及 clean-entrypoints 6/6 通过。。
 
 新增测试覆盖实际意图：同版代码替换能被已有连接识别，重建观察后恢复 same，仅触碰时间戳/文档不误报；worker/scheduler 变化可见、缺失入口为 unknown；MCP schema 和当前观察透传不改持久幂等回执；结果诊断脱敏、Kimi 额度优先、cleanup 阻塞和 checkpoint 恢复。
 
@@ -23,6 +23,10 @@
 
 ## 安装与未运行边界
 
-本次功能提交时尚待替换两端安装文件；安装后另行补充实际四入口检查。旧于本功能的已连接进程不会凭空获得检测能力，需要首次重连；本功能不热加载或自动重启用户会话/worker。
+功能提交 2a293d0 已推送并替换本机 Codex、SSH 远端 Codex 插件、Claude 插件及独立 Claude 宿主。三个插件各 30 个管理文件、独立 core 166 个文件均与提交产物逐字节相同，原运行配置、代理入口及用户会话保留。
+
+四入口均通过新 MCP 连接的字段发现、实际 doctor 调用和运行/磁盘指纹一致性检查。独立副本中保持同一 MCP 连接，替换 worker 内容后观察 changed/reconnect_required=true，运行构建 ID 和 started_at 不变，恢复文件后返回 same。未修改真实安装文件来制造该情景。本机与远端插件原生 strict 校验通过；本机技能校验通过。
+
+本机首次安装探针因受限沙箱无法 chmod 已安装任务目录而在 MCP 启动阶段失败；原失败和 stderr 保留，允许该访问后四入口检查通过，不把首次失败计为通过。旧于本功能的已连接进程不会凭空获得检测能力，需要首次重连；本功能不热加载或自动重启用户会话/worker。
 
 ZCode/Kimi 故障诊断链路通过原生协议 fixture 验证，没有主动制造真实内容安全拒绝、额度故障或限流。Kimi 真实 API 模式补测已由当前聊天一次性预约，尚未在本轮完成；不将离线结果当作模型认证。Windows 原生执行未在本机运行，按平台测试跳过项明确记录。
