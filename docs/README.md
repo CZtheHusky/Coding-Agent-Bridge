@@ -162,3 +162,5 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 - [ADR-016](decisions/ADR-016-native-image-attachments.md)：任务与续作的原生图片附件，ZCode/Kimi 字段、持久化和失败边界。
 - [附图实测](reports/2026-11-09-native-image-attachments.md)：ZCode/Kimi 批量附图、同会话补图与视觉能力边界。
+
+- [附图提交与安装验收](reports/2026-11-09-native-image-deployment.md)：两端四入口替换、ZCode 实测、Kimi 额度与测试启动环境边界 / Deployment verification and remaining Kimi limits.

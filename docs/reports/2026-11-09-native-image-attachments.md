@@ -3,7 +3,7 @@
 > Status: RESEARCH
 > Date: 2026-11-09（测试跨 UTC 2026-11-10，按本机日期记录）
 > Baseline: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 既有未提交修复 + ADR-016 working tree
-> Scope: Linux 本机及 SSH Linux 隔离副本；未安装、未重启现有 Bridge，未提交或发布。
+> Scope: 初始功能验收使用 Linux 本机及 SSH Linux 隔离副本，当时未安装、重启、提交或发布；后续已提交推送并替换安装，见[安装验收记录](2026-11-09-native-image-deployment.md)。
 
 ## 实现
 
