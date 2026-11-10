@@ -6,6 +6,7 @@ import type { AgentHandle, AgentProcessStatus, CodingAgentAdapter, ImageAttachme
 import type { ZCodeAppServerAdapterOptions } from "./zcode-app-server-adapter.js";
 import type { AdapterErrorCode, ZCodeRunOutcome } from "./zcode-adapter.js";
 import { parseAgentReport } from "./agent-report.js";
+import { providerFailureDiagnostic } from "./provider-failure.js";
 import { buildTaskPrompt, buildContinuePrompt } from "../prompts/task-prompt.js";
 import { resolveImageAttachments } from "../attachments/images.js";
 import { createMinimalOsEnv, createProxyEnv } from "../runtime/child-env.js";
@@ -80,6 +81,7 @@ export class KimiAdapter implements CodingAgentAdapter {
     let identity: { pid: number; fingerprint: string } | null = null;
     let errorCode: AdapterErrorCode | null = null;
     let reportError: string | null = null;
+    let providerError: import("../interfaces.js").ProviderError | undefined;
     let cleanupError: string | null = null;
     let usage: Record<string, unknown> | null = null;
     try {
@@ -247,9 +249,11 @@ export class KimiAdapter implements CodingAgentAdapter {
       const turn = await ended;
       signal.removeEventListener("abort", abort);
       if (turn.reason !== "completed") {
+        const diagnostic = providerFailureDiagnostic(turn.error).details;
+        if (Object.keys(diagnostic).length) providerError = diagnostic;
         errorCode = turn.reason === "cancelled" ? "cancelled" : kimiFailureCode(turn.error);
         reportError = errorCode === "kimi_usage_exhausted" ? "Kimi 用量额度已耗尽，当前执行已中断；停止任务并告知用户，不自动重试或续作，等待用户确认额度恢复。" : "Kimi turn did not complete successfully; inspect local Kimi configuration and task evidence";
-        emit?.({ type: "error", summary: reportError, details: { error_code: errorCode } });
+        emit?.({ type: "error", summary: reportError, details: { error_code: errorCode, ...(providerError ? { provider_error: providerError } : {}) } });
       } else emit?.({ type: "turn_completed", summary: "Kimi execution completed; host review required" });
       const final = await request(`sessions/${encodeURIComponent(session.id)}`, sessionSchema.extend({ usage: object }));
       usage = Object.fromEntries(Object.entries(final.usage).filter(([k, v]) => ["input_tokens", "output_tokens", "cache_read_tokens"].includes(k) && typeof v === "number"));
@@ -278,6 +282,7 @@ export class KimiAdapter implements CodingAgentAdapter {
       timedOut: run.timedOut, cancelled: run.cancelled || errorCode === "cancelled", errorCode, reportError,
       agentReport: errorCode || task.report_mode === "raw" ? null : parsed.report, reportCandidate: task.report_mode === "raw" ? null : parsed.candidate,
       stdoutTruncated: truncated, stderrTruncated: false, attempts: 1, cleanupError, cleanupVerified: cleanupError === null,
+      ...(providerError ? { providerError } : {}),
     };
     this.#options.onOutcomeCheckpoint?.(outcome);
     return outcome;

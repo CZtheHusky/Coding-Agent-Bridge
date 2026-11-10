@@ -2,8 +2,8 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，既有交互/清理合同和 ADR-017 诊断。
-> Verified against: 998670c
+> Last verified: 2026-11-09，ADR-018 结构化诊断/构建提示；其余沿用既有交互/清理范围。
+> Verified against: 2318201 + ADR-018 working tree
 
 ## 审批与问题
 
@@ -15,7 +15,7 @@ preview=true 的 input_preview 不是全文。判断需要完整输入时读同 
 
 ## 失败与恢复
 
-- 先读 result.error_code 和必要事件，不只看 feedback 的失败标签。启动失败时只有出现 session_ready 才能声称创建了 session；模型等元数据缺失就写未报告。
+- 先读 result.error_code、可选 provider_error 和必要事件，不只看 feedback 标签；retryable 不能覆盖额度/清理停止规则。回执/doctor.bridge 的 disk_status=changed 提示重连，unknown 不是已更新。启动失败时只有出现 session_ready 才能声称创建了 session；模型等元数据缺失就写未报告。
 - invalid_agent_report：先检查 report_candidate、zcode_output 和实际工作。编码已完成时续作仅修复报告，不重做实现/测试；原文已有数据时先独立验证，避免无谓重做标注。缺少的决定字段不能凭空补 false。
 - raw 输出截断：保留的文本不完整，不能当有效成功。内容安全拒绝 1301 不原样自动重试；未知错误需要原生诊断，不能推测成网络或限额。
 - zcode_usage_exhausted / kimi_usage_exhausted：停止对应执行器调用、重试及续作，告知用户并等待确认恢复；普通限流不等于额度耗尽。

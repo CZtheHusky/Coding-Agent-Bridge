@@ -25,6 +25,10 @@ import type {
 import { SESSION_ID, makeTask } from "./helpers.js";
 
 const CREATED_AT = "2026-09-27T00:00:00.000Z";
+const BRIDGE_INFO: import("../src/interfaces.js").BridgeRuntimeInfo = {
+  version: SERVER_VERSION, started_at: CREATED_AT, running_build_id: "build-a", disk_build_id: "build-a",
+  disk_status: "same", reconnect_required: false,
+};
 
 class FakeTaskManager implements TaskManager {
   readonly calls: Array<{ method: string; args: unknown }> = [];
@@ -116,9 +120,10 @@ class FakeTaskManager implements TaskManager {
 async function withServer(
   run: (client: Client, manager: FakeTaskManager) => Promise<void>,
   doctor?: () => Promise<{ checked_at: string; execution_mode: string; checks: Array<{ name: string; status: "ok" | "warning" | "error" | "unknown"; summary: string }> }>,
+  bridgeInfo = () => BRIDGE_INFO,
 ): Promise<void> {
   const manager = new FakeTaskManager();
-  const server = createBridgeServer({ taskManager: manager, doctor });
+  const server = createBridgeServer({ taskManager: manager, doctor, bridgeInfo });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "protocol-test-client", version: "0.0.1" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
@@ -183,8 +188,25 @@ test("coding_agent_doctor returns read-only setup diagnostics", async () => {
   await withServer(async (client) => {
     const result = (await client.callTool({ name: "coding_agent_doctor", arguments: {} })) as CallToolResult;
     assert.equal(result.isError, undefined);
-    assert.deepEqual(result.structuredContent, report);
+    assert.deepEqual(result.structuredContent, { ...report, bridge: BRIDGE_INFO });
   }, async () => report);
+});
+
+test("receipts and doctor expose the current connection's update state without changing stored manager receipts", async () => {
+  let info = { ...BRIDGE_INFO };
+  await withServer(async (client, manager) => {
+    const created = await client.callTool({ name: "coding_agent_task", arguments: fullTaskArguments() });
+    assert.deepEqual((created.structuredContent as unknown as TaskReceipt).bridge, BRIDGE_INFO);
+    info = { ...info, disk_build_id: "build-b", disk_status: "changed", reconnect_required: true };
+    const continued = await client.callTool({ name: "coding_agent_continue", arguments: { task_id: "task_1", feedback: "review feedback" } });
+    assert.deepEqual((continued.structuredContent as unknown as TaskReceipt).bridge, info);
+    const doctor = await client.callTool({ name: "coding_agent_doctor", arguments: {} });
+    assert.deepEqual((doctor.structuredContent as { bridge: unknown }).bridge, info);
+    assert.equal(manager.receipt.bridge, undefined, "a live server observation must not alter submission idempotency");
+    manager.result = { ...manager.result, status: "failed", error_code: "zcode_nonzero_exit", provider_error: { code: "1301", statusCode: 400, retryable: false, category: "content_filter" } };
+    const result = await client.callTool({ name: "coding_agent_result", arguments: { task_id: "task_1" } });
+    assert.deepEqual((result.structuredContent as unknown as TaskResult).provider_error, manager.result.provider_error);
+  }, async () => ({ checked_at: CREATED_AT, execution_mode: "yolo", checks: [] }), () => info);
 });
 
 test("coding_agent_interaction_reply forwards a bounded explicit decision", async () => {
@@ -216,6 +238,7 @@ test("coding_agent_task maps the full TaskPackage and returns a receipt as struc
       task_id: "task_1",
       status: "running",
       created_at: CREATED_AT,
+      bridge: BRIDGE_INFO,
     });
     const call = manager.calls[0]!;
     assert.equal(call.method, "createTask");

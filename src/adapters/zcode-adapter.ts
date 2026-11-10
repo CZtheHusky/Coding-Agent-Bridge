@@ -68,6 +68,7 @@ export type AdapterErrorCode =
  * successful on invalid JSON or an invalid report).
  */
 export interface ZCodeRunOutcome extends AgentRunOutcome {
+  readonly providerError?: import("../interfaces.js").ProviderError;
   readonly runtimeSessionUsage?: import("../interfaces.js").RuntimeSessionUsage;
   readonly agentReport: AgentReport | null;
   readonly reportCandidate: Partial<AgentReport> | null;

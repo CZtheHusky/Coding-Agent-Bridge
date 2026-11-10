@@ -106,10 +106,24 @@ const testReportSchema = z.object({
   details: z.string().optional(),
 });
 
+const bridgeRuntimeInfoSchema = z.object({
+  version: z.string(), started_at: z.string(),
+  running_build_id: z.string().nullable(), disk_build_id: z.string().nullable(),
+  disk_status: z.enum(["same", "changed", "unknown"]), reconnect_required: z.boolean().nullable(),
+});
+
+export const providerErrorSchema = z.object({
+  code: z.string().optional(), type: z.string().optional(),
+  status: z.number().nonnegative().optional(), statusCode: z.number().nonnegative().optional(),
+  retryAfter: z.number().nonnegative().optional(), retry_after: z.number().nonnegative().optional(),
+  retryable: z.boolean().optional(), category: z.literal("content_filter").optional(),
+});
+
 export const taskReceiptSchema = z.object({
   task_id: z.string(),
   status: z.enum(["queued", "running"]),
   created_at: z.string(),
+  bridge: bridgeRuntimeInfoSchema.optional(),
 });
 
 const taskObservationSchema = z.object({
@@ -208,6 +222,7 @@ export const taskResultSchema = z.object({
     observed_at: z.string(),
     model_request_count: z.number().int().nonnegative(), model_error_count: z.number().int().nonnegative(),
   }).optional(),
+  provider_error: providerErrorSchema.optional(),
   exit_code: z.number().int().nullable(),
   session_id: z.string().nullable(),
   attempt: z.number().int(),
@@ -301,6 +316,7 @@ export const toolErrorSchema = z.object({
 export const doctorReportSchema = z.object({
   checked_at: z.string(),
   execution_mode: z.string(),
+  bridge: bridgeRuntimeInfoSchema.optional(),
   checks: z.array(z.object({
     name: z.string(),
     status: z.enum(["ok", "warning", "error", "unknown"]),

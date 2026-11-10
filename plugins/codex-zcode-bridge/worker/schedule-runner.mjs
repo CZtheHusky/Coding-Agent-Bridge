@@ -1354,9 +1354,57 @@ function toPublicStatus(status) {
   return record2;
 }
 
+// src/adapters/provider-failure.ts
+function providerFailureDiagnostic(value) {
+  const details = {};
+  let contentFilter = false;
+  let code1301 = false;
+  const visit = (value2, depth) => {
+    if (typeof value2 === "string") {
+      if (/\[1301\]/u.test(value2.slice(0, 16384))) {
+        contentFilter = true;
+        code1301 = true;
+      }
+      return;
+    }
+    if (depth > 4 || !value2 || typeof value2 !== "object" || Array.isArray(value2)) return;
+    const record2 = value2;
+    if (record2.category === "content_filter") contentFilter = true;
+    for (const key of ["code", "errorCode", "error_code", "providerErrorCode", "type"]) {
+      const item = record2[key];
+      const text = typeof item === "string" ? item : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
+      if (/^(?:\d{3,6}|UNKNOWN_ERROR|MODEL_RATE_LIMITED|rate_limit_exceeded|content_filter|content_policy_violation)$/u.test(text)) {
+        details[key === "type" ? "type" : "code"] = text;
+        if (text === "1301" || text === "content_filter" || text === "content_policy_violation") contentFilter = true;
+        if (text === "1301") code1301 = true;
+      }
+    }
+    for (const key of ["status", "statusCode", "retryAfter", "retry_after"]) {
+      const item = record2[key];
+      if (typeof item === "number" && Number.isFinite(item) && item >= 0) details[key] = item;
+    }
+    if (typeof record2.retryable === "boolean") details.retryable = record2.retryable;
+    for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
+      const item = record2[key];
+      if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
+      if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
+    }
+    for (const key of ["error", "cause", "data", "detail", "attribution"]) visit(record2[key], depth + 1);
+  };
+  visit(value, 0);
+  if (contentFilter) {
+    if (code1301) details.code = "1301";
+    details.category = "content_filter";
+    return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
+  }
+  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
+  return { summary: `ZCode turn failed${suffix}`, details };
+}
+
 // src/manager/normalize.ts
 function buildTaskResult(input) {
   const { task, attempt, startedAt, finishedAt, outcome } = input;
+  const providerError = providerFailureDiagnostic(input.failure?.providerError ?? outcome?.providerError).details;
   const base = {
     task_id: task.task_id,
     attempt,
@@ -1365,6 +1413,7 @@ function buildTaskResult(input) {
     zcode_output: outcome?.response ?? "",
     ...outcome ? { output_truncated: outcome.stdoutTruncated } : {},
     ...outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {},
+    ...Object.keys(providerError).length ? { provider_error: providerError } : {},
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input.sessionId ?? null,
     ...input.usage !== void 0 ? { usage: input.usage } : {},
@@ -2971,10 +3020,13 @@ import path6 from "node:path";
 // src/runtime/errors.ts
 var BridgeError = class extends Error {
   code;
+  providerError;
   constructor(code, message, options) {
     super(message, options);
     this.name = "BridgeError";
     this.code = code;
+    const details = providerFailureDiagnostic(options?.providerError).details;
+    if (Object.keys(details).length) this.providerError = details;
   }
 };
 
@@ -4448,6 +4500,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
       cancelled: false,
       stdoutTruncated: checkpoint.stdout_truncated === true,
       runtimeSessionUsage: checkpoint.runtime_session_usage,
+      providerError: checkpoint.provider_error,
       stderrTruncated: false,
       stdout: checkpoint.response,
       stderr: "",

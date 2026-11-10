@@ -545,7 +545,10 @@ test("content safety rejection survives native event and RPC wrappers without pr
     try {
       const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, onEvent: e => events.push(e), childEnvBase: { PATH: process.env.PATH } });
       await assert.rejects(adapter.getResult(await adapter.startTask({ task, workspace: makeWorkspace(runtime.root), attempt: 1 })), error => {
-        assert.match(String(error), /content safety rejection \(1301\)/); assert.doesNotMatch(String(error), /PRIVATE|SECRET|private.invalid/); return true;
+        assert.match(String(error), /content safety rejection \(1301\)/); assert.doesNotMatch(String(error), /PRIVATE|SECRET|private.invalid/);
+        assert.ok(error instanceof BridgeError); assert.equal(error.providerError?.code, "1301");
+        assert.equal(error.providerError?.retryable, false, "event and RPC failures must both carry machine-readable evidence to the worker");
+        return true;
       });
       assert.doesNotMatch(JSON.stringify(events), /PRIVATE|SECRET|private.invalid/);
     } finally { await rm(runtime.root, { recursive: true, force: true }); }

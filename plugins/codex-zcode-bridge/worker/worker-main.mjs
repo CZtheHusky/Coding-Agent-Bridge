@@ -19837,6 +19837,53 @@ function isPlainObject2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// src/adapters/provider-failure.ts
+function providerFailureDiagnostic(value) {
+  const details = {};
+  let contentFilter = false;
+  let code1301 = false;
+  const visit2 = (value2, depth) => {
+    if (typeof value2 === "string") {
+      if (/\[1301\]/u.test(value2.slice(0, 16384))) {
+        contentFilter = true;
+        code1301 = true;
+      }
+      return;
+    }
+    if (depth > 4 || !value2 || typeof value2 !== "object" || Array.isArray(value2)) return;
+    const record2 = value2;
+    if (record2.category === "content_filter") contentFilter = true;
+    for (const key of ["code", "errorCode", "error_code", "providerErrorCode", "type"]) {
+      const item = record2[key];
+      const text = typeof item === "string" ? item : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
+      if (/^(?:\d{3,6}|UNKNOWN_ERROR|MODEL_RATE_LIMITED|rate_limit_exceeded|content_filter|content_policy_violation)$/u.test(text)) {
+        details[key === "type" ? "type" : "code"] = text;
+        if (text === "1301" || text === "content_filter" || text === "content_policy_violation") contentFilter = true;
+        if (text === "1301") code1301 = true;
+      }
+    }
+    for (const key of ["status", "statusCode", "retryAfter", "retry_after"]) {
+      const item = record2[key];
+      if (typeof item === "number" && Number.isFinite(item) && item >= 0) details[key] = item;
+    }
+    if (typeof record2.retryable === "boolean") details.retryable = record2.retryable;
+    for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
+      const item = record2[key];
+      if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
+      if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
+    }
+    for (const key of ["error", "cause", "data", "detail", "attribution"]) visit2(record2[key], depth + 1);
+  };
+  visit2(value, 0);
+  if (contentFilter) {
+    if (code1301) details.code = "1301";
+    details.category = "content_filter";
+    return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
+  }
+  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
+  return { summary: `ZCode turn failed${suffix}`, details };
+}
+
 // src/prompts/task-prompt.ts
 import path from "node:path";
 var MAX_PROMPT_CHARS = 6e4;
@@ -19978,10 +20025,13 @@ import path2 from "node:path";
 // src/runtime/errors.ts
 var BridgeError = class extends Error {
   code;
+  providerError;
   constructor(code, message, options) {
     super(message, options);
     this.name = "BridgeError";
     this.code = code;
+    const details = providerFailureDiagnostic(options?.providerError).details;
+    if (Object.keys(details).length) this.providerError = details;
   }
 };
 
@@ -21376,6 +21426,7 @@ var KimiAdapter = class {
     let identity = null;
     let errorCode = null;
     let reportError = null;
+    let providerError;
     let cleanupError = null;
     let usage = null;
     try {
@@ -21590,9 +21641,11 @@ var KimiAdapter = class {
       const turn = await ended;
       signal.removeEventListener("abort", abort);
       if (turn.reason !== "completed") {
+        const diagnostic = providerFailureDiagnostic(turn.error).details;
+        if (Object.keys(diagnostic).length) providerError = diagnostic;
         errorCode = turn.reason === "cancelled" ? "cancelled" : kimiFailureCode(turn.error);
         reportError = errorCode === "kimi_usage_exhausted" ? "Kimi \u7528\u91CF\u989D\u5EA6\u5DF2\u8017\u5C3D\uFF0C\u5F53\u524D\u6267\u884C\u5DF2\u4E2D\u65AD\uFF1B\u505C\u6B62\u4EFB\u52A1\u5E76\u544A\u77E5\u7528\u6237\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u6216\u7EED\u4F5C\uFF0C\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u989D\u5EA6\u6062\u590D\u3002" : "Kimi turn did not complete successfully; inspect local Kimi configuration and task evidence";
-        emit?.({ type: "error", summary: reportError, details: { error_code: errorCode } });
+        emit?.({ type: "error", summary: reportError, details: { error_code: errorCode, ...providerError ? { provider_error: providerError } : {} } });
       } else emit?.({ type: "turn_completed", summary: "Kimi execution completed; host review required" });
       const final = await request(`sessions/${encodeURIComponent(session.id)}`, sessionSchema.extend({ usage: object2 }));
       usage = Object.fromEntries(Object.entries(final.usage).filter(([k, v]) => ["input_tokens", "output_tokens", "cache_read_tokens"].includes(k) && typeof v === "number"));
@@ -21639,7 +21692,8 @@ var KimiAdapter = class {
       stderrTruncated: false,
       attempts: 1,
       cleanupError,
-      cleanupVerified: cleanupError === null
+      cleanupVerified: cleanupError === null,
+      ...providerError ? { providerError } : {}
     };
     this.#options.onOutcomeCheckpoint?.(outcome);
     return outcome;
@@ -21660,52 +21714,6 @@ function supportsDisabledTools(spec) {
 import { spawn as spawn4 } from "node:child_process";
 import { homedir as homedir3 } from "node:os";
 import path7 from "node:path";
-
-// src/adapters/provider-failure.ts
-function providerFailureDiagnostic(value) {
-  const details = {};
-  let contentFilter = false;
-  let code1301 = false;
-  const visit2 = (value2, depth) => {
-    if (typeof value2 === "string") {
-      if (/\[1301\]/u.test(value2.slice(0, 16384))) {
-        contentFilter = true;
-        code1301 = true;
-      }
-      return;
-    }
-    if (depth > 4 || !value2 || typeof value2 !== "object" || Array.isArray(value2)) return;
-    const record2 = value2;
-    for (const key of ["code", "errorCode", "error_code", "providerErrorCode", "type"]) {
-      const item = record2[key];
-      const text = typeof item === "string" ? item : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
-      if (/^(?:\d{3,6}|UNKNOWN_ERROR|MODEL_RATE_LIMITED|rate_limit_exceeded|content_filter|content_policy_violation)$/u.test(text)) {
-        details[key === "type" ? "type" : "code"] = text;
-        if (text === "1301" || text === "content_filter" || text === "content_policy_violation") contentFilter = true;
-        if (text === "1301") code1301 = true;
-      }
-    }
-    for (const key of ["status", "statusCode", "retryAfter", "retry_after"]) {
-      const item = record2[key];
-      if (typeof item === "number" && Number.isFinite(item) && item >= 0) details[key] = item;
-    }
-    if (typeof record2.retryable === "boolean") details.retryable = record2.retryable;
-    for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
-      const item = record2[key];
-      if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
-      if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
-    }
-    for (const key of ["error", "cause", "data", "detail", "attribution"]) visit2(record2[key], depth + 1);
-  };
-  visit2(value, 0);
-  if (contentFilter) {
-    if (code1301) details.code = "1301";
-    details.category = "content_filter";
-    return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
-  }
-  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
-  return { summary: `ZCode turn failed${suffix}`, details };
-}
 
 // src/runtime/resolver.ts
 import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
@@ -23975,22 +23983,22 @@ var ZCodeAppServerAdapter = class {
         else if (entry.child?.pid) await this.#terminateOwnedChild(entry);
       } catch (cleanupError) {
         const browserSuffix = entry.browserCleanupError ? ` Managed browser cleanup is also unverified: ${entry.browserCleanupError}` : "";
-        throw new BridgeError("cleanup_failed", `ZCode process termination could not be verified; workspace remains occupied.${browserSuffix}`, { cause: cleanupError });
+        throw new BridgeError("cleanup_failed", `ZCode process termination could not be verified; workspace remains occupied.${browserSuffix}`, { cause: cleanupError, providerError: error62 instanceof BridgeError ? error62.providerError : void 0 });
       }
       if (entry.browserCleanupError) {
         throw new BridgeError(
           "cleanup_failed",
           `ZCode process termination was verified, but the managed browser cleanup could not be verified: ${entry.browserCleanupError}`,
-          { cause: error62 }
+          { cause: error62, providerError: error62 instanceof BridgeError ? error62.providerError : void 0 }
         );
       }
       entry.child = null;
       const baseMessage = error62 instanceof Error ? error62.message : String(error62);
       const message = entry.timedOut ? "ZCode run exceeded its wall-clock budget" : entry.cancelRequested ? "ZCode task cancelled" : baseMessage;
       const code = entry.timedOut ? "timeout" : entry.cancelRequested ? "cancelled" : error62 instanceof BridgeError ? error62.code : "zcode_nonzero_exit";
-      entry.onEvent({ type: "error", summary: message.slice(0, 1500), details: { error_code: code } });
-      if (error62 instanceof BridgeError) throw error62;
-      throw new BridgeError(code, message);
+      entry.onEvent({ type: "error", summary: message.slice(0, 1500), details: { error_code: code, ...error62 instanceof BridgeError && error62.providerError ? { provider_error: error62.providerError } : {} } });
+      if (error62 instanceof BridgeError && error62.code === code) throw error62;
+      throw new BridgeError(code, message, { providerError: error62 instanceof BridgeError ? error62.providerError : void 0 });
     } finally {
       if (timer) clearTimeout(timer);
       if (warningTimer) clearTimeout(warningTimer);
@@ -24239,7 +24247,8 @@ var ZCodeAppServerAdapter = class {
       pending.delete(id);
       if (message.error && typeof message.error === "object") {
         const error62 = asRecord2(message.error);
-        call.reject(providerReportedUsageExhaustion(error62, entry.selectedModelSelection?.providerId ?? null) ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE) : new Error(`ZCode app-server request failed for ${call.method}: ${providerFailureDiagnostic(error62).summary}`));
+        const diagnostic = providerFailureDiagnostic(error62);
+        call.reject(providerReportedUsageExhaustion(error62, entry.selectedModelSelection?.providerId ?? null) ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE, { providerError: diagnostic.details }) : new BridgeError("zcode_nonzero_exit", `ZCode app-server request failed for ${call.method}: ${diagnostic.summary}`, { providerError: diagnostic.details }));
       } else {
         call.resolve(message.result);
       }
@@ -24289,7 +24298,8 @@ var ZCodeAppServerAdapter = class {
         entry.acceptingTurn = false;
         entry.turnCompletedAt = this.#now().toISOString();
         const quotaExhausted = providerReportedUsageExhaustion(payload.error, entry.selectedModelSelection?.providerId ?? null);
-        const failure2 = quotaExhausted ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE) : new Error(providerFailureDiagnostic(payload.error).summary);
+        const diagnostic = providerFailureDiagnostic(payload.error);
+        const failure2 = quotaExhausted ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE, { providerError: diagnostic.details }) : new BridgeError("zcode_nonzero_exit", diagnostic.summary, { providerError: diagnostic.details });
         this.#publishSessionEvent(type, payload, entry, params, quotaExhausted ? "zcode_usage_exhausted" : "zcode_nonzero_exit");
         entry.rejectTurn(failure2);
         return;
@@ -24813,6 +24823,7 @@ function minimalSessionOptions(task) {
 // src/manager/normalize.ts
 function buildTaskResult(input2) {
   const { task, attempt, startedAt, finishedAt, outcome } = input2;
+  const providerError = providerFailureDiagnostic(input2.failure?.providerError ?? outcome?.providerError).details;
   const base = {
     task_id: task.task_id,
     attempt,
@@ -24821,6 +24832,7 @@ function buildTaskResult(input2) {
     zcode_output: outcome?.response ?? "",
     ...outcome ? { output_truncated: outcome.stdoutTruncated } : {},
     ...outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {},
+    ...Object.keys(providerError).length ? { provider_error: providerError } : {},
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input2.sessionId ?? null,
     ...input2.usage !== void 0 ? { usage: input2.usage } : {},
@@ -26546,6 +26558,7 @@ async function runWorkerTask(options) {
             response: checkpoint.response,
             stdout_truncated: checkpoint.stdoutTruncated,
             runtime_session_usage: checkpoint.runtimeSessionUsage,
+            provider_error: checkpoint.providerError,
             usage: checkpoint.usage,
             error_code: checkpoint.errorCode,
             report_error: checkpoint.reportError,
@@ -26705,7 +26718,8 @@ async function runWorkerTask(options) {
       flushModelOutput();
       failure2 = {
         code: error62 instanceof BridgeError ? error62.code : "worker_error",
-        message: error62 instanceof Error ? error62.message : String(error62)
+        message: error62 instanceof Error ? error62.message : String(error62),
+        providerError: error62 instanceof BridgeError ? error62.providerError : void 0
       };
     }
     await reapIdentityWrites();
@@ -26762,6 +26776,7 @@ async function runWorkerTask(options) {
         reportError: outcome.reportError,
         stdoutTruncated: outcome.stdoutTruncated,
         runtimeSessionUsage: outcome.runtimeSessionUsage,
+        providerError: outcome.providerError,
         stderrTruncated: outcome.stderrTruncated,
         agentReport: outcome.agentReport,
         reportCandidate: outcome.reportCandidate,

@@ -1,9 +1,10 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
+> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
+> Verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-11-09，仅图片参数、续作示例与模型模态；其余沿用原说明。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree。
 
@@ -63,6 +64,8 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 升级后刷新或重连 MCP，以加载新增参数与技能说明。完整提交示例与验证范围见仓库中的 `README.zh-CN.md`「图片附件」及 `docs/reports/2026-11-09-native-image-attachments.md`。
 
 技能名为 `coding-agent-bridge`，入口文件位于 `skills/coding-agent-bridge/SKILL.md`。详细规则在同目录 references 中，按需读取。升级后重连 MCP 或开启新宿主会话以刷新技能。
+
+失败结果可带脱敏的 `provider_error`；仍以顶层 error_code 处理额度和清理阻塞，不据 retryable 自动重试。回执/doctor 的 `bridge` 显示版本和构建观察；disk_status=changed 提示重连，unknown 表示无法确认，不自动重启。首次升级前的旧进程仍需手动重连。
 
 ## API 模式
 

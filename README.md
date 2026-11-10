@@ -4,9 +4,10 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
+> Last verified: 2026-11-09 — ADR-018 interfaces and implementation only; validation boundaries are recorded in the diagnostics report.
+> Prior verification: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
 > Prior verification: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + scheduling working-tree changes.
+> Verified against: 2318201 + ADR-018 working tree.
 
 **Use ZCode as a coding worker inside Codex.**
 
@@ -63,6 +64,8 @@ After the attempt ends, add **only new images** with `coding_agent_continue`:
 Continuation retains the same executor and session. Do not attach earlier images again. Request retries must keep the same task/operation ID, paths and array order. Scheduled tasks use the same attachments inside `task`; files are not copied, so keep originals until execution. Invalid input fails as `TASK_INVALID` / `SCHEDULE_INVALID`; files lost before execution fail as `attachment_invalid`. Model/provider image limits still apply; OCR accuracy and token savings are not guaranteed. Refresh/reconnect MCP after upgrading to load the new parameters and skill. See the [attachment contract](docs/INTERFACES.md#图片附件adr-016) and [validation evidence](docs/reports/2026-11-09-native-image-attachments.md).
 
 The bundled skill is named `coding-agent-bridge`. Its short entrypoint covers routine delegation; scheduling and failure details are loaded from its references only when needed.
+
+Failed results may include a sanitized `provider_error` with native codes, HTTP status and retry hints; the top-level `error_code` still governs quota and cleanup handling. Task/continue receipts and doctor include `bridge` runtime version/build observations. `disk_status: "changed"` means execution files changed and MCP should reconnect; `unknown` means the comparison could not be confirmed. Existing processes predating this feature need an initial reconnect. No automatic restart or retry is performed; see [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md).
 
 ## API mode: data-only calls with less context
 

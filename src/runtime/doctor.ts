@@ -19,6 +19,7 @@ export interface DoctorReport {
   checked_at: string;
   execution_mode: string;
   checks: DoctorCheck[];
+  bridge?: import("../interfaces.js").BridgeRuntimeInfo;
 }
 
 export interface BridgeDoctorOptions {

@@ -2,8 +2,8 @@
 
 > Status: AUTHORITATIVE（仅指本索引）
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 API 模式决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree。
+> Last verified: 2026-11-09，仅核对 ADR-017/018 决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
+> Verified against: 2318201 + ADR-018 working tree。
 
 本目录保存已批准的架构决策和带日期的决策记录。决策回答"为什么这样定"，当前实现仍以 `ARCHITECTURE.md` / `INTERFACES.md` 为准。
 
@@ -49,3 +49,5 @@ ADR-001 到 ADR-003 只搬运权威文档里已经写明的结论。ADR-004 原�
 - [ADR-016](ADR-016-native-image-attachments.md)：任务与续作的原生图片附件，ZCode/Kimi 字段、持久化和失败边界。
 
 - [ADR-017：API 模式、数据输出与诊断](ADR-017-data-task-output-and-diagnostics.md)：raw/minimal 组合、保留原生系统提示、失败诊断及扫描边界。
+
+- [ADR-018：结果诊断与运行构建](ADR-018-result-diagnostics-and-running-build.md)：结构化 provider_error、同版执行文件变化观察与重连提示。

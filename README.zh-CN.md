@@ -1,9 +1,10 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
+> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
+> Verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
 
@@ -91,6 +92,8 @@ API 模式是上述两个选项的组合名称，没有新增 `mode` 参数或 H
 ZCode 3.16.3 / GLM-5.3-Flash 双图对照输入为 20,119 → 2,536 token，本样本减少 87.4%，答案及同 session 续作通过；不承诺固定降幅。Kimi 已核对原生 API 并通过离线协议测试，真实 token 降幅未验证。`runtime_session_usage` 是 ZCode 会话累计请求/错误计数，不是逐轮计费。
 
 同目录及父子目录任务串行，8 worker 仅适用于不重叠目录。更新后重连 MCP 或开启新宿主会话；正在运行的服务不会热加载新参数。详见[接口合同](docs/INTERFACES.md#数据任务与精简会话adr-017)与[测试报告](docs/reports/2026-11-09-data-task-repair.md)。
+
+失败结果的 `provider_error` 提供脱敏后的原生错误码、HTTP 状态和重试提示等实际证据；未知字段缺省。顶层 `error_code` 仍决定额度耗尽和清理阻塞，不因 retryable=true 自动重试。提交/续作回执及 doctor 的 `bridge` 显示运行版本与构建指纹；`disk_status: "changed"` 表示执行文件已变化，需重连，unknown 表示未能确认。首次升级前的旧进程仍须手动重连。详见 [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md)。
 
 ## 功能
 

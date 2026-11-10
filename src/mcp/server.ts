@@ -39,6 +39,7 @@ import {
   zcodeFeedbackInputSchema,
 } from "./schemas.js";
 import type { DoctorReport } from "../runtime/doctor.js";
+import { createBridgeInfoProbe } from "../runtime/bridge-info.js";
 import { BridgeError } from "../runtime/errors.js";
 import type { ZCodeModelSettings } from "../runtime/model-settings.js";
 import { registerLedgerTools } from "../ledger/mcp.js";
@@ -51,6 +52,7 @@ export const SERVER_VERSION = "1.2.7"; // x-release-please-version
 export interface BridgeServerOptions {
   taskManager: TaskManager & Partial<Pick<ProgressTaskManager, "getEvents" | "getFeedback" | "replyToInteraction">>;
   doctor?: () => Promise<DoctorReport>;
+  bridgeInfo?: () => import("../interfaces.js").BridgeRuntimeInfo;
   modelSettings?: Pick<ZCodeModelSettings, "listModels" | "getDefaultModel" | "setDefaultModel" | "clearDefaultModel">;
   serverInfo?: { name: string; version: string };
   instructions?: string;
@@ -104,6 +106,7 @@ async function runTool<T>(operation: () => Promise<T>): Promise<CallToolResult> 
 export function createBridgeServer(options: BridgeServerOptions): McpServer {
   const manager = options.taskManager;
   const serverInfo = options.serverInfo ?? { name: SERVER_NAME, version: SERVER_VERSION };
+  const bridgeInfo = options.bridgeInfo ?? createBridgeInfoProbe(SERVER_VERSION);
   const instructions = options.instructions ?? [
     "Coding Agent Bridge delegates authorized coding work to local ZCode (default) or Kimi Code. Use coding_agent_task for immediate asynchronous execution; ordinary tasks require monitoring and do not wake the chat automatically. Follow coding_agent_events for live output and interactions, coding_agent_status for state, coding_agent_feedback for a concise summary, and coding_agent_result for the final report. Use coding_agent_continue with concrete feedback to reuse the same task, executor and session; use coding_agent_cancel to stop ordinary tasks. completed is execution completion, not independent acceptance.",
     "For ZCode, first call coding_agent_model_catalog and use its exact provider_id/model_id and reasoning_levels[].value in model: { provider_id, model_id, reasoning_level? }. Default-model tools affect future ZCode tasks only; doctor is ZCode-only. For Kimi, set executor=\"kimi\" and optionally kimi: { model: <configured local alias>, reasoning_level?: <model-supported effort>, permission_mode: <manual|yolo|auto> }; default mode is yolo. Kimi reasoning_level is forwarded as native thinking; K3/K3.1 Pro and standard models currently support low/high/max, while support varies by model. Omit it to preserve native settings. Kimi model discovery is not exposed. Never infer approval from yolo; answer pending interactions only within user authorization. Stop automatic retries on quota exhaustion or unverified cleanup.",
@@ -121,7 +124,7 @@ export function createBridgeServer(options: BridgeServerOptions): McpServer {
     },
     async () => {
       if (!options.doctor) return errorResult("DOCTOR_UNAVAILABLE", "Bridge doctor is unavailable in this server instance");
-      return runTool(() => options.doctor!());
+      return runTool(async () => ({ ...await options.doctor!(), bridge: bridgeInfo() }));
     },
   );
 
@@ -189,7 +192,7 @@ export function createBridgeServer(options: BridgeServerOptions): McpServer {
       inputSchema: zcodeTaskInputSchema,
       outputSchema: taskReceiptSchema,
     },
-    async (args: TaskPackage) => runTool(() => manager.createTask(args)),
+    async (args: TaskPackage) => runTool(async () => ({ ...await manager.createTask(args), bridge: bridgeInfo() })),
   );
 
   server.registerTool(
@@ -271,7 +274,7 @@ export function createBridgeServer(options: BridgeServerOptions): McpServer {
       inputSchema: zcodeContinueInputSchema,
       outputSchema: taskReceiptSchema,
     },
-    async (args: ContinueTaskInput) => runTool(() => manager.continueTask(args)),
+    async (args: ContinueTaskInput) => runTool(async () => ({ ...await manager.continueTask(args), bridge: bridgeInfo() })),
   );
 
   server.registerTool(

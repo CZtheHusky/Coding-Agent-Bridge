@@ -10,10 +10,12 @@
 // claim and still requires independent data validation.
 import type { AttemptTiming, ExecutionProfile, NormalizedUsage, TaskPackage, TaskResult, TestReport } from "../interfaces.js";
 import type { ZCodeRunOutcome } from "../adapters/zcode-adapter.js";
+import { providerFailureDiagnostic } from "../adapters/provider-failure.js";
 
 export interface TaskFailure {
   readonly code: string;
   readonly message: string;
+  readonly providerError?: import("../interfaces.js").ProviderError;
 }
 
 export interface BuildTaskResultInput {
@@ -35,6 +37,7 @@ export interface BuildTaskResultInput {
 
 export function buildTaskResult(input: BuildTaskResultInput): TaskResult {
   const { task, attempt, startedAt, finishedAt, outcome } = input;
+  const providerError = providerFailureDiagnostic(input.failure?.providerError ?? outcome?.providerError).details;
   const base = {
     task_id: task.task_id,
     attempt,
@@ -43,6 +46,7 @@ export function buildTaskResult(input: BuildTaskResultInput): TaskResult {
     zcode_output: outcome?.response ?? "",
     ...(outcome ? { output_truncated: outcome.stdoutTruncated } : {}),
     ...(outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {}),
+    ...(Object.keys(providerError).length ? { provider_error: providerError } : {}),
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input.sessionId ?? null,
     ...(input.usage !== undefined ? { usage: input.usage } : {}),

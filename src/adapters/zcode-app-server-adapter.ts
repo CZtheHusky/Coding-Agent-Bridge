@@ -884,22 +884,22 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         else if (entry.child?.pid) await this.#terminateOwnedChild(entry);
       } catch (cleanupError) {
         const browserSuffix = entry.browserCleanupError ? ` Managed browser cleanup is also unverified: ${entry.browserCleanupError}` : "";
-        throw new BridgeError("cleanup_failed", `ZCode process termination could not be verified; workspace remains occupied.${browserSuffix}`, { cause: cleanupError });
+        throw new BridgeError("cleanup_failed", `ZCode process termination could not be verified; workspace remains occupied.${browserSuffix}`, { cause: cleanupError, providerError: error instanceof BridgeError ? error.providerError : undefined });
       }
       if (entry.browserCleanupError) {
         throw new BridgeError(
           "cleanup_failed",
           `ZCode process termination was verified, but the managed browser cleanup could not be verified: ${entry.browserCleanupError}`,
-          { cause: error },
+          { cause: error, providerError: error instanceof BridgeError ? error.providerError : undefined },
         );
       }
       entry.child = null;
       const baseMessage = error instanceof Error ? error.message : String(error);
       const message = entry.timedOut ? "ZCode run exceeded its wall-clock budget" : entry.cancelRequested ? "ZCode task cancelled" : baseMessage;
       const code = entry.timedOut ? "timeout" : entry.cancelRequested ? "cancelled" : error instanceof BridgeError ? error.code : "zcode_nonzero_exit";
-      entry.onEvent({ type: "error", summary: message.slice(0, 1_500), details: { error_code: code } });
-      if (error instanceof BridgeError) throw error;
-      throw new BridgeError(code, message);
+      entry.onEvent({ type: "error", summary: message.slice(0, 1_500), details: { error_code: code, ...(error instanceof BridgeError && error.providerError ? { provider_error: error.providerError } : {}) } });
+      if (error instanceof BridgeError && error.code === code) throw error;
+      throw new BridgeError(code, message, { providerError: error instanceof BridgeError ? error.providerError : undefined });
     } finally {
       if (timer) clearTimeout(timer);
       if (warningTimer) clearTimeout(warningTimer);
@@ -1179,9 +1179,10 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
       pending.delete(id);
       if (message.error && typeof message.error === "object") {
         const error = asRecord(message.error);
+        const diagnostic = providerFailureDiagnostic(error);
         call.reject(providerReportedUsageExhaustion(error, entry.selectedModelSelection?.providerId ?? null)
-          ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE)
-          : new Error(`ZCode app-server request failed for ${call.method}: ${providerFailureDiagnostic(error).summary}`));
+          ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE, { providerError: diagnostic.details })
+          : new BridgeError("zcode_nonzero_exit", `ZCode app-server request failed for ${call.method}: ${diagnostic.summary}`, { providerError: diagnostic.details }));
       } else {
         call.resolve(message.result);
       }
@@ -1234,9 +1235,10 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         entry.acceptingTurn = false;
         entry.turnCompletedAt = this.#now().toISOString();
         const quotaExhausted = providerReportedUsageExhaustion(payload.error, entry.selectedModelSelection?.providerId ?? null);
+        const diagnostic = providerFailureDiagnostic(payload.error);
         const failure = quotaExhausted
-          ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE)
-          : new Error(providerFailureDiagnostic(payload.error).summary);
+          ? new BridgeError("zcode_usage_exhausted", USAGE_EXHAUSTED_MESSAGE, { providerError: diagnostic.details })
+          : new BridgeError("zcode_nonzero_exit", diagnostic.summary, { providerError: diagnostic.details });
         this.#publishSessionEvent(type, payload, entry, params, quotaExhausted ? "zcode_usage_exhausted" : "zcode_nonzero_exit");
         entry.rejectTurn(failure);
         return;

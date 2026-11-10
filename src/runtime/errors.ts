@@ -1,3 +1,6 @@
+import type { ProviderError } from "../interfaces.js";
+import { providerFailureDiagnostic } from "../adapters/provider-failure.js";
+
 // Error taxonomy from docs/ARCHITECTURE.md ("Failure handling", frozen).
 // Messages must never contain provider config contents, credentials, or
 // environment dumps; paths and bounded stderr excerpts are allowed.
@@ -22,10 +25,13 @@ export type BridgeErrorCode =
 
 export class BridgeError extends Error {
   readonly code: BridgeErrorCode;
+  readonly providerError?: ProviderError;
 
-  constructor(code: BridgeErrorCode, message: string, options?: { cause?: unknown }) {
+  constructor(code: BridgeErrorCode, message: string, options?: { cause?: unknown; providerError?: ProviderError }) {
     super(message, options);
     this.name = "BridgeError";
     this.code = code;
+    const details = providerFailureDiagnostic(options?.providerError).details;
+    if (Object.keys(details).length) this.providerError = details;
   }
 }

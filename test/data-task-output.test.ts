@@ -8,6 +8,7 @@ import { FakeAdapter, fakeOutcome, makeManagerFixture } from "./manager-helpers.
 import { ScheduleController } from "../src/schedule/controller.js";
 import { makeScheduleFixture, THREAD_ID } from "./schedule-helpers.js";
 import type { ZCodeRunOutcome } from "../src/adapters/zcode-adapter.js";
+import { BridgeError } from "../src/runtime/errors.js";
 
 class DataAdapter extends FakeAdapter {
   constructor(readonly outcome: ZCodeRunOutcome) { super(); }
@@ -122,4 +123,46 @@ test("raw checkpoint recovery preserves truncation rather than fabricating a com
       if (truncated) assert.equal(result.error_code, "output_truncated");
     } finally { await f.cleanup(); }
   }
+});
+
+test("provider evidence survives worker failure and cleanup priority without exposing arbitrary metadata", async () => {
+  const evidence = { code: "1301", statusCode: 400, retryable: false, headers: { authorization: "SECRET" }, message: "PRIVATE_REQUEST_BODY" };
+  class FailedAdapter extends FakeAdapter {
+    override async getResult(): Promise<ZCodeRunOutcome> {
+      throw new BridgeError("zcode_nonzero_exit", "provider rejected input", { providerError: evidence });
+    }
+  }
+  const f = await makeManagerFixture();
+  try {
+    const task = f.makeTask({ report_mode: "raw" }); await f.manager.createTask(task);
+    await f.runWorker(task.task_id, new FailedAdapter());
+    const result = await f.manager.getResult(task.task_id);
+    assert.equal(result.error_code, "zcode_nonzero_exit");
+    assert.deepEqual(result.provider_error, { code: "1301", statusCode: 400, retryable: false, category: "content_filter" });
+    assert.deepEqual(taskResultSchema.parse(result).provider_error, result.provider_error);
+    assert.doesNotMatch(JSON.stringify(result), /SECRET|PRIVATE/);
+    const cleanup = buildTaskResult({ task, attempt: 1, startedAt: null, finishedAt: new Date().toISOString(), outcome: { ...fakeOutcome(), providerError: evidence }, failure: { code: "cleanup_failed", message: "unverified cleanup" } });
+    assert.equal(cleanup.error_code, "cleanup_failed", "diagnostics must not override cleanup occupancy");
+    assert.deepEqual(cleanup.provider_error, result.provider_error);
+    const quota = buildTaskResult({ task, attempt: 1, startedAt: null, finishedAt: new Date().toISOString(), outcome: null, failure: { code: "zcode_usage_exhausted", message: "quota", providerError: evidence } });
+    assert.equal(quota.error_code, "zcode_usage_exhausted", "provider details cannot replace the stop-on-quota classification");
+    const unknown = buildTaskResult({ task, attempt: 1, startedAt: null, finishedAt: new Date().toISOString(), outcome: null });
+    assert.equal(unknown.provider_error, undefined, "absence is not a fabricated provider diagnosis");
+  } finally { await f.cleanup(); }
+});
+
+test("checkpoint recovery retains sanitized provider diagnostics when a worker exits before result commit", async () => {
+  const f = await makeManagerFixture();
+  try {
+    const task = f.makeTask({ report_mode: "raw" }); await f.manager.createTask(task); f.pidsAlive.clear();
+    f.store.writeAttemptMeta(task.task_id, 1, "outcome-checkpoint.json", {
+      exit_code: 1, session_id: "raw-session", response: "", error_code: "zcode_nonzero_exit",
+      report_error: "provider failed", agent_report: null, cleanup_verified: true,
+      provider_error: { code: "1301", statusCode: 400, retryable: false, headers: { authorization: "SECRET" } },
+    });
+    await f.manager.recoverTasks();
+    const result = await f.manager.getResult(task.task_id);
+    assert.equal(result.error_code, "zcode_nonzero_exit"); assert.equal(result.provider_error?.code, "1301");
+    assert.doesNotMatch(JSON.stringify(result), /SECRET|authorization/);
+  } finally { await f.cleanup(); }
 });

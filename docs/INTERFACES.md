@@ -1,9 +1,10 @@
 # 当前接口与兼容边界
 
 > Status: AUTHORITATIVE
+> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
@@ -100,3 +101,9 @@ API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名
 turn.failed / RPC 错误的既有码不变；消息及事件 provider_error 可附白名单 code/type/status/retryable/retry-after 数值与固定分类说明。1301 为内容安全拒绝，不自动原样重试；未知原始消息、URL、headers、metadata、请求体不外发。额度耗尽判断优先，停止策略不变。不能据此承诺任意未知失败都已完整诊断。
 
 同目录和父子目录互斥保持不变；8 worker 只适用于互不重叠执行目录。文件升级不使运行中 MCP 进程热更新，须重连 MCP 或新建宿主会话。决策见 [ADR-017](decisions/ADR-017-data-task-output-and-diagnostics.md)。
+
+## 结构化诊断与运行版本（ADR-018）
+
+`TaskResult.provider_error` 可选，保留原生失败的白名单 code/type、数值 status/statusCode/retryAfter/retry_after、布尔 retryable 和固定 category=content_filter。没有证据时缺省；未知消息、请求体、headers 和 metadata 不外发。支持 ZCode event/RPC 失败及 Kimi 原生失败中实际提供的字段，并随已有 checkpoint 恢复。顶层 error_code 及额度/清理优先级不变；不要只根据 provider_error.retryable 自动重试。
+
+MCP task/continue 回执及 doctor 的可选 `bridge` 提供核心 version、started_at、running_build_id、disk_build_id、disk_status（same/changed/unknown）和 reconnect_required（布尔或 null）。manager 的持久幂等回执不附加该观察。SHA-256 比较启动时分发执行文件与当前磁盘内容，覆盖标准插件的三入口 bundle 或编译 core 的 JS/CJS 树；不能据此排序版本或认定任务通过。changed 提示重连；文件缺失/不可读或初始指纹缺失为 unknown，reconnect_required=null，不阻断任务。更旧进程没有此能力，须首次重连；不热更新或自动重启。详见 [ADR-018](decisions/ADR-018-result-diagnostics-and-running-build.md)。

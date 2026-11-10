@@ -140,6 +140,24 @@ test("worker selects Kimi without resolving ZCode and persists quota failure", a
   } finally { f.cleanup(); }
 });
 
+test("Kimi preserves only native scalar error evidence and keeps quota classification authoritative", async () => {
+  for (const quota of [false, true]) {
+    const f = fixture("failure"); const dataRoot = path.join(f.cwd, "data"); const store = new TaskStore(dataRoot);
+    try {
+      writeFileSync(path.join(f.cwd, "scenario.json"), JSON.stringify({ kind: "failure", error: {
+        code: "429", statusCode: 429, retryable: true, retry_after: 60,
+        message: quota ? "Usage quota exhausted SECRET_MUST_NOT_LEAK" : "rate limited SECRET_MUST_NOT_LEAK",
+        headers: { authorization: "SECRET_MUST_NOT_LEAK" },
+      } }));
+      store.createTask(f.task, new Date().toISOString());
+      const { result } = await runWorkerTask({ dataRoot, taskId: f.task.task_id, attempt: 1 });
+      assert.equal(result.error_code, quota ? "kimi_usage_exhausted" : "kimi_nonzero_exit");
+      assert.deepEqual(result.provider_error, { code: "429", statusCode: 429, retry_after: 60, retryable: true });
+      assert.doesNotMatch(JSON.stringify(result), /SECRET_MUST_NOT_LEAK|authorization/);
+    } finally { f.cleanup(); }
+  }
+});
+
 test("MCP rejects mixed runtime options; manager preserves executor in submission identity", async () => {
   const f = await makeManagerFixture();
   try {

@@ -1405,6 +1405,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
       cancelled: false,
       stdoutTruncated: checkpoint.stdout_truncated === true,
       runtimeSessionUsage: checkpoint.runtime_session_usage,
+      providerError: checkpoint.provider_error,
       stderrTruncated: false,
       stdout: checkpoint.response,
       stderr: "",

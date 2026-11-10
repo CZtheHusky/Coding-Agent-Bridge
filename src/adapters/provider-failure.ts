@@ -1,8 +1,10 @@
 // Public diagnostic projection. Never copy arbitrary messages, headers, URLs,
 // request bodies or provider metadata. Recognized message markers become our
 // own text; unknown text remains private to the native runtime.
-export function providerFailureDiagnostic(value: unknown): { summary: string; details: Record<string, unknown> } {
-  const details: Record<string, unknown> = {};
+import type { ProviderError } from "../interfaces.js";
+
+export function providerFailureDiagnostic(value: unknown): { summary: string; details: ProviderError } {
+  const details: ProviderError = {};
   let contentFilter = false;
   let code1301 = false;
   const visit = (value: unknown, depth: number): void => {
@@ -12,6 +14,7 @@ export function providerFailureDiagnostic(value: unknown): { summary: string; de
     }
     if (depth > 4 || !value || typeof value !== "object" || Array.isArray(value)) return;
     const record = value as Record<string, unknown>;
+    if (record.category === "content_filter") contentFilter = true;
     for (const key of ["code", "errorCode", "error_code", "providerErrorCode", "type"]) {
       const item = record[key];
       const text = typeof item === "string" ? item : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
@@ -21,7 +24,7 @@ export function providerFailureDiagnostic(value: unknown): { summary: string; de
         if (text === "1301") code1301 = true;
       }
     }
-    for (const key of ["status", "statusCode", "retryAfter", "retry_after"]) {
+    for (const key of ["status", "statusCode", "retryAfter", "retry_after"] as const) {
       const item = record[key];
       if (typeof item === "number" && Number.isFinite(item) && item >= 0) details[key] = item;
     }

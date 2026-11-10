@@ -1607,8 +1607,8 @@ var init_build = __esm({
 
 // src/mcp/main.ts
 import { realpathSync as realpathSync2 } from "node:fs";
-import path19 from "node:path";
-import { fileURLToPath as fileURLToPath4 } from "node:url";
+import path20 from "node:path";
+import { fileURLToPath as fileURLToPath5 } from "node:url";
 
 // node_modules/@modelcontextprotocol/server/dist/chunk-Br0eD_fh.mjs
 var __create = Object.create;
@@ -1903,10 +1903,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path20) {
-  if (!path20)
+function getElementAtPath(obj, path21) {
+  if (!path21)
     return obj;
-  return path20.reduce((acc, key) => acc?.[key], obj);
+  return path21.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -2246,11 +2246,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path20, issues) {
+function prefixIssues(path21, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path20);
+    iss.path.unshift(path21);
     return iss;
   });
 }
@@ -2699,16 +2699,16 @@ function flattenError(error2, mapper = (issue2) => issue2.message) {
 }
 function formatError(error2, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error3, path20 = []) => {
+  const processError = (error3, path21 = []) => {
     for (const issue2 of error3.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path20, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path21, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path20, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path21, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path20, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path21, ...issue2.path]);
       } else {
-        const fullpath = [...path20, ...issue2.path];
+        const fullpath = [...path21, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -12051,9 +12051,9 @@ var rev2026Codec = {
     });
     const parsed = buildSchemas2026().RequestMetaEnvelopeSchema.safeParse(meta2);
     if (!parsed.success) for (const issue2 of parsed.error.issues) {
-      const path20 = issue2.path.map(String);
-      const key = path20.length > 0 ? path20.join(".") : "_meta";
-      if (path20.length === 1 && issues.some((existing) => existing.key === key && existing.problem === "missing")) continue;
+      const path21 = issue2.path.map(String);
+      const key = path21.length > 0 ? path21.join(".") : "_meta";
+      if (path21.length === 1 && issues.some((existing) => existing.key === key && existing.problem === "missing")) continue;
       issues.push({
         key,
         problem: issue2.message
@@ -12374,29 +12374,29 @@ var PERMITTED_X_MCP_HEADER_TYPES = /* @__PURE__ */ new Set([
 function scanXMcpHeaderDeclarations(inputSchema) {
   const declarations = [];
   const seenLower = /* @__PURE__ */ new Map();
-  const visit = (node2, path20, reachable) => {
+  const visit = (node2, path21, reachable) => {
     if (node2 === null || typeof node2 !== "object") return void 0;
     const schema = node2;
     if (X_MCP_HEADER_KEY in schema) {
-      if (!reachable || path20.length === 0) return `${pathName(path20)}: x-mcp-header is only permitted on properties statically reachable via a chain of 'properties' keys (not under items, additionalProperties, oneOf/anyOf/allOf/not, if/then/else, or $ref)`;
+      if (!reachable || path21.length === 0) return `${pathName(path21)}: x-mcp-header is only permitted on properties statically reachable via a chain of 'properties' keys (not under items, additionalProperties, oneOf/anyOf/allOf/not, if/then/else, or $ref)`;
       const raw = schema[X_MCP_HEADER_KEY];
-      if (typeof raw !== "string" || raw.length === 0) return `${pathName(path20)}: x-mcp-header MUST be a non-empty string`;
-      if (!RFC9110_TOKEN.test(raw)) return `${pathName(path20)}: x-mcp-header '${raw}' is not a valid RFC 9110 token (no spaces, control characters or HTTP delimiters)`;
+      if (typeof raw !== "string" || raw.length === 0) return `${pathName(path21)}: x-mcp-header MUST be a non-empty string`;
+      if (!RFC9110_TOKEN.test(raw)) return `${pathName(path21)}: x-mcp-header '${raw}' is not a valid RFC 9110 token (no spaces, control characters or HTTP delimiters)`;
       const type = typeof schema.type === "string" ? schema.type : void 0;
-      if (type === void 0 || !PERMITTED_X_MCP_HEADER_TYPES.has(type)) return `${pathName(path20)}: x-mcp-header is only permitted on primitive-typed properties (string, integer, boolean); got ${type ?? "<none>"}`;
+      if (type === void 0 || !PERMITTED_X_MCP_HEADER_TYPES.has(type)) return `${pathName(path21)}: x-mcp-header is only permitted on primitive-typed properties (string, integer, boolean); got ${type ?? "<none>"}`;
       const lower = raw.toLowerCase();
       const prior = seenLower.get(lower);
       if (prior !== void 0) return `x-mcp-header '${raw}' is not case-insensitively unique (also declared as '${prior}')`;
       seenLower.set(lower, raw);
       declarations.push({
-        path: path20,
+        path: path21,
         headerName: raw,
         type
       });
     }
     const properties = schema.properties;
     if (properties !== null && typeof properties === "object") for (const [key, child] of Object.entries(properties)) {
-      const fault$1 = visit(child, [...path20, key], reachable);
+      const fault$1 = visit(child, [...path21, key], reachable);
       if (fault$1 !== void 0) return fault$1;
     }
     for (const k of NON_REACHABLE_SUBSCHEMA_KEYWORDS) {
@@ -12404,7 +12404,7 @@ function scanXMcpHeaderDeclarations(inputSchema) {
       if (sub === void 0) continue;
       const branches = Array.isArray(sub) ? sub : sub !== null && typeof sub === "object" && OBJECT_VALUED_SUBSCHEMA_KEYWORDS.has(k) ? Object.values(sub) : [sub];
       for (const branch of branches) {
-        const fault$1 = visit(branch, [...path20, `<${k}>`], false);
+        const fault$1 = visit(branch, [...path21, `<${k}>`], false);
         if (fault$1 !== void 0) return fault$1;
       }
     }
@@ -12444,8 +12444,8 @@ var OBJECT_VALUED_SUBSCHEMA_KEYWORDS = /* @__PURE__ */ new Set([
   "$defs",
   "definitions"
 ]);
-function pathName(path20) {
-  return path20.length === 0 ? "<root>" : path20.join(".");
+function pathName(path21) {
+  return path21.length === 0 ? "<root>" : path21.join(".");
 }
 var HEADER_MISMATCH_ERROR_CODE = -32020;
 var INBOUND_VALIDATION_LADDER = [
@@ -12734,7 +12734,7 @@ var PROPERTY_KEYS_BY_TYPE = {
   array: shapeKeys([UntitledMultiSelectEnumSchemaSchema, TitledMultiSelectEnumSchemaSchema])
 };
 var SUPPORTED_STRING_FORMATS = new Set(StringSchemaSchema.shape.format.unwrap().options);
-function walkProperty(node2, path20, vendor, unsupported) {
+function walkProperty(node2, path21, vendor, unsupported) {
   if (!isJsonObject(node2)) return node2;
   const allowedKeys = typeof node2.type === "string" && Object.hasOwn(PROPERTY_KEYS_BY_TYPE, node2.type) ? PROPERTY_KEYS_BY_TYPE[node2.type] : void 0;
   if (allowedKeys === void 0) return node2;
@@ -12742,8 +12742,8 @@ function walkProperty(node2, path20, vendor, unsupported) {
   for (const [key, value] of Object.entries(node2)) if (allowedKeys.has(key) || isAnnotationOnlyJsonSchemaKeyword(key)) pruned[key] = value;
   else if (key === "pattern" && node2.type === "string" && typeof node2.format === "string") {
     if (!SUPPORTED_STRING_FORMATS.has(node2.format)) pruned[key] = value;
-    else if (typeof value !== "string" || !isLibraryFormatPattern(node2.format, value, vendor)) unsupported.push(`${path20}.${key}`);
-  } else unsupported.push(`${path20}.${key}`);
+    else if (typeof value !== "string" || !isLibraryFormatPattern(node2.format, value, vendor)) unsupported.push(`${path21}.${key}`);
+  } else unsupported.push(`${path21}.${key}`);
   return pruned;
 }
 function walkRequestedSchema(converted, vendor) {
@@ -12760,11 +12760,11 @@ function describeUnsupportedProperties(pruned, fallback) {
   const offenders = Object.entries(pruned.properties).filter(([, node2]) => !parseSchema(PrimitiveSchemaDefinitionSchema, node2).success).map(([name]) => `properties.${name}`);
   return offenders.length > 0 ? offenders.join(", ") : fallback;
 }
-function findDroppedConstraintPaths(original, parsed, path20 = "") {
-  if (Array.isArray(original) && Array.isArray(parsed)) return original.flatMap((item, index) => findDroppedConstraintPaths(item, parsed[index], `${path20}[${index}]`));
+function findDroppedConstraintPaths(original, parsed, path21 = "") {
+  if (Array.isArray(original) && Array.isArray(parsed)) return original.flatMap((item, index) => findDroppedConstraintPaths(item, parsed[index], `${path21}[${index}]`));
   if (!isJsonObject(original) || !isJsonObject(parsed)) return [];
   return Object.entries(original).flatMap(([key, value]) => {
-    const childPath = path20 ? `${path20}.${key}` : key;
+    const childPath = path21 ? `${path21}.${key}` : key;
     if (!Object.prototype.hasOwnProperty.call(parsed, key)) return isAnnotationOnlyJsonSchemaKeyword(key) ? [] : [childPath];
     return findDroppedConstraintPaths(value, parsed[key], childPath);
   });
@@ -16843,8 +16843,8 @@ var require_utils = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     for (let i = 0; i < str.length; i++) if (str[i] === token) ind++;
     return ind;
   }
-  function removeDotSegments(path20) {
-    let input = path20;
+  function removeDotSegments(path21) {
+    let input = path21;
     const output = [];
     let nextSlash = -1;
     let len = 0;
@@ -16997,8 +16997,8 @@ var require_schemes = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       wsComponent.secure = void 0;
     }
     if (wsComponent.resourceName) {
-      const [path20, query] = wsComponent.resourceName.split("?");
-      wsComponent.path = path20 && path20 !== "/" ? path20 : void 0;
+      const [path21, query] = wsComponent.resourceName.split("?");
+      wsComponent.path = path21 && path21 !== "/" ? path21 : void 0;
       wsComponent.query = query;
       wsComponent.resourceName = void 0;
     }
@@ -23138,8 +23138,8 @@ function toError(value) {
 
 // src/host/stdio.ts
 import { homedir as homedir4 } from "node:os";
-import path18 from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import path19 from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/runtime/resolver.ts
 import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
@@ -23147,13 +23147,63 @@ import { homedir as homedir2 } from "node:os";
 import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 
+// src/adapters/provider-failure.ts
+function providerFailureDiagnostic(value) {
+  const details = {};
+  let contentFilter = false;
+  let code1301 = false;
+  const visit = (value2, depth) => {
+    if (typeof value2 === "string") {
+      if (/\[1301\]/u.test(value2.slice(0, 16384))) {
+        contentFilter = true;
+        code1301 = true;
+      }
+      return;
+    }
+    if (depth > 4 || !value2 || typeof value2 !== "object" || Array.isArray(value2)) return;
+    const record3 = value2;
+    if (record3.category === "content_filter") contentFilter = true;
+    for (const key of ["code", "errorCode", "error_code", "providerErrorCode", "type"]) {
+      const item = record3[key];
+      const text = typeof item === "string" ? item : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
+      if (/^(?:\d{3,6}|UNKNOWN_ERROR|MODEL_RATE_LIMITED|rate_limit_exceeded|content_filter|content_policy_violation)$/u.test(text)) {
+        details[key === "type" ? "type" : "code"] = text;
+        if (text === "1301" || text === "content_filter" || text === "content_policy_violation") contentFilter = true;
+        if (text === "1301") code1301 = true;
+      }
+    }
+    for (const key of ["status", "statusCode", "retryAfter", "retry_after"]) {
+      const item = record3[key];
+      if (typeof item === "number" && Number.isFinite(item) && item >= 0) details[key] = item;
+    }
+    if (typeof record3.retryable === "boolean") details.retryable = record3.retryable;
+    for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
+      const item = record3[key];
+      if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
+      if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
+    }
+    for (const key of ["error", "cause", "data", "detail", "attribution"]) visit(record3[key], depth + 1);
+  };
+  visit(value, 0);
+  if (contentFilter) {
+    if (code1301) details.code = "1301";
+    details.category = "content_filter";
+    return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
+  }
+  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
+  return { summary: `ZCode turn failed${suffix}`, details };
+}
+
 // src/runtime/errors.ts
 var BridgeError = class extends Error {
   code;
+  providerError;
   constructor(code, message, options) {
     super(message, options);
     this.name = "BridgeError";
     this.code = code;
+    const details = providerFailureDiagnostic(options?.providerError).details;
+    if (Object.keys(details).length) this.providerError = details;
   }
 };
 
@@ -23563,6 +23613,7 @@ import { existsSync as existsSync5, statSync as statSync5, writeFileSync as writ
 // src/manager/normalize.ts
 function buildTaskResult(input) {
   const { task, attempt, startedAt, finishedAt, outcome } = input;
+  const providerError = providerFailureDiagnostic(input.failure?.providerError ?? outcome?.providerError).details;
   const base = {
     task_id: task.task_id,
     attempt,
@@ -23571,6 +23622,7 @@ function buildTaskResult(input) {
     zcode_output: outcome?.response ?? "",
     ...outcome ? { output_truncated: outcome.stdoutTruncated } : {},
     ...outcome?.runtimeSessionUsage ? { runtime_session_usage: outcome.runtimeSessionUsage } : {},
+    ...Object.keys(providerError).length ? { provider_error: providerError } : {},
     exit_code: outcome?.exitCode ?? null,
     session_id: outcome?.sessionId ?? input.sessionId ?? null,
     ...input.usage !== void 0 ? { usage: input.usage } : {},
@@ -26501,6 +26553,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
       cancelled: false,
       stdoutTruncated: checkpoint.stdout_truncated === true,
       runtimeSessionUsage: checkpoint.runtime_session_usage,
+      providerError: checkpoint.provider_error,
       stderrTruncated: false,
       stdout: checkpoint.response,
       stderr: "",
@@ -26878,10 +26931,29 @@ var testReportSchema = object({
   status: _enum(["passed", "failed", "not_run"]),
   details: string2().optional()
 });
+var bridgeRuntimeInfoSchema = object({
+  version: string2(),
+  started_at: string2(),
+  running_build_id: string2().nullable(),
+  disk_build_id: string2().nullable(),
+  disk_status: _enum(["same", "changed", "unknown"]),
+  reconnect_required: boolean2().nullable()
+});
+var providerErrorSchema = object({
+  code: string2().optional(),
+  type: string2().optional(),
+  status: number2().nonnegative().optional(),
+  statusCode: number2().nonnegative().optional(),
+  retryAfter: number2().nonnegative().optional(),
+  retry_after: number2().nonnegative().optional(),
+  retryable: boolean2().optional(),
+  category: literal("content_filter").optional()
+});
 var taskReceiptSchema = object({
   task_id: string2(),
   status: _enum(["queued", "running"]),
-  created_at: string2()
+  created_at: string2(),
+  bridge: bridgeRuntimeInfoSchema.optional()
 });
 var taskObservationSchema = object({
   schema_version: literal(1),
@@ -26976,6 +27048,7 @@ var taskResultSchema = object({
     model_request_count: number2().int().nonnegative(),
     model_error_count: number2().int().nonnegative()
   }).optional(),
+  provider_error: providerErrorSchema.optional(),
   exit_code: number2().int().nullable(),
   session_id: string2().nullable(),
   attempt: number2().int(),
@@ -27064,6 +27137,7 @@ var toolErrorSchema = object({
 var doctorReportSchema = object({
   checked_at: string2(),
   execution_mode: string2(),
+  bridge: bridgeRuntimeInfoSchema.optional(),
   checks: array(object({
     name: string2(),
     status: _enum(["ok", "warning", "error", "unknown"]),
@@ -27201,13 +27275,61 @@ var scheduleCancelResultSchema = object({
   task_status: _enum(["queued", "running", "completed", "failed", "cancelled", "waiting_for_master"]).nullable()
 });
 
-// src/ledger/mcp.ts
+// src/runtime/bridge-info.ts
 import { createHash as createHash3 } from "node:crypto";
+import { readFileSync as readFileSync5, readdirSync as readdirSync2 } from "node:fs";
+import path11 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+function createBridgeInfoProbe(version2, moduleUrl = import.meta.url) {
+  const modulePath = fileURLToPath3(moduleUrl);
+  const bundled = modulePath.endsWith(".mjs");
+  const root = path11.resolve(path11.dirname(modulePath), "..");
+  const fingerprint = () => {
+    try {
+      const files = [];
+      if (bundled) files.push("dist/bridge.mjs", "worker/worker-main.mjs", "worker/schedule-runner.mjs");
+      else {
+        if (path11.basename(modulePath) !== "bridge-info.js" || path11.basename(path11.dirname(modulePath)) !== "runtime") return null;
+        const visit = (directory) => {
+          for (const item of readdirSync2(path11.join(root, directory), { withFileTypes: true })) {
+            const relative = path11.join(directory, item.name);
+            if (item.isDirectory()) visit(relative);
+            else if (item.isFile() && /\.(?:c?js)$/u.test(item.name)) files.push(relative);
+          }
+        };
+        visit("");
+      }
+      if (!files.some((file) => path11.normalize(file) === path11.relative(root, modulePath))) return null;
+      const hash = createHash3("sha256");
+      for (const file of files.sort()) hash.update(file.replaceAll("\\", "/") + "\0").update(readFileSync5(path11.join(root, file))).update("\0");
+      return hash.digest("hex");
+    } catch {
+      return null;
+    }
+  };
+  const startedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const runningBuildId = fingerprint();
+  return () => {
+    const diskBuildId = fingerprint();
+    const diskStatus = runningBuildId === null || diskBuildId === null ? "unknown" : runningBuildId === diskBuildId ? "same" : "changed";
+    return {
+      version: version2,
+      started_at: startedAt,
+      running_build_id: runningBuildId,
+      disk_build_id: diskBuildId,
+      disk_status: diskStatus,
+      reconnect_required: diskStatus === "unknown" ? null : diskStatus === "changed"
+    };
+  };
+}
+
+// src/ledger/mcp.ts
+import { createHash as createHash4 } from "node:crypto";
 
 // src/ledger/bridge.ts
 init_process_lock();
-import { existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync5, writeFileSync as writeFileSync4 } from "node:fs";
-import path11 from "node:path";
+import { existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync6, writeFileSync as writeFileSync4 } from "node:fs";
+import path12 from "node:path";
 
 // src/ledger/types.ts
 var LedgerError = class extends Error {
@@ -27229,8 +27351,8 @@ var LedgerBridgeLink = class {
   #cursorFile;
   constructor(ledger) {
     this.#ledger = ledger;
-    this.#ledgerDir = path11.join(ledger.root, ".agent-ledger", "ledger");
-    this.#cursorFile = path11.join(this.#ledgerDir, "bridge-cursors.json");
+    this.#ledgerDir = path12.join(ledger.root, ".agent-ledger", "ledger");
+    this.#cursorFile = path12.join(this.#ledgerDir, "bridge-cursors.json");
   }
   /** Persists the run intent, then dispatches; every retry of the same
    * operation keeps the same run and the same executor task id (C2-01). */
@@ -27331,7 +27453,7 @@ var LedgerBridgeLink = class {
   #readCursors() {
     if (!existsSync6(this.#cursorFile)) return {};
     try {
-      return JSON.parse(readFileSync5(this.#cursorFile, "utf8"));
+      return JSON.parse(readFileSync6(this.#cursorFile, "utf8"));
     } catch {
       return {};
     }
@@ -27340,7 +27462,7 @@ var LedgerBridgeLink = class {
     const cursors = this.#readCursors();
     cursors[runId] = { executor_task_id: executorTaskId, last_seq: lastSeq };
     mkdirSync4(this.#ledgerDir, { recursive: true });
-    const release = tryAcquireProcessLock(path11.join(this.#ledgerDir, "cursor.lock"));
+    const release = tryAcquireProcessLock(path12.join(this.#ledgerDir, "cursor.lock"));
     if (!release) return;
     try {
       writeFileSync4(this.#cursorFile, JSON.stringify(cursors, null, 2), { mode: 384 });
@@ -27591,7 +27713,7 @@ function registerLedgerTools(server, options) {
   });
 }
 function fingerprintOf(value) {
-  return createHash3("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
+  return createHash4("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
 }
 
 // src/schedule/errors.ts
@@ -27802,6 +27924,7 @@ async function runTool(operation) {
 function createBridgeServer(options) {
   const manager = options.taskManager;
   const serverInfo = options.serverInfo ?? { name: SERVER_NAME, version: SERVER_VERSION };
+  const bridgeInfo = options.bridgeInfo ?? createBridgeInfoProbe(SERVER_VERSION);
   const instructions = options.instructions ?? [
     "Coding Agent Bridge delegates authorized coding work to local ZCode (default) or Kimi Code. Use coding_agent_task for immediate asynchronous execution; ordinary tasks require monitoring and do not wake the chat automatically. Follow coding_agent_events for live output and interactions, coding_agent_status for state, coding_agent_feedback for a concise summary, and coding_agent_result for the final report. Use coding_agent_continue with concrete feedback to reuse the same task, executor and session; use coding_agent_cancel to stop ordinary tasks. completed is execution completion, not independent acceptance.",
     'For ZCode, first call coding_agent_model_catalog and use its exact provider_id/model_id and reasoning_levels[].value in model: { provider_id, model_id, reasoning_level? }. Default-model tools affect future ZCode tasks only; doctor is ZCode-only. For Kimi, set executor="kimi" and optionally kimi: { model: <configured local alias>, reasoning_level?: <model-supported effort>, permission_mode: <manual|yolo|auto> }; default mode is yolo. Kimi reasoning_level is forwarded as native thinking; K3/K3.1 Pro and standard models currently support low/high/max, while support varies by model. Omit it to preserve native settings. Kimi model discovery is not exposed. Never infer approval from yolo; answer pending interactions only within user authorization. Stop automatic retries on quota exhaustion or unverified cleanup.',
@@ -27818,7 +27941,7 @@ function createBridgeServer(options) {
     },
     async () => {
       if (!options.doctor) return errorResult3("DOCTOR_UNAVAILABLE", "Bridge doctor is unavailable in this server instance");
-      return runTool(() => options.doctor());
+      return runTool(async () => ({ ...await options.doctor(), bridge: bridgeInfo() }));
     }
   );
   server.registerTool(
@@ -27881,7 +28004,7 @@ function createBridgeServer(options) {
       inputSchema: zcodeTaskInputSchema,
       outputSchema: taskReceiptSchema
     },
-    async (args) => runTool(() => manager.createTask(args))
+    async (args) => runTool(async () => ({ ...await manager.createTask(args), bridge: bridgeInfo() }))
   );
   server.registerTool(
     "coding_agent_status",
@@ -27957,7 +28080,7 @@ function createBridgeServer(options) {
       inputSchema: zcodeContinueInputSchema,
       outputSchema: taskReceiptSchema
     },
-    async (args) => runTool(() => manager.continueTask(args))
+    async (args) => runTool(async () => ({ ...await manager.continueTask(args), bridge: bridgeInfo() }))
   );
   server.registerTool(
     "coding_agent_cancel",
@@ -28016,23 +28139,23 @@ function createBridgeServer(options) {
 }
 
 // src/runtime/doctor.ts
-import { accessSync as accessSync2, constants as constants2, existsSync as existsSync8, readFileSync as readFileSync7, statSync as statSync6 } from "node:fs";
+import { accessSync as accessSync2, constants as constants2, existsSync as existsSync8, readFileSync as readFileSync8, statSync as statSync6 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import path13 from "node:path";
+import path14 from "node:path";
 
 // src/runtime/account-provider.ts
-import { createHash as createHash4 } from "node:crypto";
-import { existsSync as existsSync7, readFileSync as readFileSync6 } from "node:fs";
-import path12 from "node:path";
+import { createHash as createHash5 } from "node:crypto";
+import { existsSync as existsSync7, readFileSync as readFileSync7 } from "node:fs";
+import path13 from "node:path";
 function buildAccountProviderPayload(config2) {
   const table = readJson(config2.providerBuiltinConfigFile);
   const providerRules = readProviderRules(table).filter(isRecord).map((rule) => rule).filter((rule) => rule.config?.access?.type === "zhipu-account" && typeof rule.providerId === "string");
   if (!providerRules.length) return null;
   const dataDir = zcodeV2DataDir(config2.providerPersonalConfigFile);
   if (!dataDir) return null;
-  const credentials = readJson(path12.join(dataDir, "config.json"));
+  const credentials = readJson(path13.join(dataDir, "config.json"));
   const credentialProviders = asRecord2(credentials?.provider);
-  const cache = readJson(path12.join(dataDir, "coding-plan-cache.json"));
+  const cache = readJson(path13.join(dataDir, "coding-plan-cache.json"));
   const cacheItems = asRecord2(asRecord2(cache?.entryStatus).items);
   const providers = {};
   const states = {};
@@ -28054,10 +28177,10 @@ function buildAccountProviderPayload(config2) {
     };
   }
   const revision = typeof table?.revision === "number" ? table.revision : 0;
-  const resolvedBuiltinPath = path12.resolve(config2.providerBuiltinConfigFile);
+  const resolvedBuiltinPath = path13.resolve(config2.providerBuiltinConfigFile);
   return {
     revision: `account:codex-zcode-bridge:${Date.now()}`,
-    basedOnZCodeBuiltinRevision: `zcode-builtin:${revision}:${createHash4("sha256").update(resolvedBuiltinPath).digest("hex")}`,
+    basedOnZCodeBuiltinRevision: `zcode-builtin:${revision}:${createHash5("sha256").update(resolvedBuiltinPath).digest("hex")}`,
     providers,
     states
   };
@@ -28076,8 +28199,8 @@ function runtimeAuthReply(providerId, config2) {
   const legacyId = configProviderId(providerId, rule);
   const dataDir = zcodeV2DataDir(config2.providerPersonalConfigFile);
   if (!dataDir) return unavailable;
-  const credentials = readJson(path12.join(dataDir, "config.json"));
-  const cache = readJson(path12.join(dataDir, "coding-plan-cache.json"));
+  const credentials = readJson(path13.join(dataDir, "config.json"));
+  const cache = readJson(path13.join(dataDir, "coding-plan-cache.json"));
   const status = asRecord2(asRecord2(asRecord2(cache?.entryStatus).items)[legacyId]).status;
   const provider = asRecord2(asRecord2(credentials?.provider)[legacyId]);
   const options = asRecord2(provider.options);
@@ -28087,19 +28210,19 @@ function runtimeAuthReply(providerId, config2) {
 }
 function zcodeDataBaseDir(personalProviderConfigFile) {
   const dataDir = zcodeV2DataDir(personalProviderConfigFile);
-  return dataDir ? path12.dirname(path12.dirname(dataDir)) : null;
+  return dataDir ? path13.dirname(path13.dirname(dataDir)) : null;
 }
 function zcodeTasksIndexPath(personalProviderConfigFile) {
   const dataDir = zcodeV2DataDir(personalProviderConfigFile);
-  return dataDir ? path12.join(dataDir, "tasks-index.sqlite") : null;
+  return dataDir ? path13.join(dataDir, "tasks-index.sqlite") : null;
 }
 function zcodeV2DataDir(personalProviderConfigFile) {
-  const absolute = path12.resolve(personalProviderConfigFile);
-  if (path12.basename(absolute).toLowerCase() !== "provider_config.json") return null;
-  const v2Dir = path12.dirname(absolute);
-  if (path12.basename(v2Dir).toLowerCase() !== "v2") return null;
-  const zcodeDir = path12.dirname(v2Dir);
-  if (path12.basename(zcodeDir).toLowerCase() !== ".zcode") return null;
+  const absolute = path13.resolve(personalProviderConfigFile);
+  if (path13.basename(absolute).toLowerCase() !== "provider_config.json") return null;
+  const v2Dir = path13.dirname(absolute);
+  if (path13.basename(v2Dir).toLowerCase() !== "v2") return null;
+  const zcodeDir = path13.dirname(v2Dir);
+  if (path13.basename(zcodeDir).toLowerCase() !== ".zcode") return null;
   return v2Dir;
 }
 function configProviderId(providerId, rule) {
@@ -28115,7 +28238,7 @@ function readProviderRules(table) {
 function readJson(filePath) {
   try {
     if (!existsSync7(filePath)) return null;
-    const value = JSON.parse(readFileSync6(filePath, "utf8"));
+    const value = JSON.parse(readFileSync7(filePath, "utf8"));
     return isRecord(value) ? value : null;
   } catch {
     return null;
@@ -28257,10 +28380,10 @@ async function runBridgeDoctor(options = {}) {
       });
     } else if (browserUse === "headless") {
       if (browserExecutable) {
-        if (!path13.isAbsolute(browserExecutable)) {
+        if (!path14.isAbsolute(browserExecutable)) {
           checks.push({ name: "browser_host", status: "error", summary: `ZCODE_BRIDGE_BROWSER_EXECUTABLE must be an absolute path: ${browserExecutable}` });
         } else if (existsSync8(browserExecutable)) {
-          checks.push({ name: "browser_host", status: "ok", summary: `Headless browser host is enabled with the configured executable (${path13.basename(browserExecutable)})` });
+          checks.push({ name: "browser_host", status: "ok", summary: `Headless browser host is enabled with the configured executable (${path14.basename(browserExecutable)})` });
         } else {
           checks.push({ name: "browser_host", status: "error", summary: `Configured browser executable does not exist: ${browserExecutable}` });
         }
@@ -28343,7 +28466,7 @@ async function runBridgeDoctor(options = {}) {
         const summary = `${running.length} running, ${queued.length} queued, ${cleanupPending.length} cleanup-unverified; oldest queue ${queueAge}${blocked ? "; dispatch may be blocked" : ""}. ${lines.join("; ")}`;
         checks.push({ name: "active_tasks", status: blocked ? "warning" : "ok", summary: summary.slice(0, 1200) });
       }
-      checks.push(inspectRecoveryLock(path13.join(store.tasksRoot, ".recovery.lock")));
+      checks.push(inspectRecoveryLock(path14.join(store.tasksRoot, ".recovery.lock")));
     } catch (error2) {
       checks.push({ name: "active_tasks", status: "unknown", summary: safeError(error2) });
     }
@@ -28356,7 +28479,7 @@ function inspectRecoveryLock(lockDirectory) {
   }
   try {
     const lockStat = statSync6(lockDirectory);
-    const raw = readFileSync7(path13.join(lockDirectory, "owner.json"), "utf8");
+    const raw = readFileSync8(path14.join(lockDirectory, "owner.json"), "utf8");
     const owner = JSON.parse(raw);
     if (!Number.isSafeInteger(owner.pid) || (owner.pid ?? 0) <= 0 || typeof owner.token !== "string" || !owner.token) {
       throw new Error("invalid lock owner record");
@@ -28389,10 +28512,10 @@ function safeError(error2) {
 
 // src/runtime/model-settings.ts
 import { spawn as spawn4 } from "node:child_process";
-import { createHash as createHash5, randomUUID as randomUUID3 } from "node:crypto";
+import { createHash as createHash6, randomUUID as randomUUID3 } from "node:crypto";
 import { mkdir, readFile as readFile2, realpath as realpath2, rm, stat as stat2, writeFile } from "node:fs/promises";
 import { homedir as homedir3 } from "node:os";
-import path14 from "node:path";
+import path15 from "node:path";
 init_process_lock();
 init_atomic_rename();
 var RPC_TIMEOUT_MS = 3e4;
@@ -28410,7 +28533,7 @@ var ZCodeModelSettings = class {
   }
   async listModels(workspace) {
     const requestedWorkspace = workspace.trim();
-    if (!path14.isAbsolute(requestedWorkspace)) {
+    if (!path15.isAbsolute(requestedWorkspace)) {
       throw new BridgeError("provider_config_invalid", "workspace must be an absolute existing directory");
     }
     let workspacePath;
@@ -28560,8 +28683,8 @@ var ZCodeModelSettings = class {
   #updateConfig(update) {
     const operation = this.#writeQueue.then(async () => {
       await mkdir(this.#host.settingsDirectory, { recursive: true });
-      return withProcessLock(path14.join(this.#host.settingsDirectory, ".settings.lock"), async () => {
-        const configPath = path14.join(this.#host.settingsDirectory, "runtime-config.json");
+      return withProcessLock(path15.join(this.#host.settingsDirectory, ".settings.lock"), async () => {
+        const configPath = path15.join(this.#host.settingsDirectory, "runtime-config.json");
         let config2 = {};
         try {
           const info = await stat2(configPath);
@@ -28575,7 +28698,7 @@ var ZCodeModelSettings = class {
           if (isMissingFile(error2)) {
             config2 = {};
             for (const directory of this.#host.legacySettingsDirectories ?? []) {
-              const legacyPath = path14.join(directory, "runtime-config.json");
+              const legacyPath = path15.join(directory, "runtime-config.json");
               try {
                 if ((await stat2(legacyPath)).size > 64 * 1024) throw new Error("legacy settings exceed size limit");
                 const legacy = JSON.parse(await readFile2(legacyPath, "utf8"));
@@ -28810,11 +28933,11 @@ function modelCatalogCachePath(workspace, config2, env, settingsDirectory) {
     personal: config2.providerPersonalConfigFile,
     zcodeHome: env.ZCODE_HOME ?? ""
   });
-  const key = createHash5("sha256").update(identity).digest("hex");
-  return path14.join(settingsDirectory, "model-catalog", `${key}.json`);
+  const key = createHash6("sha256").update(identity).digest("hex");
+  return path15.join(settingsDirectory, "model-catalog", `${key}.json`);
 }
 async function modelCatalogSourceFingerprint(config2, env) {
-  const digest = createHash5("sha256");
+  const digest = createHash6("sha256");
   for (const file of [config2.providerBuiltinConfigFile, config2.providerPersonalConfigFile]) {
     digest.update(file);
     digest.update(await readFile2(file));
@@ -28849,7 +28972,7 @@ function toCachedCatalogEntry(value) {
   return result;
 }
 async function writeModelCatalogCache(cachePath, cache) {
-  await mkdir(path14.dirname(cachePath), { recursive: true });
+  await mkdir(path15.dirname(cachePath), { recursive: true });
   const tempPath = `${cachePath}.${process.pid}.${randomUUID3()}.tmp`;
   try {
     await writeFile(tempPath, `${JSON.stringify(cache)}
@@ -28864,7 +28987,7 @@ async function writeModelCatalogCache(cachePath, cache) {
 // src/schedule/controller.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 import { mkdirSync as mkdirSync5 } from "node:fs";
-import path16 from "node:path";
+import path17 from "node:path";
 init_task_store();
 init_process_lock();
 
@@ -28918,12 +29041,12 @@ ${feedback}`
 
 // src/schedule/supervisor.ts
 import { execFile as execFileCallback } from "node:child_process";
-import path15 from "node:path";
+import path16 from "node:path";
 import { promisify } from "node:util";
 var execFile = promisify(execFileCallback);
 function planSystemdRunUnit(options) {
   const unit = options.unit;
-  const logPath = path15.join(options.scheduleDir, "runner.log");
+  const logPath = path16.join(options.scheduleDir, "runner.log");
   const command = options.nodeExecutable ?? process.execPath;
   const args = [options.runnerEntryPath, options.dataRoot, options.taskId];
   const forwarded = {
@@ -29069,7 +29192,7 @@ var ScheduleController = class {
     }
     const taskId = input.task.task_id;
     mkdirSync5(this.#store.scheduleDir(taskId), { recursive: true, mode: 448 });
-    return withProcessLock(path16.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
+    return withProcessLock(path17.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
       let spec;
       if (this.#store.hasSchedule(taskId)) {
         spec = this.#store.readSpec(taskId);
@@ -29343,9 +29466,9 @@ var ScheduleController = class {
   }
   async #finishReviewLocked(taskId, state, input, operationId) {
     if (input.accepted) {
-      const tasksRoot = path16.join(this.#dataRoot, ".tasks");
+      const tasksRoot = path17.join(this.#dataRoot, ".tasks");
       mkdirSync5(tasksRoot, { recursive: true, mode: 448 });
-      return withProcessLock(path16.join(tasksRoot, ".manager.lock"), async () => {
+      return withProcessLock(path17.join(tasksRoot, ".manager.lock"), async () => {
         const current = await this.#manager.getStatus(taskId);
         if (current.attempt !== input.attempt || !["completed", "failed", "waiting_for_master"].includes(current.status)) throw new ScheduleError("SCHEDULE_STALE_REVIEW", "execution has advanced since this review was requested");
         if (current.observation?.cleanup !== "verified") throw new ScheduleError("SCHEDULE_STATE", "process cleanup must be verified before acceptance");
@@ -29390,12 +29513,12 @@ var ScheduleController = class {
       }
       if (state.status === "accepted") throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId} was accepted; nothing to cancel`);
       this.#store.writeState({ ...state, cancel_requested: true, updated_at: this.#now().toISOString() });
-      const tasksRoot = path16.join(this.#dataRoot, ".tasks");
+      const tasksRoot = path17.join(this.#dataRoot, ".tasks");
       mkdirSync5(tasksRoot, { recursive: true, mode: 448 });
       let attempt = state.attempt_under_review ?? state.attention?.attempt ?? 1;
       try {
         while (true) {
-          const committed = await withProcessLock(path16.join(tasksRoot, ".manager.lock"), async () => {
+          const committed = await withProcessLock(path17.join(tasksRoot, ".manager.lock"), async () => {
             const execution = await this.#manager.getStatus(taskId).catch((error2) => {
               if (error2 instanceof TaskManagerError && error2.code === "TASK_NOT_FOUND") return null;
               throw error2;
@@ -29577,7 +29700,7 @@ var ScheduleController = class {
   }
   async #locked(taskId, operation) {
     this.#store.readSpec(taskId);
-    return withProcessLock(path16.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
+    return withProcessLock(path17.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
       const spec = this.#store.readSpec(taskId);
       return operation(this.#store.readState(taskId), spec);
     }, 6e4);
@@ -29603,14 +29726,14 @@ function initialState(taskId, createdAt) {
 
 // src/schedule/store.ts
 init_atomic_rename();
-import { existsSync as existsSync9, mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync5 } from "node:fs";
-import path17 from "node:path";
+import { existsSync as existsSync9, mkdirSync as mkdirSync6, readFileSync as readFileSync9, writeFileSync as writeFileSync5 } from "node:fs";
+import path18 from "node:path";
 import { randomUUID as randomUUID5 } from "node:crypto";
 function schedulesRootFor(dataRoot) {
-  return path17.join(dataRoot, ".schedules");
+  return path18.join(dataRoot, ".schedules");
 }
 function writeJsonAtomic(file, value) {
-  mkdirSync6(path17.dirname(file), { recursive: true, mode: 448 });
+  mkdirSync6(path18.dirname(file), { recursive: true, mode: 448 });
   const temp = `${file}.${process.pid}.${randomUUID5()}.tmp`;
   writeFileSync5(temp, JSON.stringify(value, null, 2), { mode: 384 });
   atomicRenameSync(temp, file);
@@ -29624,38 +29747,38 @@ var ScheduleStore = class {
     return this.#root;
   }
   scheduleDir(taskId) {
-    return path17.join(this.#root, taskId);
+    return path18.join(this.#root, taskId);
   }
   hasSchedule(taskId) {
-    return existsSync9(path17.join(this.scheduleDir(taskId), "spec.json"));
+    return existsSync9(path18.join(this.scheduleDir(taskId), "spec.json"));
   }
   hasState(taskId) {
-    return existsSync9(path17.join(this.scheduleDir(taskId), "state.json"));
+    return existsSync9(path18.join(this.scheduleDir(taskId), "state.json"));
   }
   readSpec(taskId) {
     try {
-      return JSON.parse(readFileSync8(path17.join(this.scheduleDir(taskId), "spec.json"), "utf8"));
+      return JSON.parse(readFileSync9(path18.join(this.scheduleDir(taskId), "spec.json"), "utf8"));
     } catch (error2) {
       if (!this.hasSchedule(taskId)) throw new ScheduleError("SCHEDULE_NOT_FOUND", `unknown schedule: ${taskId}`);
       throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId} spec could not be read: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
   writeSpec(spec) {
-    writeJsonAtomic(path17.join(this.scheduleDir(spec.task_id), "spec.json"), spec);
+    writeJsonAtomic(path18.join(this.scheduleDir(spec.task_id), "spec.json"), spec);
   }
   readState(taskId) {
     try {
-      return JSON.parse(readFileSync8(path17.join(this.scheduleDir(taskId), "state.json"), "utf8"));
+      return JSON.parse(readFileSync9(path18.join(this.scheduleDir(taskId), "state.json"), "utf8"));
     } catch (error2) {
       if (!this.hasSchedule(taskId)) throw new ScheduleError("SCHEDULE_NOT_FOUND", `unknown schedule: ${taskId}`);
       throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId} state could not be read: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
   writeState(state) {
-    writeJsonAtomic(path17.join(this.scheduleDir(state.task_id), "state.json"), state);
+    writeJsonAtomic(path18.join(this.scheduleDir(state.task_id), "state.json"), state);
   }
   notificationPath(taskId) {
-    return path17.join(this.scheduleDir(taskId), "outbox.json");
+    return path18.join(this.scheduleDir(taskId), "outbox.json");
   }
   hasNotification(taskId, eventId) {
     return this.listNotifications(taskId).some((record3) => record3.event_id === eventId);
@@ -29670,7 +29793,7 @@ var ScheduleStore = class {
   listNotifications(taskId) {
     let records;
     try {
-      records = JSON.parse(readFileSync8(this.notificationPath(taskId), "utf8"));
+      records = JSON.parse(readFileSync9(this.notificationPath(taskId), "utf8"));
     } catch (error2) {
       if (error2 instanceof Error && "code" in error2 && error2.code === "ENOENT") return [];
       throw error2;
@@ -29680,34 +29803,34 @@ var ScheduleStore = class {
   }
   readRuntime() {
     try {
-      return JSON.parse(readFileSync8(path17.join(this.#root, "runtime.json"), "utf8"));
+      return JSON.parse(readFileSync9(path18.join(this.#root, "runtime.json"), "utf8"));
     } catch (error2) {
       if (error2 instanceof Error && "code" in error2 && error2.code === "ENOENT") return null;
       throw error2;
     }
   }
   writeRuntime(info) {
-    writeJsonAtomic(path17.join(this.#root, "runtime.json"), info);
+    writeJsonAtomic(path18.join(this.#root, "runtime.json"), info);
   }
 };
 
 // src/host/stdio.ts
 function scheduleRunnerEntryPath() {
   if (process.env["ZCODE_BRIDGE_PLUGIN_MODE"] === "1") {
-    return fileURLToPath3(new URL("../worker/schedule-runner.mjs", import.meta.url));
+    return fileURLToPath4(new URL("../worker/schedule-runner.mjs", import.meta.url));
   }
-  return fileURLToPath3(new URL("../schedule/runner-main.js", import.meta.url));
+  return fileURLToPath4(new URL("../schedule/runner-main.js", import.meta.url));
 }
 function resolveDataRoot(env) {
   const override = env["ZCODE_BRIDGE_DATA_DIR"]?.trim();
   if (override) {
-    if (!path18.isAbsolute(override)) {
+    if (!path19.isAbsolute(override)) {
       return {
         dataRoot: findPackageRoot(),
         warning: `ZCODE_BRIDGE_DATA_DIR must be an absolute path; ignoring ${override} and using the Bridge installation directory`
       };
     }
-    return { dataRoot: path18.normalize(override) };
+    return { dataRoot: path19.normalize(override) };
   }
   return { dataRoot: findPackageRoot() };
 }
@@ -29724,6 +29847,9 @@ function resolveMaxConcurrentWorkers(env) {
 }
 async function startBridge(host = codexHostProfile(), version2 = SERVER_VERSION) {
   validateHostProfile(host);
+  const bridgeInfo = createBridgeInfoProbe(SERVER_VERSION);
+  const initialInfo = bridgeInfo();
+  console.error(`[bridge] version: ${initialInfo.version}; build: ${initialInfo.running_build_id ?? "unknown"}; started: ${initialInfo.started_at}`);
   const runtimeEnv = loadPersistedRuntimeEnvironment(process.env, homedir4(), host);
   if (!runtimeEnv["ZCODE_BRIDGE_DATA_DIR"]?.trim() && host.defaultDataRoot) runtimeEnv["ZCODE_BRIDGE_DATA_DIR"] = host.defaultDataRoot;
   if (process.env["ZCODE_BRIDGE_PLUGIN_MODE"] === "1" && !runtimeEnv["ZCODE_BRIDGE_DATA_DIR"]?.trim()) {
@@ -29771,6 +29897,7 @@ async function startBridge(host = codexHostProfile(), version2 = SERVER_VERSION)
   if (appPipePath) scheduleController?.noteAppPipePath(appPipePath);
   const server = createBridgeServer({
     taskManager: manager,
+    bridgeInfo,
     doctor: () => runBridgeDoctor({ env: runtimeEnv, dataRoot, resolver: { host } }),
     modelSettings,
     serverInfo: { name: host.name === codexHostProfile().name ? SERVER_NAME : host.name, version: version2 },
@@ -29804,8 +29931,8 @@ async function startBridge(host = codexHostProfile(), version2 = SERVER_VERSION)
 var isEntry = process.argv[1] !== void 0 && sameRealPath(import.meta.url, process.argv[1]);
 function sameRealPath(moduleUrl, argvPath) {
   try {
-    const modulePath = realpathSync2(fileURLToPath4(moduleUrl));
-    const entryPath = realpathSync2(path19.resolve(argvPath));
+    const modulePath = realpathSync2(fileURLToPath5(moduleUrl));
+    const entryPath = realpathSync2(path20.resolve(argvPath));
     return process.platform === "win32" ? modulePath.toLocaleLowerCase("en-US") === entryPath.toLocaleLowerCase("en-US") : modulePath === entryPath;
   } catch {
     return false;

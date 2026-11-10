@@ -1,9 +1,10 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
+> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -172,3 +173,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [数据任务修复与对照测试 / Data-task repair and controlled tests](reports/2026-11-09-data-task-repair.md)：raw/minimal、ZCode 实测、Kimi API 核对与未运行边界、扫描测量及完整回归。
 
 - [API 模式提交与安装验收 / API mode deployment](reports/2026-11-09-api-mode-deployment.md)：998670c、本机与 SSH 四入口八次真实 ZCode 执行、Kimi 额度边界及重连说明。
+
+- [ADR-018：结果诊断与运行构建 / Result diagnostics and running build](decisions/ADR-018-result-diagnostics-and-running-build.md)：结构化 provider_error、同版执行文件更新观察与重连提示。
+
+- [结果诊断与构建观察验证 / Result diagnostics validation](reports/2026-11-09-result-diagnostics.md)：结构化诊断、同版本更新提示、回归及安装边界。

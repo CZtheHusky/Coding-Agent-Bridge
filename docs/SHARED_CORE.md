@@ -1,9 +1,10 @@
 # 共享核心与宿主适配
 
 > Status: AUTHORITATIVE
+> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
+> Verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-11-08，仅核对 ADR-015 的 Claude 入口声明、跨项目目录启动回归及真实 Claude MCP 健康检查；其余范围沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口修复。
 > Prior verification: 2026-10-28，createBridgeServer 可选调度注入、默认 Codex stdio 装配与 Linux 离线闭环，详见 ADR-010；新版调度在对话空闲时启动新轮次仍未验证。
@@ -63,3 +64,5 @@ KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复
 API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名称；沿用异步任务接口，没有额外 mode 字段或 HTTP 接口。
 
 TaskPackage 的 report_mode 与 session_profile、TaskResult 的 output_truncated/runtime_session_usage 是可选增量。直接调用共享 core 也会验证枚举值；调度入口在任何落盘前拒绝 raw。TaskManager 仍拥有状态和清理裁决；模型完成不替代调用方的数据验收。无 queued 的恢复周期不再额外 pump 全扫描，新提交自行 pump，遗留并发提交下一周期接管，仍核对历史状态及 cleanup；未引入跨周期状态缓存、历史删除或活动索引。
+
+ADR-018 增加可选 TaskResult.provider_error 及 MCP 回执/doctor.bridge。createBridgeServer 默认观察本核心执行分发的内容指纹；自定义重新打包的宿主可通过 bridgeInfo 回调提供同类型观察。标准 startBridge 在 stderr 记录版本、启动时间和运行构建 ID，不输出安装路径或秘密。只提示重连，不干预 manager 的持久回执、已有任务或进程。

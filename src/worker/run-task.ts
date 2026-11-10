@@ -325,6 +325,7 @@ export async function runWorkerTask(options: RunWorkerTaskOptions): Promise<RunW
             response: checkpoint.response,
             stdout_truncated: checkpoint.stdoutTruncated,
             runtime_session_usage: checkpoint.runtimeSessionUsage,
+            provider_error: checkpoint.providerError,
             usage: checkpoint.usage,
             error_code: checkpoint.errorCode,
             report_error: checkpoint.reportError,
@@ -488,6 +489,7 @@ export async function runWorkerTask(options: RunWorkerTaskOptions): Promise<RunW
       failure = {
         code: error instanceof BridgeError ? error.code : "worker_error",
         message: error instanceof Error ? error.message : String(error),
+        providerError: error instanceof BridgeError ? error.providerError : undefined,
       };
     }
     await reapIdentityWrites(); // land identity evidence before terminal artifacts; bounded, then closed
@@ -555,6 +557,7 @@ export async function runWorkerTask(options: RunWorkerTaskOptions): Promise<RunW
             reportError: outcome.reportError,
             stdoutTruncated: outcome.stdoutTruncated,
             runtimeSessionUsage: outcome.runtimeSessionUsage,
+            providerError: outcome.providerError,
             stderrTruncated: outcome.stderrTruncated,
             agentReport: outcome.agentReport,
             reportCandidate: outcome.reportCandidate,

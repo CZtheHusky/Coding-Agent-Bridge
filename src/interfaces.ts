@@ -137,6 +137,27 @@ export interface RuntimeSessionUsage {
   model_error_count: number;
 }
 
+/** Safe scalar projection only; never arbitrary provider messages or metadata. */
+export interface ProviderError {
+  code?: string;
+  type?: string;
+  status?: number;
+  statusCode?: number;
+  retryAfter?: number;
+  retry_after?: number;
+  retryable?: boolean;
+  category?: "content_filter";
+}
+
+export interface BridgeRuntimeInfo {
+  version: string;
+  started_at: string;
+  running_build_id: string | null;
+  disk_build_id: string | null;
+  disk_status: "same" | "changed" | "unknown";
+  reconnect_required: boolean | null;
+}
+
 export interface TaskResult {
   task_id: string;
   status: "completed" | "failed" | "cancelled" | "waiting_for_master";
@@ -154,6 +175,7 @@ export interface TaskResult {
   started_at: string | null; // RFC 3339 UTC
   finished_at: string | null; // RFC 3339 UTC
   error_code?: string;
+  provider_error?: ProviderError;
   /** Parsed but incomplete report, retained for Master review after schema failure. */
   report_candidate?: Partial<AgentReport>;
   /** B4 additive: runtime-reported usage for this attempt, when reported. */
@@ -256,6 +278,8 @@ export interface TaskReceipt {
   task_id: string;
   status: "queued" | "running";
   created_at: string;
+  /** MCP server observation; not persisted in the manager's idempotent receipt. */
+  bridge?: BridgeRuntimeInfo;
 }
 
 export interface TaskStatusRecord {

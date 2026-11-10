@@ -25,7 +25,7 @@ function complete() {
     event('assistant.delta', { delta: report.slice(0, 40) }, { offset: 0 });
     event('assistant.delta', { delta: report.slice(40) }, { offset: 40 });
   } else event('assistant.delta', { delta: scenario.kind === 'raw' ? '[{"label":true}]' : scenario.kind === 'invalid' ? '{}' : report }, { offset: scenario.kind === 'gap' ? 99 : 0 });
-  event('turn.ended', { reason: scenario.kind === 'failure' ? 'failed' : 'completed', ...(scenario.kind === 'failure' ? { error: { code: 'provider.rate_limit', message: scenario.message ?? 'Usage quota exhausted', details: { api_key: 'SECRET_MUST_NOT_LEAK' } } } : {}) });
+  event('turn.ended', { reason: scenario.kind === 'failure' ? 'failed' : 'completed', ...(scenario.kind === 'failure' ? { error: scenario.error ?? { code: 'provider.rate_limit', message: scenario.message ?? 'Usage quota exhausted', details: { api_key: 'SECRET_MUST_NOT_LEAK' } } } : {}) });
 }
 const server = http.createServer(async (req, res) => {
   if (req.url === '/openapi.json') {

@@ -18,6 +18,7 @@ import { BridgeTaskManager } from "../manager/task-manager.js";
 import { createBridgeServer } from "../mcp/server.js";
 import { DEFAULT_TASK_TIMEOUT_MS, validateTaskTimeout } from "../runtime/task-timeout.js";
 import { runBridgeDoctor } from "../runtime/doctor.js";
+import { createBridgeInfoProbe } from "../runtime/bridge-info.js";
 import { ZCodeModelSettings } from "../runtime/model-settings.js";
 import { codexHostProfile, validateHostProfile, type BridgeHostProfile } from "./profile.js";
 import { createWorkerSpawner, workerEntryPath } from "../manager/spawn-worker.js";
@@ -76,6 +77,9 @@ export function resolveMaxConcurrentWorkers(env: NodeJS.ProcessEnv): WorkerLimit
 
 export async function startBridge(host: BridgeHostProfile = codexHostProfile(), version = SERVER_VERSION): Promise<void> {
   validateHostProfile(host);
+  const bridgeInfo = createBridgeInfoProbe(SERVER_VERSION);
+  const initialInfo = bridgeInfo();
+  console.error(`[bridge] version: ${initialInfo.version}; build: ${initialInfo.running_build_id ?? "unknown"}; started: ${initialInfo.started_at}`);
   const runtimeEnv = loadPersistedRuntimeEnvironment(process.env, homedir(), host);
   if (!runtimeEnv["ZCODE_BRIDGE_DATA_DIR"]?.trim() && host.defaultDataRoot) runtimeEnv["ZCODE_BRIDGE_DATA_DIR"] = host.defaultDataRoot;
   // Keep task records and worktrees outside the versioned marketplace cache.
@@ -127,6 +131,7 @@ export async function startBridge(host: BridgeHostProfile = codexHostProfile(), 
   if (appPipePath) scheduleController?.noteAppPipePath(appPipePath);
   const server = createBridgeServer({
     taskManager: manager,
+    bridgeInfo,
     doctor: () => runBridgeDoctor({ env: runtimeEnv, dataRoot, resolver: { host } }),
     modelSettings,
     serverInfo: { name: host.name === codexHostProfile().name ? SERVER_NAME : host.name, version },
