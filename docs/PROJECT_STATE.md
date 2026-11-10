@@ -2,8 +2,8 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
+> Last verified: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 对照及 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)，两端四入口八次真实执行见[安装验收](reports/2026-11-09-api-mode-deployment.md)。其余保留历史核对范围。
+> Verified against: 998670c454145b5cf2abab0891a509b6e4c28c3f（API 模式源码与同版安装产物）
 > Prior verification: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
 > Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
@@ -16,13 +16,13 @@
 
 ## 版本与发布
 
-- 当前源码版本：`1.2.7`（`package.json`、`plugins/codex-zcode-bridge/plugin.json`）；已提交并推送的附图基线为 d1bf2fe，未新建 release；ADR-017 增量仍为 working tree。
+- 当前源码版本：`1.2.7`（`package.json`、`plugins/codex-zcode-bridge/plugin.json`）；已提交并推送的附图基线为 d1bf2fe，未新建 release；API 模式代码为 998670c，已推送并部署；本次仅补充安装核对记录。
 - 发布方式：release-please 监听 `master`，合并后自动开版本 PR；合并版本 PR 才产生 tag 与 GitHub Release。
 - CI：`.github/workflows/ci.yml`，ubuntu 与 windows 两个作业，跑 typecheck、build、test、validate:plugin，并校验生成的 bundle 已随源码提交。
 
 ## 本分支改动
 
-以下为基线已有的 1.2.6 / PR #47 修复记录；本次预约 working tree 的范围与边界见“实验”和“调查中 / NOT RUN”。
+以下为基线已有的 1.2.6 / PR #47 修复记录；本次 API 模式范围见下节，调度边界见“实验”和“调查中 / NOT RUN”。
 
 Windows 文件系统时序与根守卫（前轮）：`state.lock` 发布前存在性预检(已存在的空/未知 owner 锁不被 POSIX rename 覆盖)、发布 rename 的 EEXIST/ENOTEMPTY 按确定目的在场竞争移交 existing-owner 策略(不逃逸、不烧重试预算;EPERM/EACCES/EBUSY 目的缺失保持有界重试后可见抛出)、撤回 rename 对白名单瞬时码有界重试(撤回耗尽后锁保持完整、存活 owner 不驱逐;非瞬时码与共享 reclaim guard 清理失败保持可见,guard 清理在全部出口单点执行);worker 的迟到 self/runtime identity 写盘在终态前有界收束、超时丢弃,不再复活已清理的 store;测试 fixture 树清理带 Node 文档化有界重试;`buildRepoRootLeakPattern` 拒绝文件系统根输入（POSIX 根、盘符根及其词法等价写法、UNC 共享根）并修复 URL 主机名等于短根的误报。版本号未提升，不代表已发布；证据与边界见[修复记录](reports/2026-10-17-filesystem-root-guards.md)。
 
@@ -30,9 +30,9 @@ Windows 进程树身份绑定归属与终止（ADR-009，2026-10-17 轮）：生
 
 PR #47 claimant 扫描与预算返修（本轮，2026-10-18，含 review-round-1 R1–R4 与 review-round-2 S1/S2 返工）：S1——多记录根证据单调合并，claimant 路径优先于相对其他根的外来排除；S2——扫描 false/拒绝时任务相关观察经既有 cleanup-failure/marker 持久化并入后续 scanTargets（不含已证外来者与响应载荷任意 PID），空闭包正常释放。其余：P1-A——枚举与 hold 之间消失的记录 PID 视为已死，其存活子代计入 claimant，不再被过期枚举 live 集合漏掉；P1-B——外来换代父的后代仅在每条边持有证明成立时排除（边的父代被持有且与枚举行同代一致、子代创建表示区间严格晚于该持有精确创建时间、子代自身再被持有核验后递归同判），相等精度/更早/跨界/未知/中间代消失-拒绝-换代的子代保持占用，"外来换代父排除整棵子树"的旧保证撤回；hold 响应按请求校验（数量、PID、ok 必含可用精确身份字段），畸形证据拒绝扫描而非证明 clean；终止预算语义——kill 截止只对无句柄确认退出时间的成员报 `process_tree_cleanup_unverified`，全部已确认退出的成员继续闭包确认轮直至证明为空（仍受 120 s 传输会话预算约束），修复"全表枚举慢 + WMI 滞留已终止成员行"时对已证明退出的误报。维护者 Node 24.16.0 两项 process-lock 失败在本机 24.16.0 未复现（阶段计时与边界见 ADR-009 与[公开返修报告](reports/2026-10-18-pr47-claimant-repair.md)），不宣称版本归因或根治。
 
-## 2026-11-09 数据调用修复（working tree）
+## 2026-11-09 API 模式与数据调用修复
 
-ADR-017：新增显式 raw 输出、两执行器可选 minimal 工具精简、已识别 provider 拒绝诊断、ZCode 会话请求计数及空队列扫描优化。默认系统提示保持不变；默认编码模式仍为 structured。ZCode 双图受控对照输入 20,119→2,536，三次真实调用均正确，含同 session 续作。Kimi 原生 API/工具目录已检查，模型调用与 token 降幅 NOT RUN（额度停止约定仍有效）。完整检查与代码落地状态见[本轮修复报告](reports/2026-11-09-data-task-repair.md)；本节不表示已发布或已更新生产实例。
+ADR-017：新增显式 raw 输出、两执行器可选 minimal 工具精简、已识别 provider 拒绝诊断、ZCode 会话请求计数及空队列扫描优化。默认系统提示保持不变；默认编码模式仍为 structured。ZCode 双图受控对照输入 20,119→2,536，三次真实调用均正确，含同 session 续作。Kimi 原生 API/工具目录已检查，模型调用与 token 降幅 NOT RUN（额度停止约定仍有效）。完整检查与代码落地状态见[本轮修复报告](reports/2026-11-09-data-task-repair.md)。功能提交 998670c 已推送，两端四入口已替换并通过八次真实 ZCode 执行；Kimi 额度经用户确认尚未恢复，保留离线验证，详见[安装验收](reports/2026-11-09-api-mode-deployment.md)。未新建 release；既有宿主连接须重连。
 
 ## 稳定
 

@@ -170,3 +170,5 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [ADR-017：数据任务输出与精简会话 / Data output and minimal sessions](decisions/ADR-017-data-task-output-and-diagnostics.md) — DECISION；raw 输出、保留默认系统提示的工具精简、失败诊断及扫描边界。
 
 - [数据任务修复与对照测试 / Data-task repair and controlled tests](reports/2026-11-09-data-task-repair.md)：raw/minimal、ZCode 实测、Kimi API 核对与未运行边界、扫描测量及完整回归。
+
+- [API 模式提交与安装验收 / API mode deployment](reports/2026-11-09-api-mode-deployment.md)：998670c、本机与 SSH 四入口八次真实 ZCode 执行、Kimi 额度边界及重连说明。
