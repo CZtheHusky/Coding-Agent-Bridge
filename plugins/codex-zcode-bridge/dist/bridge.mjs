@@ -24788,6 +24788,7 @@ var PowerShellTreeTransaction = class _PowerShellTreeTransaction {
       this.#fail(new Error("process_tree_transport_stderr"));
     });
     child.on("error", (error2) => this.#fail(new Error(`process_tree_transport_error: ${String(error2.message)}`)));
+    child.stdin.on("error", () => this.#fail(new Error("process_tree_transport_stdin_error")));
     child.on("close", (code, signal) => {
       this.#closed = true;
       this.#exitCode = code;

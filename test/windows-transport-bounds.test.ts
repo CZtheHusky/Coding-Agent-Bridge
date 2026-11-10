@@ -57,6 +57,10 @@ class FakeChild {
     this.stdout.emit("data", chunk);
   }
 
+  emitStdinError(error: Error): void {
+    this.#stdinEmitter.emit("error", error);
+  }
+
   /** Simulates the helper exiting. */
   exitHelper(code: number | null = 0, signal: string | null = null): void {
     this.#closeListener?.(code, signal);
@@ -79,6 +83,43 @@ class FakeChild {
 
 function attach(fake: FakeChild, bounds: TransportBounds): PowerShellTreeTransaction {
   return PowerShellTreeTransaction.attach(fake as unknown as Parameters<typeof PowerShellTreeTransaction.attach>[0], bounds);
+}
+
+for (const command of ["enum", "hold"] as const) {
+  test(`transport: stdin EPIPE rejects a pending ${command} without escaping or verifying cleanup`, async () => {
+    const fake = new FakeChild();
+    const transaction = attach(fake, {});
+    const pending = command === "enum" ? transaction.enumerate() : transaction.hold([101]);
+    // Observe the pending request before injecting the broken pipe, including
+    // on the unfixed transport where emit throws and finally closes it.
+    const outcome = pending.then(
+      () => ({ status: "fulfilled" as const }),
+      (error: unknown) => ({ status: "rejected" as const, error }),
+    );
+    try {
+      assert.doesNotThrow(() => fake.emitStdinError(Object.assign(new Error("write EPIPE"), { code: "EPIPE" })),
+        "a helper pipe failure must reach cleanup handling without killing the worker");
+      const result = await Promise.race([
+        outcome,
+        new Promise<{ status: "pending" }>((resolve) => setImmediate(() => resolve({ status: "pending" }))),
+      ]);
+      assert.equal(result.status, "rejected", "the pipe error must reject the request without waiting for a timeout or helper exit");
+      if (result.status !== "rejected") assert.fail("the pending request did not fail closed");
+      assert.equal((result.error as Error).message, "process_tree_transport_stdin_error");
+
+      // Neither plausible replies nor a later clean helper exit can erase the
+      // fatal error and turn this transaction into verified cleanup.
+      fake.emitStdout("ENUM_BEGIN\nENUM_END\nH 101 ok 1 1\nHOLD_END\n");
+      await assert.rejects(transaction.enumerate(), (error: unknown) => error === result.error);
+      await assert.rejects(transaction.hold([101]), (error: unknown) => error === result.error);
+      fake.exitHelper();
+      await assert.rejects(transaction.close(), (error: unknown) => error === result.error);
+      assert.equal(fake.killCount, 0, "a clean helper exit does not require forced termination");
+    } finally {
+      fake.exitHelper();
+      await outcome;
+    }
+  });
 }
 
 test("transport: an oversized protocol line fails the stream bound immediately", async () => {

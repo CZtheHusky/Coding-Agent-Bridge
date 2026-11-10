@@ -28,7 +28,7 @@ async function makeFakeRuntime(
   interactionRequest = false,
   turnFailure?: unknown,
   failureDelivery: "event" | "rpc" = "event",
-  terminal: { response?: string; resultType?: string | null } = {},
+  terminal: { response?: string; resultType?: string | null; coalescedTurnStart?: boolean } = {},
 ): Promise<{ root: string; config: ZCodeRuntimeConfig; requestLog: string }> {
   const root = await mkdtemp(path.join(tmpdir(), "bridge-app-server-test-"));
   const entrypoint = path.join(root, "fake-app-server.cjs");
@@ -43,13 +43,18 @@ const turnFailure = ${JSON.stringify(turnFailure ?? null)};
 const available = [selected, ${includeRequestedModel ? '{ providerId: "provider-123", modelId: "model-x" }, { providerId: "provider-123", modelId: "reasoning-model" }' : ""}];
 const report = ${JSON.stringify(validReport())};
 let turnFinished = false;
-function finishTurn() {
+function finishTurn(ackId) {
   if (turnFinished) return;
   turnFinished = true;
   const params = turnFailure === null
-    ? { seq: 1, type: "turn.completed", payload: { response: ${terminal.response === undefined ? "JSON.stringify(report)" : JSON.stringify(terminal.response)}, usage: { totalTokens: 4 }, resultType: ${JSON.stringify(terminal.resultType === undefined ? "success" : terminal.resultType)} } }
+    ? { seq: ${terminal.coalescedTurnStart ? 2 : 1}, type: "turn.completed", payload: { response: ${terminal.response === undefined ? "JSON.stringify(report)" : JSON.stringify(terminal.response)}, usage: { totalTokens: 4 }, resultType: ${JSON.stringify(terminal.resultType === undefined ? "success" : terminal.resultType)} } }
     : { seq: 1, type: "turn.failed", payload: { error: turnFailure } };
-  process.stdout.write(JSON.stringify({ method: "session/event", params }) + "\n");
+  const frames = [{ method: "session/event", params }];
+  if (ackId !== undefined) frames.unshift(
+    { id: ackId, result: {} },
+    { method: "session/event", params: { sessionId, seq: 1, type: "turn.started", payload: { turnId: "coalesced-turn" } } },
+  );
+  process.stdout.write(frames.map(frame => JSON.stringify(frame)).join("\n") + "\n");
 }
 function snapshot() {
   return {
@@ -76,6 +81,10 @@ input.on("line", (line) => {
   } else if (message.method === "session/send") {
     if (${failureDelivery === "rpc"} && turnFailure !== null) {
       process.stdout.write(JSON.stringify({ id: message.id, error: turnFailure }) + "\n");
+      return;
+    }
+    if (${terminal.coalescedTurnStart === true}) {
+      finishTurn(message.id);
       return;
     }
     process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\n");
@@ -109,6 +118,38 @@ input.on("line", (line) => {
       dataRoot: root,
     },
   };
+}
+
+for (const coalescedTurnStart of [true, false]) {
+  test(coalescedTurnStart
+    ? "coalesced ACK and runtime turn.started publish one start for the accepted turn"
+    : "an ACK without runtime turn.started still publishes the compatibility start", async () => {
+    const runtime = await makeFakeRuntime(undefined, true, false, undefined, "event", { coalescedTurnStart });
+    const events: Array<{ type: string; details?: Record<string, unknown> }> = [];
+    try {
+      const adapter = new ZCodeAppServerAdapter({
+        resolver: { resolve: async () => runtime.config },
+        homeDir: runtime.root,
+        onEvent: event => events.push(event),
+        timeoutMs: 10_000,
+        childEnvBase: { PATH: process.env.PATH },
+      });
+      const handle = await adapter.startTask({ task, workspace: makeWorkspace(runtime.root), attempt: 1 });
+      const result = await adapter.getResult(handle);
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.cleanupVerified, true);
+      const starts = events.filter(event => event.type === "turn_started");
+      assert.equal(starts.length, 1, "one accepted turn must retain its start evidence without duplicating a coalesced runtime start");
+      if (coalescedTurnStart) {
+        assert.equal(starts[0]!.details?.["turn_id"], "coalesced-turn");
+        assert.equal(starts[0]!.details?.["rpc_accepted"], undefined);
+      } else {
+        assert.equal(starts[0]!.details?.["rpc_accepted"], true);
+      }
+    } finally {
+      await rm(runtime.root, { recursive: true, force: true });
+    }
+  });
 }
 
 test("applies a per-task model override, verifies the selection, and does not persist it as the workspace default", async () => {

@@ -21062,6 +21062,7 @@ var PowerShellTreeTransaction = class _PowerShellTreeTransaction {
       this.#fail(new Error("process_tree_transport_stderr"));
     });
     child.on("error", (error62) => this.#fail(new Error(`process_tree_transport_error: ${String(error62.message)}`)));
+    child.stdin.on("error", () => this.#fail(new Error("process_tree_transport_stdin_error")));
     child.on("close", (code, signal) => {
       this.#closed = true;
       this.#exitCode = code;
@@ -23761,7 +23762,9 @@ var ZCodeAppServerAdapter = class {
         ...images.length ? { attachments: images.map((image) => ({ kind: "image", filename: image.filename, mimeType: image.mimeType, sizeBytes: image.sizeBytes, localPath: image.path })) } : {}
       });
       entry.rpcAcceptedAt = this.#now().toISOString();
-      entry.onEvent({ type: "turn_started", summary: "ZCode accepted the task and started a turn", details: { rpc_accepted: true, ...entry.turnId ? { turn_id: entry.turnId } : {} } });
+      if (!entry.turnStartedAt) {
+        entry.onEvent({ type: "turn_started", summary: "ZCode accepted the task and started a turn", details: { rpc_accepted: true, ...entry.turnId ? { turn_id: entry.turnId } : {} } });
+      }
       entry.bindingTimer = setTimeout(() => {
         if (!entry.awaitingTurnStart) return;
         entry.awaitingTurnStart = false;
