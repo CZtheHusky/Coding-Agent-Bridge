@@ -4,6 +4,7 @@
 > Date: 2026-11-10
 > Baseline: 01748cd0d872c49703ee771dd7382f05065119a6
 > Scope: ADR-020 工作树验证；测试阶段生产安装未替换，后续部署另记
+> Deployment: e5bbfcc 已推送并替换两端四入口，见[安装验收](2026-11-10-batch-scheduling-deployment.md)。
 
 ## 已核实的问题
 
@@ -44,7 +45,7 @@
 
 ## 安装边界
 
-本轮只在独立工作树和远端诊断目录测试，没有修改生产任务、配置或已安装服务。共享同一任务库的所有 Manager 必须一起升级并重连；旧 Manager 不会为新任务登记候选，不能与新版混用。旧版 detached worker 可以完成迁移时已登记的运行任务，本轮有兼容性检查。若退回旧 Manager 写过任务，再次升级前须在所有 Manager 停止时移除 .tasks/.scheduling/.ready.json，以强制重新迁移；不要清除用户历史。
+本轮开发验证阶段只在独立工作树和远端诊断目录测试，没有修改生产任务、配置或已安装服务；随后的生产替换另见[安装验收](2026-11-10-batch-scheduling-deployment.md)。共享同一任务库的所有 Manager 必须一起升级并重连；旧 Manager 不会为新任务登记候选，不能与新版混用。旧版 detached worker 可以完成迁移时已登记的运行任务，本轮有兼容性检查。若退回旧 Manager 写过任务，再次升级前须在所有 Manager 停止时移除 .tasks/.scheduling/.ready.json，以强制重新迁移；不要清除用户历史。
 
 已有保存的并发值不会被代码默认值覆盖。要使实际安装采用 20，需将相应宿主 runtime-config.json 的 ZCODE_BRIDGE_MAX_CONCURRENT_WORKERS 改为字符串 "20"，在统一升级后重连。当前旧版不接受 20，不应先单独修改生产配置。
 

@@ -1,11 +1,11 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-10，ADR-020、20 并发与批量调度测量报告路由；其余保留历史范围。
+> Last verified: 2026-11-10，ADR-020、20 并发、测量及两端四入口部署报告路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: e5bbfcc85d0809bb41c6ff9a50b98c802b8b47f6
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -91,6 +91,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 |---|---|---|
 | [上游 stable / preview 审阅台账](reports/2026-11-10-upstream-review.md) | 2026-11-10 | 83 + 11 个完整提交处置、专项核查与专题审阅边界、部分采纳候选及后续增量范围 / Upstream review ledger and incremental-review baseline |
 | [批量调度、目录覆盖与 20 并发](reports/2026-11-10-batch-scheduling-and-data-root.md) | 2026-11-10 | 活动索引、两宿主目录解析、Linux 回归及双进程存储对照；保留共享盘排队超时 / Batch scheduling, explicit data roots, twenty-worker tests and storage limits |
+| [批量调度与 20 并发安装验收](reports/2026-11-10-batch-scheduling-deployment.md) | 2026-11-10 | e5bbfcc、两端四入口替换、三个任务库迁移及隔离加载；保留真实模型未重跑边界 / Coordinated deployment, index migration and isolated loading checks |
 | [Kimi 代理修复与部署](reports/2026-11-04-kimi-proxy-fix.md) | 2026-11-04 | 代理边界回归、本机与远端安装验证、Desktop SSH 入口复核；公开脱敏记录 |
 | [Claude 入口与 Kimi 代理修复](reports/2026-11-08-claude-bridge-repair.md) | 2026-11-08 | 双实例根因、Claude 路径声明、独立宿主升级、真实模型执行与续作及待重连边界 |
 | [research/phase1-codex-zcode-2026-09-26.md](research/phase1-codex-zcode-2026-09-26.md) | 2026-09-26 | Phase 1 参考项目调研与 V0.1 架构建议 |
