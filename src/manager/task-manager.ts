@@ -36,6 +36,7 @@ import { WindowsTreeCleanupError } from "../adapters/windows-process-cleanup.js"
 import { validateTaskTimeout } from "../runtime/task-timeout.js";
 import { tryAcquireProcessLock, withProcessLock, publishSelfIdentity } from "../store/process-lock.js";
 import { buildTaskPrompt, buildContinuePrompt } from "../prompts/task-prompt.js";
+import { resolveImageAttachments } from "../attachments/images.js";
 import { createPlatformProbe, livenessVerdict, type ProbeRequest, type ProbeVerdict, type ProcessIdentity, type ProcessProbe } from "../runtime/process-probe.js";
 import type { ProcessIdentityLike } from "../store/task-store.js";
 import { buildTaskObservation } from "../observation/build.js";
@@ -704,6 +705,8 @@ export class BridgeTaskManager implements ProgressTaskManager {
         this.#store.writeSubmission(task.task_id, { fingerprint, receipt });
         return receipt;
       }
+      try { await resolveImageAttachments(task.attachments); }
+      catch (error) { throw new TaskManagerError("TASK_INVALID", error instanceof Error ? error.message : String(error)); }
       let workspaceRef;
       try {
         workspaceRef = await this.#workspaceProvider.resolve(task.workspace, task.task_id, task.worktree_path);
@@ -989,7 +992,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
         throw new TaskManagerError("TASK_INVALID", "additional_requirements must be an array of strings");
       }
       const status = this.#store.readStatus(taskId);
-      const continueFingerprint = createHash("sha256").update(stableJson({ feedback: input.feedback, additional_requirements: input.additional_requirements ?? [] })).digest("hex");
+      const continueFingerprint = createHash("sha256").update(stableJson({ feedback: input.feedback, additional_requirements: input.additional_requirements ?? [], ...(input.attachments?.length ? { attachments: input.attachments } : {}) })).digest("hex");
       if (input.operation_id !== undefined && (typeof input.operation_id !== "string" || !input.operation_id.trim() || input.operation_id.length > 128)) {
         throw new TaskManagerError("TASK_INVALID", "operation_id must be a non-empty string up to 128 characters");
       }
@@ -1014,6 +1017,8 @@ export class BridgeTaskManager implements ProgressTaskManager {
         );
       }
       if (status.cleanup_unverified) throw new TaskManagerError("TASK_STATE", "Cannot continue until unverified ZCode process cleanup is resolved");
+      try { await resolveImageAttachments(input.attachments); }
+      catch (error) { throw new TaskManagerError("TASK_INVALID", error instanceof Error ? error.message : String(error)); }
       const task = this.#store.readTask(taskId);
       // The continuation reuses the original workspace; it must still resolve
       // to the same canonical directory.
@@ -1031,7 +1036,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
       }
       const previousAttempt = status.attempt;
       const previousResult = this.#store.readResult(taskId);
-      try { buildContinuePrompt({ task, feedback: input.feedback, additionalRequirements: input.additional_requirements ?? [], previousSessionId: previousResult?.session_id ?? status.zcode_session_id, previousResult }); }
+      try { buildContinuePrompt({ task, feedback: input.feedback, additionalRequirements: input.additional_requirements ?? [], previousSessionId: previousResult?.session_id ?? status.zcode_session_id, previousResult, attachments: input.attachments }); }
       catch (error) { throw new TaskManagerError("TASK_INVALID", String(error)); }
       const nextAttempt = previousAttempt + 1;
       const createdAt = this.#now().toISOString();
@@ -1044,6 +1049,7 @@ export class BridgeTaskManager implements ProgressTaskManager {
         ...(input.operation_id ? { operation_id: input.operation_id, fingerprint: continueFingerprint, receipt: continuationReceipt } : {}),
         feedback: input.feedback,
         additional_requirements: [...(input.additional_requirements ?? [])],
+        ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
         previous_session_id: previousResult?.session_id ?? status.zcode_session_id,
         previous_attempt: previousAttempt,
       });

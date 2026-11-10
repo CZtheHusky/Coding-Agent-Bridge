@@ -9,6 +9,7 @@ import type {
   ExecutionProfile,
   NormalizedUsage,
   RuntimeResolver,
+  TaskPackage,
   TaskResult,
   WorkspaceRef,
   ZCodeInteractionRequest,
@@ -36,6 +37,7 @@ export type WorkerAdapter = Omit<CodingAgentAdapter, "getResult"> & {
 export interface ContinueSpec {
   readonly feedback: string;
   readonly additional_requirements?: string[];
+  readonly attachments?: TaskPackage["attachments"];
   readonly previous_session_id: string | null;
   readonly previous_attempt: number;
 }
@@ -182,6 +184,7 @@ export async function runWorkerTask(options: RunWorkerTaskOptions): Promise<RunW
           task,
           feedback: continueSpec.feedback,
           additionalRequirements: continueSpec.additional_requirements ?? [],
+          attachments: continueSpec.attachments,
           previousSessionId: continueSpec.previous_session_id,
           previousResult,
         })
@@ -452,6 +455,7 @@ export async function runWorkerTask(options: RunWorkerTaskOptions): Promise<RunW
             attempt,
             feedback: continueSpec.feedback,
             additionalRequirements: [...(continueSpec.additional_requirements ?? [])],
+            attachments: continueSpec.attachments,
             previousSessionId: continueSpec.previous_session_id,
             previousResult,
           })

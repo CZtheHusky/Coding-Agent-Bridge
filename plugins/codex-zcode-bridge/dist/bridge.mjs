@@ -1607,7 +1607,7 @@ var init_build = __esm({
 
 // src/mcp/main.ts
 import { realpathSync as realpathSync2 } from "node:fs";
-import path16 from "node:path";
+import path19 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // node_modules/@modelcontextprotocol/server/dist/chunk-Br0eD_fh.mjs
@@ -1903,10 +1903,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path17) {
-  if (!path17)
+function getElementAtPath(obj, path20) {
+  if (!path20)
     return obj;
-  return path17.reduce((acc, key) => acc?.[key], obj);
+  return path20.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -2246,11 +2246,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path17, issues) {
+function prefixIssues(path20, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path17);
+    iss.path.unshift(path20);
     return iss;
   });
 }
@@ -2699,16 +2699,16 @@ function flattenError(error2, mapper = (issue2) => issue2.message) {
 }
 function formatError(error2, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error3, path17 = []) => {
+  const processError = (error3, path20 = []) => {
     for (const issue2 of error3.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path17, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path20, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path17, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path20, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path17, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path20, ...issue2.path]);
       } else {
-        const fullpath = [...path17, ...issue2.path];
+        const fullpath = [...path20, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -12051,9 +12051,9 @@ var rev2026Codec = {
     });
     const parsed = buildSchemas2026().RequestMetaEnvelopeSchema.safeParse(meta2);
     if (!parsed.success) for (const issue2 of parsed.error.issues) {
-      const path17 = issue2.path.map(String);
-      const key = path17.length > 0 ? path17.join(".") : "_meta";
-      if (path17.length === 1 && issues.some((existing) => existing.key === key && existing.problem === "missing")) continue;
+      const path20 = issue2.path.map(String);
+      const key = path20.length > 0 ? path20.join(".") : "_meta";
+      if (path20.length === 1 && issues.some((existing) => existing.key === key && existing.problem === "missing")) continue;
       issues.push({
         key,
         problem: issue2.message
@@ -12374,29 +12374,29 @@ var PERMITTED_X_MCP_HEADER_TYPES = /* @__PURE__ */ new Set([
 function scanXMcpHeaderDeclarations(inputSchema) {
   const declarations = [];
   const seenLower = /* @__PURE__ */ new Map();
-  const visit = (node2, path17, reachable) => {
+  const visit = (node2, path20, reachable) => {
     if (node2 === null || typeof node2 !== "object") return void 0;
     const schema = node2;
     if (X_MCP_HEADER_KEY in schema) {
-      if (!reachable || path17.length === 0) return `${pathName(path17)}: x-mcp-header is only permitted on properties statically reachable via a chain of 'properties' keys (not under items, additionalProperties, oneOf/anyOf/allOf/not, if/then/else, or $ref)`;
+      if (!reachable || path20.length === 0) return `${pathName(path20)}: x-mcp-header is only permitted on properties statically reachable via a chain of 'properties' keys (not under items, additionalProperties, oneOf/anyOf/allOf/not, if/then/else, or $ref)`;
       const raw = schema[X_MCP_HEADER_KEY];
-      if (typeof raw !== "string" || raw.length === 0) return `${pathName(path17)}: x-mcp-header MUST be a non-empty string`;
-      if (!RFC9110_TOKEN.test(raw)) return `${pathName(path17)}: x-mcp-header '${raw}' is not a valid RFC 9110 token (no spaces, control characters or HTTP delimiters)`;
+      if (typeof raw !== "string" || raw.length === 0) return `${pathName(path20)}: x-mcp-header MUST be a non-empty string`;
+      if (!RFC9110_TOKEN.test(raw)) return `${pathName(path20)}: x-mcp-header '${raw}' is not a valid RFC 9110 token (no spaces, control characters or HTTP delimiters)`;
       const type = typeof schema.type === "string" ? schema.type : void 0;
-      if (type === void 0 || !PERMITTED_X_MCP_HEADER_TYPES.has(type)) return `${pathName(path17)}: x-mcp-header is only permitted on primitive-typed properties (string, integer, boolean); got ${type ?? "<none>"}`;
+      if (type === void 0 || !PERMITTED_X_MCP_HEADER_TYPES.has(type)) return `${pathName(path20)}: x-mcp-header is only permitted on primitive-typed properties (string, integer, boolean); got ${type ?? "<none>"}`;
       const lower = raw.toLowerCase();
       const prior = seenLower.get(lower);
       if (prior !== void 0) return `x-mcp-header '${raw}' is not case-insensitively unique (also declared as '${prior}')`;
       seenLower.set(lower, raw);
       declarations.push({
-        path: path17,
+        path: path20,
         headerName: raw,
         type
       });
     }
     const properties = schema.properties;
     if (properties !== null && typeof properties === "object") for (const [key, child] of Object.entries(properties)) {
-      const fault$1 = visit(child, [...path17, key], reachable);
+      const fault$1 = visit(child, [...path20, key], reachable);
       if (fault$1 !== void 0) return fault$1;
     }
     for (const k of NON_REACHABLE_SUBSCHEMA_KEYWORDS) {
@@ -12404,7 +12404,7 @@ function scanXMcpHeaderDeclarations(inputSchema) {
       if (sub === void 0) continue;
       const branches = Array.isArray(sub) ? sub : sub !== null && typeof sub === "object" && OBJECT_VALUED_SUBSCHEMA_KEYWORDS.has(k) ? Object.values(sub) : [sub];
       for (const branch of branches) {
-        const fault$1 = visit(branch, [...path17, `<${k}>`], false);
+        const fault$1 = visit(branch, [...path20, `<${k}>`], false);
         if (fault$1 !== void 0) return fault$1;
       }
     }
@@ -12444,8 +12444,8 @@ var OBJECT_VALUED_SUBSCHEMA_KEYWORDS = /* @__PURE__ */ new Set([
   "$defs",
   "definitions"
 ]);
-function pathName(path17) {
-  return path17.length === 0 ? "<root>" : path17.join(".");
+function pathName(path20) {
+  return path20.length === 0 ? "<root>" : path20.join(".");
 }
 var HEADER_MISMATCH_ERROR_CODE = -32020;
 var INBOUND_VALIDATION_LADDER = [
@@ -12734,7 +12734,7 @@ var PROPERTY_KEYS_BY_TYPE = {
   array: shapeKeys([UntitledMultiSelectEnumSchemaSchema, TitledMultiSelectEnumSchemaSchema])
 };
 var SUPPORTED_STRING_FORMATS = new Set(StringSchemaSchema.shape.format.unwrap().options);
-function walkProperty(node2, path17, vendor, unsupported) {
+function walkProperty(node2, path20, vendor, unsupported) {
   if (!isJsonObject(node2)) return node2;
   const allowedKeys = typeof node2.type === "string" && Object.hasOwn(PROPERTY_KEYS_BY_TYPE, node2.type) ? PROPERTY_KEYS_BY_TYPE[node2.type] : void 0;
   if (allowedKeys === void 0) return node2;
@@ -12742,8 +12742,8 @@ function walkProperty(node2, path17, vendor, unsupported) {
   for (const [key, value] of Object.entries(node2)) if (allowedKeys.has(key) || isAnnotationOnlyJsonSchemaKeyword(key)) pruned[key] = value;
   else if (key === "pattern" && node2.type === "string" && typeof node2.format === "string") {
     if (!SUPPORTED_STRING_FORMATS.has(node2.format)) pruned[key] = value;
-    else if (typeof value !== "string" || !isLibraryFormatPattern(node2.format, value, vendor)) unsupported.push(`${path17}.${key}`);
-  } else unsupported.push(`${path17}.${key}`);
+    else if (typeof value !== "string" || !isLibraryFormatPattern(node2.format, value, vendor)) unsupported.push(`${path20}.${key}`);
+  } else unsupported.push(`${path20}.${key}`);
   return pruned;
 }
 function walkRequestedSchema(converted, vendor) {
@@ -12760,11 +12760,11 @@ function describeUnsupportedProperties(pruned, fallback) {
   const offenders = Object.entries(pruned.properties).filter(([, node2]) => !parseSchema(PrimitiveSchemaDefinitionSchema, node2).success).map(([name]) => `properties.${name}`);
   return offenders.length > 0 ? offenders.join(", ") : fallback;
 }
-function findDroppedConstraintPaths(original, parsed, path17 = "") {
-  if (Array.isArray(original) && Array.isArray(parsed)) return original.flatMap((item, index) => findDroppedConstraintPaths(item, parsed[index], `${path17}[${index}]`));
+function findDroppedConstraintPaths(original, parsed, path20 = "") {
+  if (Array.isArray(original) && Array.isArray(parsed)) return original.flatMap((item, index) => findDroppedConstraintPaths(item, parsed[index], `${path20}[${index}]`));
   if (!isJsonObject(original) || !isJsonObject(parsed)) return [];
   return Object.entries(original).flatMap(([key, value]) => {
-    const childPath = path17 ? `${path17}.${key}` : key;
+    const childPath = path20 ? `${path20}.${key}` : key;
     if (!Object.prototype.hasOwnProperty.call(parsed, key)) return isAnnotationOnlyJsonSchemaKeyword(key) ? [] : [childPath];
     return findDroppedConstraintPaths(value, parsed[key], childPath);
   });
@@ -14440,9 +14440,9 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
       const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
       return `${varKind} ${this.name}${rhs};` + _n;
     }
-    optimizeNames(names, constants2) {
+    optimizeNames(names, constants3) {
       if (!names[this.name.str]) return;
-      if (this.rhs) this.rhs = optimizeExpr(this.rhs, names, constants2);
+      if (this.rhs) this.rhs = optimizeExpr(this.rhs, names, constants3);
       return this;
     }
     get names() {
@@ -14459,9 +14459,9 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
     render({ _n }) {
       return `${this.lhs} = ${this.rhs};` + _n;
     }
-    optimizeNames(names, constants2) {
+    optimizeNames(names, constants3) {
       if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects) return;
-      this.rhs = optimizeExpr(this.rhs, names, constants2);
+      this.rhs = optimizeExpr(this.rhs, names, constants3);
       return this;
     }
     get names() {
@@ -14520,8 +14520,8 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
     optimizeNodes() {
       return `${this.code}` ? this : void 0;
     }
-    optimizeNames(names, constants2) {
-      this.code = optimizeExpr(this.code, names, constants2);
+    optimizeNames(names, constants3) {
+      this.code = optimizeExpr(this.code, names, constants3);
       return this;
     }
     get names() {
@@ -14547,12 +14547,12 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
       }
       return nodes.length > 0 ? this : void 0;
     }
-    optimizeNames(names, constants2) {
+    optimizeNames(names, constants3) {
       const { nodes } = this;
       let i = nodes.length;
       while (i--) {
         const n = nodes[i];
-        if (n.optimizeNames(names, constants2)) continue;
+        if (n.optimizeNames(names, constants3)) continue;
         subtractNames(names, n.names);
         nodes.splice(i, 1);
       }
@@ -14599,11 +14599,11 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
       if (cond === false || !this.nodes.length) return void 0;
       return this;
     }
-    optimizeNames(names, constants2) {
+    optimizeNames(names, constants3) {
       var _a3;
-      this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
-      if (!(super.optimizeNames(names, constants2) || this.else)) return;
-      this.condition = optimizeExpr(this.condition, names, constants2);
+      this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants3);
+      if (!(super.optimizeNames(names, constants3) || this.else)) return;
+      this.condition = optimizeExpr(this.condition, names, constants3);
       return this;
     }
     get names() {
@@ -14625,9 +14625,9 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
     render(opts) {
       return `for(${this.iteration})` + super.render(opts);
     }
-    optimizeNames(names, constants2) {
-      if (!super.optimizeNames(names, constants2)) return;
-      this.iteration = optimizeExpr(this.iteration, names, constants2);
+    optimizeNames(names, constants3) {
+      if (!super.optimizeNames(names, constants3)) return;
+      this.iteration = optimizeExpr(this.iteration, names, constants3);
       return this;
     }
     get names() {
@@ -14662,9 +14662,9 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
     render(opts) {
       return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
     }
-    optimizeNames(names, constants2) {
-      if (!super.optimizeNames(names, constants2)) return;
-      this.iterable = optimizeExpr(this.iterable, names, constants2);
+    optimizeNames(names, constants3) {
+      if (!super.optimizeNames(names, constants3)) return;
+      this.iterable = optimizeExpr(this.iterable, names, constants3);
       return this;
     }
     get names() {
@@ -14703,11 +14703,11 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
       (_b = this.finally) === null || _b === void 0 || _b.optimizeNodes();
       return this;
     }
-    optimizeNames(names, constants2) {
+    optimizeNames(names, constants3) {
       var _a3, _b;
-      super.optimizeNames(names, constants2);
-      (_a3 = this.catch) === null || _a3 === void 0 || _a3.optimizeNames(names, constants2);
-      (_b = this.finally) === null || _b === void 0 || _b.optimizeNames(names, constants2);
+      super.optimizeNames(names, constants3);
+      (_a3 = this.catch) === null || _a3 === void 0 || _a3.optimizeNames(names, constants3);
+      (_b = this.finally) === null || _b === void 0 || _b.optimizeNames(names, constants3);
       return this;
     }
     get names() {
@@ -14956,7 +14956,7 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
   function addExprNames(names, from) {
     return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
   }
-  function optimizeExpr(expr, names, constants2) {
+  function optimizeExpr(expr, names, constants3) {
     if (expr instanceof code_1.Name) return replaceName(expr);
     if (!canOptimize(expr)) return expr;
     return new code_1._Code(expr._items.reduce((items, c) => {
@@ -14966,13 +14966,13 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports) => {
       return items;
     }, []));
     function replaceName(n) {
-      const c = constants2[n.str];
+      const c = constants3[n.str];
       if (c === void 0 || names[n.str] !== 1) return n;
       delete names[n.str];
       return c;
     }
     function canOptimize(e) {
-      return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants2[c.str] !== void 0);
+      return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants3[c.str] !== void 0);
     }
   }
   function subtractNames(names, from) {
@@ -16843,8 +16843,8 @@ var require_utils = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     for (let i = 0; i < str.length; i++) if (str[i] === token) ind++;
     return ind;
   }
-  function removeDotSegments(path17) {
-    let input = path17;
+  function removeDotSegments(path20) {
+    let input = path20;
     const output = [];
     let nextSlash = -1;
     let len = 0;
@@ -16997,8 +16997,8 @@ var require_schemes = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       wsComponent.secure = void 0;
     }
     if (wsComponent.resourceName) {
-      const [path17, query] = wsComponent.resourceName.split("?");
-      wsComponent.path = path17 && path17 !== "/" ? path17 : void 0;
+      const [path20, query] = wsComponent.resourceName.split("?");
+      wsComponent.path = path20 && path20 !== "/" ? path20 : void 0;
       wsComponent.query = query;
       wsComponent.resourceName = void 0;
     }
@@ -23138,7 +23138,7 @@ function toError(value) {
 
 // src/host/stdio.ts
 import { homedir as homedir4 } from "node:os";
-import path15 from "node:path";
+import path18 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // src/runtime/resolver.ts
@@ -23540,13 +23540,13 @@ function resolveExistingDirectory(input, field) {
     throw new Error(`${field} must be a non-empty string`);
   }
   if (!path5.isAbsolute(input)) throw new Error(`${field} must be an absolute path: ${input}`);
-  let stat2;
+  let stat3;
   try {
-    stat2 = statSync4(input);
+    stat3 = statSync4(input);
   } catch {
     throw new Error(`${field} does not exist: ${input}`);
   }
-  if (!stat2.isDirectory()) throw new Error(`${field} is not a directory: ${input}`);
+  if (!stat3.isDirectory()) throw new Error(`${field} is not a directory: ${input}`);
   try {
     return { requestedPath: input, canonicalPath: realpathSync(input) };
   } catch {
@@ -23556,7 +23556,7 @@ function resolveExistingDirectory(input, field) {
 
 // src/manager/task-manager.ts
 init_task_store();
-import path7 from "node:path";
+import path9 from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 import { existsSync as existsSync5, statSync as statSync5, writeFileSync as writeFileSync3 } from "node:fs";
 
@@ -23934,8 +23934,8 @@ function createPlatformProbe(options = {}) {
         const map = /* @__PURE__ */ new Map();
         for (const pid of distinct) {
           try {
-            const stat2 = await readFile(`/proc/${pid}/stat`, "utf8");
-            const afterComm = stat2.slice(stat2.lastIndexOf(")") + 2);
+            const stat3 = await readFile(`/proc/${pid}/stat`, "utf8");
+            const afterComm = stat3.slice(stat3.lastIndexOf(")") + 2);
             const fields = afterComm.split(" ");
             const starttime = fields[19];
             if (starttime) map.set(pid, starttime.trim());
@@ -23974,8 +23974,8 @@ function createPlatformProbe(options = {}) {
       if (process.platform === "linux") {
         const map = /* @__PURE__ */ new Map();
         try {
-          const stat2 = await readFile(`/proc/${pid}/stat`, "utf8");
-          const afterComm = stat2.slice(stat2.lastIndexOf(")") + 2);
+          const stat3 = await readFile(`/proc/${pid}/stat`, "utf8");
+          const afterComm = stat3.slice(stat3.lastIndexOf(")") + 2);
           const starttime = afterComm.split(" ")[19];
           if (starttime) map.set(pid, starttime.trim());
         } catch {
@@ -25031,6 +25031,7 @@ function validateTaskTimeout(value) {
 init_process_lock();
 
 // src/prompts/task-prompt.ts
+import path7 from "node:path";
 var MAX_PROMPT_CHARS = 6e4;
 var MAX_SECTION_CHARS = 4e3;
 var MAX_CONTEXT_CHARS = 2e3;
@@ -25041,9 +25042,10 @@ function buildTaskPrompt(task) {
     `PROJECT WORKSPACE: ${task.workspace}`,
     ...task.worktree_path ? [`HOST-SELECTED EXECUTION WORKTREE: ${task.worktree_path}. Make task changes in the current working directory, which is this worktree; the project workspace above identifies its parent project.`] : [],
     ...task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : [],
-    ...task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : [],
+    ...task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : ["EXECUTION TIME LIMIT: Bridge defaults to 60 minutes for this attempt when timeout_ms is not set; the user runtime configuration may override it (60 seconds to 4 hours). Plan the work and checkpoints accordingly."],
     `OBJECTIVE
 ${task.objective}`,
+    ...renderAttachments(task.attachments),
     renderList("REQUIREMENTS", task.requirements),
     renderPaths("ALLOWED PATHS (write only inside these when provided)", task.allowed_paths),
     renderPaths("FORBIDDEN PATHS (never create, modify, or delete)", task.forbidden_paths),
@@ -25068,6 +25070,7 @@ function buildContinuePrompt(input) {
   const sections = [
     `TASK ID: ${task.task_id}`,
     "You are a subordinate coding agent continuing a previous task in the same workspace. Stay inside the workspace.",
+    ...renderAttachments(input.attachments),
     ...task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : []
   ];
   if (previousSessionId) {
@@ -25108,7 +25111,7 @@ ${feedback}`);
     sections.push(renderList("ADDITIONAL REQUIREMENTS", [...additionalRequirements]));
   }
   sections.push(`ORIGINAL TASK
-${buildTaskPrompt(task)}`);
+${buildTaskPrompt({ ...task, attachments: void 0 })}`);
   return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
 }
 var OUTPUT_CONTRACT = [
@@ -25124,6 +25127,11 @@ var DECISION_RULE = [
   "Use only this task package, this prompt, repository files you inspect, and available tools; do not assume access to the calling host's conversation.",
   "Do not choose unresolved items explicitly listed under OPEN DECISIONS; a later explicit Master Feedback decision resolves that item. Also escalate conflicting requirements or missing decisions that would materially change externally visible behavior, even when the calling host did not list them. Record the exact question in issues and set needs_master_decision=true. Continue independent work that does not depend on the decision. For low-impact implementation choices, use the simplest consistent option and state the assumption in issues."
 ].join("\n");
+function renderAttachments(attachments) {
+  if (!attachments?.length) return [];
+  return [`IMAGES ATTACHED TO THIS MESSAGE (in order; inspect the native images directly without a file-reading tool)
+${attachments.map((image, index) => `${index + 1}. ${JSON.stringify(path7.basename(image.path))}`).join("\n")}`];
+}
 function renderList(title, items) {
   if (items.length === 0) {
     return `${title}
@@ -25149,6 +25157,40 @@ function joinBoundedPreservingTail(sections, requiredTail) {
   if (joined.length <= MAX_PROMPT_CHARS) return joined;
   void requiredTail;
   throw new Error(`task prompt exceeds ${MAX_PROMPT_CHARS} characters; shorten the task package without dropping constraints`);
+}
+
+// src/attachments/images.ts
+import { constants } from "node:fs";
+import { open as open2, realpath, stat } from "node:fs/promises";
+import path8 from "node:path";
+async function resolveImageAttachments(attachments) {
+  if (attachments === void 0) return [];
+  if (!Array.isArray(attachments) || attachments.some((image) => !image || typeof image.path !== "string" || !path8.isAbsolute(image.path))) {
+    throw new BridgeError("attachment_invalid", "attachments must be an array of {path: absolute image path} objects");
+  }
+  const images = [];
+  for (const attachment of attachments) {
+    try {
+      const canonical = await realpath(attachment.path);
+      if (!(await stat(canonical)).isFile()) throw new Error("not a regular file");
+      const file = await open2(canonical, constants.O_RDONLY | constants.O_NONBLOCK);
+      try {
+        const info = await file.stat();
+        if (!info.isFile()) throw new Error("not a regular file");
+        const header = Buffer.alloc(12);
+        const { bytesRead } = await file.read(header, 0, header.length, 0);
+        const signature = header.subarray(0, bytesRead);
+        const mimeType = signature.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")) ? "image/png" : signature[0] === 255 && signature[1] === 216 && signature[2] === 255 ? "image/jpeg" : /^(GIF87a|GIF89a)$/.test(signature.subarray(0, 6).toString("ascii")) ? "image/gif" : signature.subarray(0, 4).toString("ascii") === "RIFF" && signature.subarray(8, 12).toString("ascii") === "WEBP" ? "image/webp" : null;
+        if (!mimeType) throw new Error("unsupported image signature");
+        images.push({ path: canonical, filename: path8.basename(attachment.path), mimeType, sizeBytes: info.size });
+      } finally {
+        await file.close();
+      }
+    } catch {
+      throw new BridgeError("attachment_invalid", `Image attachment must be a readable PNG, JPEG, GIF or WebP regular file: ${attachment.path}`);
+    }
+  }
+  return images;
 }
 
 // src/manager/task-manager.ts
@@ -25376,9 +25418,9 @@ var BridgeTaskManager = class _BridgeTaskManager {
    * blocks the others. */
   async recoverTasks() {
     if (this.#recoveryPromise) return this.#recoveryPromise;
-    const releaseRecovery = tryAcquireProcessLock(path7.join(this.#store.tasksRoot, ".recovery.lock"));
+    const releaseRecovery = tryAcquireProcessLock(path9.join(this.#store.tasksRoot, ".recovery.lock"));
     if (!releaseRecovery) return;
-    const lastRunFile = path7.join(this.#store.tasksRoot, ".recovery-last-run");
+    const lastRunFile = path9.join(this.#store.tasksRoot, ".recovery-last-run");
     if (this.#recoveryCooldownMs > 0 && existsSync5(lastRunFile) && Date.now() - statSync5(lastRunFile).mtimeMs < this.#recoveryCooldownMs) {
       releaseRecovery();
       return;
@@ -25793,8 +25835,8 @@ var BridgeTaskManager = class _BridgeTaskManager {
       if (this.#store.hasTask(task.task_id)) {
         const existing = this.#store.readTask(task.task_id);
         const ref = this.#store.readWorkspaceRef(task.task_id);
-        const sameWorkspace = path7.resolve(task.workspace) === path7.resolve(ref?.requestedPath ?? existing.workspace);
-        const sameExecutionPath = task.worktree_path === void 0 ? existing.worktree_path === void 0 : existing.worktree_path !== void 0 && path7.resolve(task.worktree_path) === path7.resolve(ref?.canonicalPath ?? existing.worktree_path);
+        const sameWorkspace = path9.resolve(task.workspace) === path9.resolve(ref?.requestedPath ?? existing.workspace);
+        const sameExecutionPath = task.worktree_path === void 0 ? existing.worktree_path === void 0 : existing.worktree_path !== void 0 && path9.resolve(task.worktree_path) === path9.resolve(ref?.canonicalPath ?? existing.worktree_path);
         const normalizedRetry = {
           ...task,
           workspace: existing.workspace,
@@ -25814,6 +25856,11 @@ var BridgeTaskManager = class _BridgeTaskManager {
         };
         this.#store.writeSubmission(task.task_id, { fingerprint: fingerprint2, receipt: receipt2 });
         return receipt2;
+      }
+      try {
+        await resolveImageAttachments(task.attachments);
+      } catch (error2) {
+        throw new TaskManagerError("TASK_INVALID", error2 instanceof Error ? error2.message : String(error2));
       }
       let workspaceRef;
       try {
@@ -26073,7 +26120,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
         throw new TaskManagerError("TASK_INVALID", "additional_requirements must be an array of strings");
       }
       const status = this.#store.readStatus(taskId);
-      const continueFingerprint = createHash2("sha256").update(stableJson2({ feedback: input.feedback, additional_requirements: input.additional_requirements ?? [] })).digest("hex");
+      const continueFingerprint = createHash2("sha256").update(stableJson2({ feedback: input.feedback, additional_requirements: input.additional_requirements ?? [], ...input.attachments?.length ? { attachments: input.attachments } : {} })).digest("hex");
       if (input.operation_id !== void 0 && (typeof input.operation_id !== "string" || !input.operation_id.trim() || input.operation_id.length > 128)) {
         throw new TaskManagerError("TASK_INVALID", "operation_id must be a non-empty string up to 128 characters");
       }
@@ -26096,6 +26143,11 @@ var BridgeTaskManager = class _BridgeTaskManager {
         );
       }
       if (status.cleanup_unverified) throw new TaskManagerError("TASK_STATE", "Cannot continue until unverified ZCode process cleanup is resolved");
+      try {
+        await resolveImageAttachments(input.attachments);
+      } catch (error2) {
+        throw new TaskManagerError("TASK_INVALID", error2 instanceof Error ? error2.message : String(error2));
+      }
       const task = this.#store.readTask(taskId);
       try {
         const ref = await this.#workspaceProvider.resolve(task.workspace, taskId, task.worktree_path);
@@ -26112,7 +26164,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
       const previousAttempt = status.attempt;
       const previousResult = this.#store.readResult(taskId);
       try {
-        buildContinuePrompt({ task, feedback: input.feedback, additionalRequirements: input.additional_requirements ?? [], previousSessionId: previousResult?.session_id ?? status.zcode_session_id, previousResult });
+        buildContinuePrompt({ task, feedback: input.feedback, additionalRequirements: input.additional_requirements ?? [], previousSessionId: previousResult?.session_id ?? status.zcode_session_id, previousResult, attachments: input.attachments });
       } catch (error2) {
         throw new TaskManagerError("TASK_INVALID", String(error2));
       }
@@ -26124,6 +26176,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
         ...input.operation_id ? { operation_id: input.operation_id, fingerprint: continueFingerprint, receipt: continuationReceipt } : {},
         feedback: input.feedback,
         additional_requirements: [...input.additional_requirements ?? []],
+        ...input.attachments === void 0 ? {} : { attachments: input.attachments },
         previous_session_id: previousResult?.session_id ?? status.zcode_session_id,
         previous_attempt: previousAttempt
       });
@@ -26496,7 +26549,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
   #executionPathKeyLocked(taskId) {
     const recorded = this.#store.readWorkspaceRef(taskId)?.canonicalPath;
     const task = recorded ? null : this.#store.readTask(taskId);
-    const resolved = path7.resolve(recorded ?? task.worktree_path ?? task.workspace);
+    const resolved = path9.resolve(recorded ?? task.worktree_path ?? task.workspace);
     return process.platform === "win32" ? resolved.toLocaleLowerCase("en-US") : resolved;
   }
   #startWorkerLocked(taskId) {
@@ -26604,7 +26657,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
       clearTimeout(timeout);
       this.#queuedOperations = Math.max(0, this.#queuedOperations - 1);
       try {
-        return await withProcessLock(path7.join(this.#store.tasksRoot, ".manager.lock"), operation, 5e3);
+        return await withProcessLock(path9.join(this.#store.tasksRoot, ".manager.lock"), operation, 5e3);
       } catch (error2) {
         if (error2 instanceof Error && error2.message.startsWith("timed out waiting for process lock:")) {
           throw new TaskManagerError("REQUEST_QUEUE_TIMEOUT", "Bridge operation did not acquire the shared scheduling lock within 5 seconds; retry with the same task_id");
@@ -26636,9 +26689,9 @@ var BridgeTaskManager = class _BridgeTaskManager {
   }
 };
 function pathsOverlap(left, right) {
-  const relative = path7.relative(left, right);
-  const reverse = path7.relative(right, left);
-  const inside = (value) => value === "" || !path7.isAbsolute(value) && value !== ".." && !value.startsWith(`..${path7.sep}`);
+  const relative = path9.relative(left, right);
+  const reverse = path9.relative(right, left);
+  const inside = (value) => value === "" || !path9.isAbsolute(value) && value !== ".." && !value.startsWith(`..${path9.sep}`);
   return inside(relative) || inside(reverse);
 }
 function encodeScanCursor(cursor) {
@@ -26708,9 +26761,13 @@ function sleep3(ms) {
 var DEFAULT_MAX_REQUEST_BODY_SIZE = 4 * 1024 * 1024;
 
 // src/mcp/schemas.ts
+import path10 from "node:path";
 var TASK_ID_PATTERN2 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 var taskIdSchema = string2().regex(TASK_ID_PATTERN2, `task_id must match ${TASK_ID_PATTERN2.source}`);
 var stringArray = array(string2());
+var imageAttachmentsSchema = array(strictObject({
+  path: string2().refine((value) => path10.isAbsolute(value), "Image path must be absolute on the Bridge host")
+})).describe("Images attached directly to this message, in order: [{path: absolute path on the Bridge host}]. PNG, JPEG, GIF and WebP only. Files must remain readable until execution. On continue, only these new images are sent; earlier attachments stay in the session history.");
 var zcodeTaskInputSchema = strictObject({
   executor: _enum(["zcode", "kimi"]).optional().describe("Local coding executor; defaults to zcode. Select kimi to use Kimi Code CLI."),
   kimi: strictObject({
@@ -26733,7 +26790,8 @@ var zcodeTaskInputSchema = strictObject({
   forbidden_paths: stringArray,
   acceptance_criteria: stringArray,
   test_commands: stringArray,
-  context: string2().optional()
+  context: string2().optional(),
+  attachments: imageAttachmentsSchema.optional()
 }).refine(
   (task) => task.executor === "kimi" ? task.model === void 0 : task.kimi === void 0,
   { message: "Kimi tasks use kimi options; ZCode tasks use model" }
@@ -26748,6 +26806,7 @@ var zcodeContinueInputSchema = strictObject({
   task_id: string2().min(1),
   feedback: string2().min(1),
   additional_requirements: array(string2()).optional(),
+  attachments: imageAttachmentsSchema.optional(),
   operation_id: string2().trim().min(1).max(128).optional()
 });
 var zcodeEventsInputSchema = strictObject({
@@ -27100,7 +27159,7 @@ import { createHash as createHash3 } from "node:crypto";
 // src/ledger/bridge.ts
 init_process_lock();
 import { existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync5, writeFileSync as writeFileSync4 } from "node:fs";
-import path8 from "node:path";
+import path11 from "node:path";
 
 // src/ledger/types.ts
 var LedgerError = class extends Error {
@@ -27122,8 +27181,8 @@ var LedgerBridgeLink = class {
   #cursorFile;
   constructor(ledger) {
     this.#ledger = ledger;
-    this.#ledgerDir = path8.join(ledger.root, ".agent-ledger", "ledger");
-    this.#cursorFile = path8.join(this.#ledgerDir, "bridge-cursors.json");
+    this.#ledgerDir = path11.join(ledger.root, ".agent-ledger", "ledger");
+    this.#cursorFile = path11.join(this.#ledgerDir, "bridge-cursors.json");
   }
   /** Persists the run intent, then dispatches; every retry of the same
    * operation keeps the same run and the same executor task id (C2-01). */
@@ -27233,7 +27292,7 @@ var LedgerBridgeLink = class {
     const cursors = this.#readCursors();
     cursors[runId] = { executor_task_id: executorTaskId, last_seq: lastSeq };
     mkdirSync4(this.#ledgerDir, { recursive: true });
-    const release = tryAcquireProcessLock(path8.join(this.#ledgerDir, "cursor.lock"));
+    const release = tryAcquireProcessLock(path11.join(this.#ledgerDir, "cursor.lock"));
     if (!release) return;
     try {
       writeFileSync4(this.#cursorFile, JSON.stringify(cursors, null, 2), { mode: 384 });
@@ -27909,23 +27968,23 @@ function createBridgeServer(options) {
 }
 
 // src/runtime/doctor.ts
-import { accessSync as accessSync2, constants, existsSync as existsSync8, readFileSync as readFileSync7, statSync as statSync6 } from "node:fs";
+import { accessSync as accessSync2, constants as constants2, existsSync as existsSync8, readFileSync as readFileSync7, statSync as statSync6 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import path10 from "node:path";
+import path13 from "node:path";
 
 // src/runtime/account-provider.ts
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync7, readFileSync as readFileSync6 } from "node:fs";
-import path9 from "node:path";
+import path12 from "node:path";
 function buildAccountProviderPayload(config2) {
   const table = readJson(config2.providerBuiltinConfigFile);
   const providerRules = readProviderRules(table).filter(isRecord).map((rule) => rule).filter((rule) => rule.config?.access?.type === "zhipu-account" && typeof rule.providerId === "string");
   if (!providerRules.length) return null;
   const dataDir = zcodeV2DataDir(config2.providerPersonalConfigFile);
   if (!dataDir) return null;
-  const credentials = readJson(path9.join(dataDir, "config.json"));
+  const credentials = readJson(path12.join(dataDir, "config.json"));
   const credentialProviders = asRecord2(credentials?.provider);
-  const cache = readJson(path9.join(dataDir, "coding-plan-cache.json"));
+  const cache = readJson(path12.join(dataDir, "coding-plan-cache.json"));
   const cacheItems = asRecord2(asRecord2(cache?.entryStatus).items);
   const providers = {};
   const states = {};
@@ -27947,7 +28006,7 @@ function buildAccountProviderPayload(config2) {
     };
   }
   const revision = typeof table?.revision === "number" ? table.revision : 0;
-  const resolvedBuiltinPath = path9.resolve(config2.providerBuiltinConfigFile);
+  const resolvedBuiltinPath = path12.resolve(config2.providerBuiltinConfigFile);
   return {
     revision: `account:codex-zcode-bridge:${Date.now()}`,
     basedOnZCodeBuiltinRevision: `zcode-builtin:${revision}:${createHash4("sha256").update(resolvedBuiltinPath).digest("hex")}`,
@@ -27969,8 +28028,8 @@ function runtimeAuthReply(providerId, config2) {
   const legacyId = configProviderId(providerId, rule);
   const dataDir = zcodeV2DataDir(config2.providerPersonalConfigFile);
   if (!dataDir) return unavailable;
-  const credentials = readJson(path9.join(dataDir, "config.json"));
-  const cache = readJson(path9.join(dataDir, "coding-plan-cache.json"));
+  const credentials = readJson(path12.join(dataDir, "config.json"));
+  const cache = readJson(path12.join(dataDir, "coding-plan-cache.json"));
   const status = asRecord2(asRecord2(asRecord2(cache?.entryStatus).items)[legacyId]).status;
   const provider = asRecord2(asRecord2(credentials?.provider)[legacyId]);
   const options = asRecord2(provider.options);
@@ -27980,19 +28039,19 @@ function runtimeAuthReply(providerId, config2) {
 }
 function zcodeDataBaseDir(personalProviderConfigFile) {
   const dataDir = zcodeV2DataDir(personalProviderConfigFile);
-  return dataDir ? path9.dirname(path9.dirname(dataDir)) : null;
+  return dataDir ? path12.dirname(path12.dirname(dataDir)) : null;
 }
 function zcodeTasksIndexPath(personalProviderConfigFile) {
   const dataDir = zcodeV2DataDir(personalProviderConfigFile);
-  return dataDir ? path9.join(dataDir, "tasks-index.sqlite") : null;
+  return dataDir ? path12.join(dataDir, "tasks-index.sqlite") : null;
 }
 function zcodeV2DataDir(personalProviderConfigFile) {
-  const absolute = path9.resolve(personalProviderConfigFile);
-  if (path9.basename(absolute).toLowerCase() !== "provider_config.json") return null;
-  const v2Dir = path9.dirname(absolute);
-  if (path9.basename(v2Dir).toLowerCase() !== "v2") return null;
-  const zcodeDir = path9.dirname(v2Dir);
-  if (path9.basename(zcodeDir).toLowerCase() !== ".zcode") return null;
+  const absolute = path12.resolve(personalProviderConfigFile);
+  if (path12.basename(absolute).toLowerCase() !== "provider_config.json") return null;
+  const v2Dir = path12.dirname(absolute);
+  if (path12.basename(v2Dir).toLowerCase() !== "v2") return null;
+  const zcodeDir = path12.dirname(v2Dir);
+  if (path12.basename(zcodeDir).toLowerCase() !== ".zcode") return null;
   return v2Dir;
 }
 function configProviderId(providerId, rule) {
@@ -28150,10 +28209,10 @@ async function runBridgeDoctor(options = {}) {
       });
     } else if (browserUse === "headless") {
       if (browserExecutable) {
-        if (!path10.isAbsolute(browserExecutable)) {
+        if (!path13.isAbsolute(browserExecutable)) {
           checks.push({ name: "browser_host", status: "error", summary: `ZCODE_BRIDGE_BROWSER_EXECUTABLE must be an absolute path: ${browserExecutable}` });
         } else if (existsSync8(browserExecutable)) {
-          checks.push({ name: "browser_host", status: "ok", summary: `Headless browser host is enabled with the configured executable (${path10.basename(browserExecutable)})` });
+          checks.push({ name: "browser_host", status: "ok", summary: `Headless browser host is enabled with the configured executable (${path13.basename(browserExecutable)})` });
         } else {
           checks.push({ name: "browser_host", status: "error", summary: `Configured browser executable does not exist: ${browserExecutable}` });
         }
@@ -28167,7 +28226,7 @@ async function runBridgeDoctor(options = {}) {
     if (dataRoot && existsSync8(dataRoot)) {
       try {
         const info = statSync6(dataRoot);
-        accessSync2(dataRoot, constants.W_OK);
+        accessSync2(dataRoot, constants2.W_OK);
         checks.push({ name: "task_data", status: info.isDirectory() ? "ok" : "error", summary: info.isDirectory() ? "Bridge task data directory exists and is writable" : "Bridge task data path is not a directory" });
       } catch {
         checks.push({ name: "task_data", status: "error", summary: "Bridge task data directory exists but is not writable" });
@@ -28236,7 +28295,7 @@ async function runBridgeDoctor(options = {}) {
         const summary = `${running.length} running, ${queued.length} queued, ${cleanupPending.length} cleanup-unverified; oldest queue ${queueAge}${blocked ? "; dispatch may be blocked" : ""}. ${lines.join("; ")}`;
         checks.push({ name: "active_tasks", status: blocked ? "warning" : "ok", summary: summary.slice(0, 1200) });
       }
-      checks.push(inspectRecoveryLock(path10.join(store.tasksRoot, ".recovery.lock")));
+      checks.push(inspectRecoveryLock(path13.join(store.tasksRoot, ".recovery.lock")));
     } catch (error2) {
       checks.push({ name: "active_tasks", status: "unknown", summary: safeError(error2) });
     }
@@ -28249,7 +28308,7 @@ function inspectRecoveryLock(lockDirectory) {
   }
   try {
     const lockStat = statSync6(lockDirectory);
-    const raw = readFileSync7(path10.join(lockDirectory, "owner.json"), "utf8");
+    const raw = readFileSync7(path13.join(lockDirectory, "owner.json"), "utf8");
     const owner = JSON.parse(raw);
     if (!Number.isSafeInteger(owner.pid) || (owner.pid ?? 0) <= 0 || typeof owner.token !== "string" || !owner.token) {
       throw new Error("invalid lock owner record");
@@ -28283,9 +28342,9 @@ function safeError(error2) {
 // src/runtime/model-settings.ts
 import { spawn as spawn4 } from "node:child_process";
 import { createHash as createHash5, randomUUID as randomUUID3 } from "node:crypto";
-import { mkdir, readFile as readFile2, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile as readFile2, realpath as realpath2, rm, stat as stat2, writeFile } from "node:fs/promises";
 import { homedir as homedir3 } from "node:os";
-import path11 from "node:path";
+import path14 from "node:path";
 init_process_lock();
 init_atomic_rename();
 var RPC_TIMEOUT_MS = 3e4;
@@ -28303,13 +28362,13 @@ var ZCodeModelSettings = class {
   }
   async listModels(workspace) {
     const requestedWorkspace = workspace.trim();
-    if (!path11.isAbsolute(requestedWorkspace)) {
+    if (!path14.isAbsolute(requestedWorkspace)) {
       throw new BridgeError("provider_config_invalid", "workspace must be an absolute existing directory");
     }
     let workspacePath;
     try {
-      workspacePath = await realpath(requestedWorkspace);
-      if (!(await stat(workspacePath)).isDirectory()) throw new Error("not a directory");
+      workspacePath = await realpath2(requestedWorkspace);
+      if (!(await stat2(workspacePath)).isDirectory()) throw new Error("not a directory");
     } catch {
       throw new BridgeError("provider_config_invalid", `workspace is not an accessible directory: ${requestedWorkspace}`);
     }
@@ -28453,11 +28512,11 @@ var ZCodeModelSettings = class {
   #updateConfig(update) {
     const operation = this.#writeQueue.then(async () => {
       await mkdir(this.#host.settingsDirectory, { recursive: true });
-      return withProcessLock(path11.join(this.#host.settingsDirectory, ".settings.lock"), async () => {
-        const configPath = path11.join(this.#host.settingsDirectory, "runtime-config.json");
+      return withProcessLock(path14.join(this.#host.settingsDirectory, ".settings.lock"), async () => {
+        const configPath = path14.join(this.#host.settingsDirectory, "runtime-config.json");
         let config2 = {};
         try {
-          const info = await stat(configPath);
+          const info = await stat2(configPath);
           if (!info.isFile() || info.size > 64 * 1024) {
             throw new BridgeError("provider_config_invalid", "Bridge runtime config is not a small regular JSON file");
           }
@@ -28468,9 +28527,9 @@ var ZCodeModelSettings = class {
           if (isMissingFile(error2)) {
             config2 = {};
             for (const directory of this.#host.legacySettingsDirectories ?? []) {
-              const legacyPath = path11.join(directory, "runtime-config.json");
+              const legacyPath = path14.join(directory, "runtime-config.json");
               try {
-                if ((await stat(legacyPath)).size > 64 * 1024) throw new Error("legacy settings exceed size limit");
+                if ((await stat2(legacyPath)).size > 64 * 1024) throw new Error("legacy settings exceed size limit");
                 const legacy = JSON.parse(await readFile2(legacyPath, "utf8"));
                 if (!isRecord2(legacy)) throw new Error("invalid legacy settings");
                 loadPersistedRuntimeEnvironment(this.#sourceEnv, this.#homeDir, this.#host);
@@ -28704,7 +28763,7 @@ function modelCatalogCachePath(workspace, config2, env, settingsDirectory) {
     zcodeHome: env.ZCODE_HOME ?? ""
   });
   const key = createHash5("sha256").update(identity).digest("hex");
-  return path11.join(settingsDirectory, "model-catalog", `${key}.json`);
+  return path14.join(settingsDirectory, "model-catalog", `${key}.json`);
 }
 async function modelCatalogSourceFingerprint(config2, env) {
   const digest = createHash5("sha256");
@@ -28712,7 +28771,7 @@ async function modelCatalogSourceFingerprint(config2, env) {
     digest.update(file);
     digest.update(await readFile2(file));
   }
-  const entry = await stat(config2.zcodeEntrypoint);
+  const entry = await stat2(config2.zcodeEntrypoint);
   digest.update(JSON.stringify({ entrypoint: config2.zcodeEntrypoint, size: entry.size, mtimeMs: entry.mtimeMs, mode: env.ZCODE_BRIDGE_MODE?.trim() || "yolo" }));
   const account = buildAccountProviderPayload(config2);
   if (account) digest.update(JSON.stringify({ providers: account.providers, states: account.states, builtinRevision: account.basedOnZCodeBuiltinRevision }));
@@ -28720,7 +28779,7 @@ async function modelCatalogSourceFingerprint(config2, env) {
 }
 async function readModelCatalogCache(cachePath) {
   try {
-    const info = await stat(cachePath);
+    const info = await stat2(cachePath);
     if (!info.isFile() || info.size > 2 * 1024 * 1024) return null;
     const value = JSON.parse(await readFile2(cachePath, "utf8"));
     if (!isRecord2(value) || !Number.isFinite(value.cached_at_ms) || typeof value.source_fingerprint !== "string" || !Array.isArray(value.models)) return null;
@@ -28742,7 +28801,7 @@ function toCachedCatalogEntry(value) {
   return result;
 }
 async function writeModelCatalogCache(cachePath, cache) {
-  await mkdir(path11.dirname(cachePath), { recursive: true });
+  await mkdir(path14.dirname(cachePath), { recursive: true });
   const tempPath = `${cachePath}.${process.pid}.${randomUUID3()}.tmp`;
   try {
     await writeFile(tempPath, `${JSON.stringify(cache)}
@@ -28757,7 +28816,7 @@ async function writeModelCatalogCache(cachePath, cache) {
 // src/schedule/controller.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 import { mkdirSync as mkdirSync5 } from "node:fs";
-import path13 from "node:path";
+import path16 from "node:path";
 init_task_store();
 init_process_lock();
 
@@ -28811,12 +28870,12 @@ ${feedback}`
 
 // src/schedule/supervisor.ts
 import { execFile as execFileCallback } from "node:child_process";
-import path12 from "node:path";
+import path15 from "node:path";
 import { promisify } from "node:util";
 var execFile = promisify(execFileCallback);
 function planSystemdRunUnit(options) {
   const unit = options.unit;
-  const logPath = path12.join(options.scheduleDir, "runner.log");
+  const logPath = path15.join(options.scheduleDir, "runner.log");
   const command = options.nodeExecutable ?? process.execPath;
   const args = [options.runnerEntryPath, options.dataRoot, options.taskId];
   const forwarded = {
@@ -28961,7 +29020,7 @@ var ScheduleController = class {
     }
     const taskId = input.task.task_id;
     mkdirSync5(this.#store.scheduleDir(taskId), { recursive: true, mode: 448 });
-    return withProcessLock(path13.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
+    return withProcessLock(path16.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
       let spec;
       if (this.#store.hasSchedule(taskId)) {
         spec = this.#store.readSpec(taskId);
@@ -28969,6 +29028,11 @@ var ScheduleController = class {
           throw new ScheduleError("SCHEDULE_CONFLICT", `schedule ${taskId} already exists with a different request`);
         }
       } else {
+        try {
+          await resolveImageAttachments(input.task.attachments);
+        } catch (error2) {
+          throw new ScheduleError("SCHEDULE_INVALID", error2 instanceof Error ? error2.message : String(error2));
+        }
         const existing = await this.#manager.getStatus(taskId).catch((error2) => {
           if (error2 instanceof TaskManagerError && error2.code === "TASK_NOT_FOUND") return null;
           throw error2;
@@ -29230,9 +29294,9 @@ var ScheduleController = class {
   }
   async #finishReviewLocked(taskId, state, input, operationId) {
     if (input.accepted) {
-      const tasksRoot = path13.join(this.#dataRoot, ".tasks");
+      const tasksRoot = path16.join(this.#dataRoot, ".tasks");
       mkdirSync5(tasksRoot, { recursive: true, mode: 448 });
-      return withProcessLock(path13.join(tasksRoot, ".manager.lock"), async () => {
+      return withProcessLock(path16.join(tasksRoot, ".manager.lock"), async () => {
         const current = await this.#manager.getStatus(taskId);
         if (current.attempt !== input.attempt || !["completed", "failed", "waiting_for_master"].includes(current.status)) throw new ScheduleError("SCHEDULE_STALE_REVIEW", "execution has advanced since this review was requested");
         if (current.observation?.cleanup !== "verified") throw new ScheduleError("SCHEDULE_STATE", "process cleanup must be verified before acceptance");
@@ -29277,12 +29341,12 @@ var ScheduleController = class {
       }
       if (state.status === "accepted") throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId} was accepted; nothing to cancel`);
       this.#store.writeState({ ...state, cancel_requested: true, updated_at: this.#now().toISOString() });
-      const tasksRoot = path13.join(this.#dataRoot, ".tasks");
+      const tasksRoot = path16.join(this.#dataRoot, ".tasks");
       mkdirSync5(tasksRoot, { recursive: true, mode: 448 });
       let attempt = state.attempt_under_review ?? state.attention?.attempt ?? 1;
       try {
         while (true) {
-          const committed = await withProcessLock(path13.join(tasksRoot, ".manager.lock"), async () => {
+          const committed = await withProcessLock(path16.join(tasksRoot, ".manager.lock"), async () => {
             const execution = await this.#manager.getStatus(taskId).catch((error2) => {
               if (error2 instanceof TaskManagerError && error2.code === "TASK_NOT_FOUND") return null;
               throw error2;
@@ -29464,7 +29528,7 @@ var ScheduleController = class {
   }
   async #locked(taskId, operation) {
     this.#store.readSpec(taskId);
-    return withProcessLock(path13.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
+    return withProcessLock(path16.join(this.#store.scheduleDir(taskId), "state.lock"), async () => {
       const spec = this.#store.readSpec(taskId);
       return operation(this.#store.readState(taskId), spec);
     }, 6e4);
@@ -29491,13 +29555,13 @@ function initialState(taskId, createdAt) {
 // src/schedule/store.ts
 init_atomic_rename();
 import { existsSync as existsSync9, mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync5 } from "node:fs";
-import path14 from "node:path";
+import path17 from "node:path";
 import { randomUUID as randomUUID5 } from "node:crypto";
 function schedulesRootFor(dataRoot) {
-  return path14.join(dataRoot, ".schedules");
+  return path17.join(dataRoot, ".schedules");
 }
 function writeJsonAtomic(file, value) {
-  mkdirSync6(path14.dirname(file), { recursive: true, mode: 448 });
+  mkdirSync6(path17.dirname(file), { recursive: true, mode: 448 });
   const temp = `${file}.${process.pid}.${randomUUID5()}.tmp`;
   writeFileSync5(temp, JSON.stringify(value, null, 2), { mode: 384 });
   atomicRenameSync(temp, file);
@@ -29511,38 +29575,38 @@ var ScheduleStore = class {
     return this.#root;
   }
   scheduleDir(taskId) {
-    return path14.join(this.#root, taskId);
+    return path17.join(this.#root, taskId);
   }
   hasSchedule(taskId) {
-    return existsSync9(path14.join(this.scheduleDir(taskId), "spec.json"));
+    return existsSync9(path17.join(this.scheduleDir(taskId), "spec.json"));
   }
   hasState(taskId) {
-    return existsSync9(path14.join(this.scheduleDir(taskId), "state.json"));
+    return existsSync9(path17.join(this.scheduleDir(taskId), "state.json"));
   }
   readSpec(taskId) {
     try {
-      return JSON.parse(readFileSync8(path14.join(this.scheduleDir(taskId), "spec.json"), "utf8"));
+      return JSON.parse(readFileSync8(path17.join(this.scheduleDir(taskId), "spec.json"), "utf8"));
     } catch (error2) {
       if (!this.hasSchedule(taskId)) throw new ScheduleError("SCHEDULE_NOT_FOUND", `unknown schedule: ${taskId}`);
       throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId} spec could not be read: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
   writeSpec(spec) {
-    writeJsonAtomic(path14.join(this.scheduleDir(spec.task_id), "spec.json"), spec);
+    writeJsonAtomic(path17.join(this.scheduleDir(spec.task_id), "spec.json"), spec);
   }
   readState(taskId) {
     try {
-      return JSON.parse(readFileSync8(path14.join(this.scheduleDir(taskId), "state.json"), "utf8"));
+      return JSON.parse(readFileSync8(path17.join(this.scheduleDir(taskId), "state.json"), "utf8"));
     } catch (error2) {
       if (!this.hasSchedule(taskId)) throw new ScheduleError("SCHEDULE_NOT_FOUND", `unknown schedule: ${taskId}`);
       throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId} state could not be read: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
   writeState(state) {
-    writeJsonAtomic(path14.join(this.scheduleDir(state.task_id), "state.json"), state);
+    writeJsonAtomic(path17.join(this.scheduleDir(state.task_id), "state.json"), state);
   }
   notificationPath(taskId) {
-    return path14.join(this.scheduleDir(taskId), "outbox.json");
+    return path17.join(this.scheduleDir(taskId), "outbox.json");
   }
   hasNotification(taskId, eventId) {
     return this.listNotifications(taskId).some((record3) => record3.event_id === eventId);
@@ -29567,14 +29631,14 @@ var ScheduleStore = class {
   }
   readRuntime() {
     try {
-      return JSON.parse(readFileSync8(path14.join(this.#root, "runtime.json"), "utf8"));
+      return JSON.parse(readFileSync8(path17.join(this.#root, "runtime.json"), "utf8"));
     } catch (error2) {
       if (error2 instanceof Error && "code" in error2 && error2.code === "ENOENT") return null;
       throw error2;
     }
   }
   writeRuntime(info) {
-    writeJsonAtomic(path14.join(this.#root, "runtime.json"), info);
+    writeJsonAtomic(path17.join(this.#root, "runtime.json"), info);
   }
 };
 
@@ -29588,13 +29652,13 @@ function scheduleRunnerEntryPath() {
 function resolveDataRoot(env) {
   const override = env["ZCODE_BRIDGE_DATA_DIR"]?.trim();
   if (override) {
-    if (!path15.isAbsolute(override)) {
+    if (!path18.isAbsolute(override)) {
       return {
         dataRoot: findPackageRoot(),
         warning: `ZCODE_BRIDGE_DATA_DIR must be an absolute path; ignoring ${override} and using the Bridge installation directory`
       };
     }
-    return { dataRoot: path15.normalize(override) };
+    return { dataRoot: path18.normalize(override) };
   }
   return { dataRoot: findPackageRoot() };
 }
@@ -29692,7 +29756,7 @@ var isEntry = process.argv[1] !== void 0 && sameRealPath(import.meta.url, proces
 function sameRealPath(moduleUrl, argvPath) {
   try {
     const modulePath = realpathSync2(fileURLToPath4(moduleUrl));
-    const entryPath = realpathSync2(path16.resolve(argvPath));
+    const entryPath = realpathSync2(path19.resolve(argvPath));
     return process.platform === "win32" ? modulePath.toLocaleLowerCase("en-US") === entryPath.toLocaleLowerCase("en-US") : modulePath === entryPath;
   } catch {
     return false;

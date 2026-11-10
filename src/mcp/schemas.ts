@@ -5,6 +5,7 @@
 // Additive optional output fields (observation, scan cursor/metrics, usage)
 // keep old clients working: they may ignore unknown optional keys.
 import * as z from "zod/v4";
+import path from "node:path";
 
 export const TASK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
@@ -13,6 +14,11 @@ export const taskIdSchema = z
   .regex(TASK_ID_PATTERN, `task_id must match ${TASK_ID_PATTERN.source}`);
 
 const stringArray = z.array(z.string());
+
+const imageAttachmentsSchema = z.array(z.strictObject({
+  path: z.string().refine(value => path.isAbsolute(value), "Image path must be absolute on the Bridge host"),
+})).describe("Images attached directly to this message, in order: [{path: absolute path on the Bridge host}]. PNG, JPEG, GIF and WebP only. Files must remain readable until execution. On continue, only these new images are sent; earlier attachments stay in the session history.");
+
 
 export const zcodeTaskInputSchema = z
   .strictObject({
@@ -38,6 +44,7 @@ export const zcodeTaskInputSchema = z
     acceptance_criteria: stringArray,
     test_commands: stringArray,
     context: z.string().optional(),
+    attachments: imageAttachmentsSchema.optional(),
   })
   // MCP is the uncontrolled input boundary; shared-core callers use this documented contract.
   .refine(task => task.executor === "kimi" ? task.model === undefined : task.kimi === undefined,
@@ -56,6 +63,7 @@ export const zcodeContinueInputSchema = z.strictObject({
   task_id: z.string().min(1),
   feedback: z.string().min(1),
   additional_requirements: z.array(z.string()).optional(),
+  attachments: imageAttachmentsSchema.optional(),
   operation_id: z.string().trim().min(1).max(128).optional(),
 });
 

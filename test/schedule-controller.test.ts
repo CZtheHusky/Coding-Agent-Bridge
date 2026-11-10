@@ -549,3 +549,25 @@ function emptyResult() {
     finished_at: new Date().toISOString(),
   };
 }
+
+test("scheduled images survive a controller restart and dispatch, while invalid images never start supervision", async () => {
+  const fixture = await makeScheduleFixture();
+  try {
+    const imagePath = `${fixture.dataRoot}/visual.png`;
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+    writeFileSync(imagePath, png);
+    const task = { ...scheduleTaskPackage(), attachments: [{ path: imagePath }] };
+    const input = { task, start_at: START_AT, thread_id: THREAD_ID };
+    const controller = makeController(fixture);
+    await assert.rejects(controller.submit({ ...input, task: { ...task, attachments: [{ path: `${imagePath}.missing` }] } }), { code: "SCHEDULE_INVALID" });
+    assert.equal(fixture.supervisor.plans.length, 0);
+    assert.equal(fixture.store.hasSchedule(task.task_id), false);
+    await controller.submit(input);
+    const restarted = makeController(fixture);
+    assert.deepEqual(restarted.readSpec(task.task_id).task.attachments, task.attachments);
+    await restarted.dispatch(task.task_id);
+    const call = fixture.manager.calls.find(x => x.method === "createTask");
+    assert.equal(call?.method, "createTask");
+    if (call?.method === "createTask") assert.deepEqual(call.args.attachments, task.attachments);
+  } finally { await fixture.cleanup(); }
+});

@@ -3,8 +3,9 @@
 **Coding Agent Bridge** runs local ZCode or Kimi coding tasks in the background. MCP tools use `coding_agent_*` under `coding_agent_bridge`. Select ZCode models and reasoning levels via `coding_agent_model_catalog` and `model.reasoning_level`; Kimi uses `kimi.model` and optional `kimi.reasoning_level` (native thinking; currently low/high/max for K3/K3.1 Pro and standard models, depending on model support). Omit the level to preserve native settings. Monitor, continue, answer interactions and cancel tasks. One-time scheduled goals can wake the original Codex chat on supported Linux/App setups; ordinary tasks do not send completion wakeups. Refresh the MCP tool list after upgrading: old `zcode_*` names are no longer registered. Installation IDs, paths, environment variables and stored task data retain their existing names.
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
+> Prior verification: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
 > Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + scheduling working-tree changes.
 
 **Use ZCode as a coding worker inside Codex.**
@@ -22,6 +23,44 @@ Delegate coding tasks from Codex to your local ZCode Agent. Codex assigns tasks,
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 ---
+
+## Native image attachments
+
+`coding_agent_task`, `coding_agent_continue`, and `coding_agent_schedule.task` accept `attachments: [{ "path": "/absolute/image.png" }]`. ZCode and Kimi receive native images in array order; no extra image-reading tool is required. Use absolute, readable paths on the **Bridge host**: SSH tasks need remote paths, not paths on the desktop. Supported file content: PNG, JPEG, GIF and WebP; URLs and inline base64 are not accepted.
+
+[GLM-5.3 is text-only](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3); attaching images does not give it vision. [GLM-5.3-Flash/FlashX are native multimodal models](https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash). This Bridge's live image checks passed with GLM-5.3-Flash and Kimi; FlashX was not tested. For ZCode, query `coding_agent_model_catalog` and add the selected vision-capable `model` to the example below; for Kimi, add `"executor": "kimi"`. The Bridge does not change your default model.
+
+Submit with `coding_agent_task`:
+
+```json
+{
+  "task_id": "image-review-001",
+  "workspace": "/absolute/project",
+  "objective": "Read the attached images in order and report the differences.",
+  "requirements": [],
+  "allowed_paths": [],
+  "forbidden_paths": [],
+  "acceptance_criteria": ["Describe every image accurately"],
+  "test_commands": [],
+  "attachments": [
+    { "path": "/absolute/images/01.png" },
+    { "path": "/absolute/images/02.png" }
+  ]
+}
+```
+
+After the attempt ends, add **only new images** with `coding_agent_continue`:
+
+```json
+{
+  "task_id": "image-review-001",
+  "operation_id": "add-image-03",
+  "feedback": "Compare this new image with the earlier two.",
+  "attachments": [{ "path": "/absolute/images/03.png" }]
+}
+```
+
+Continuation retains the same executor and session. Do not attach earlier images again. Request retries must keep the same task/operation ID, paths and array order. Scheduled tasks use the same attachments inside `task`; files are not copied, so keep originals until execution. Invalid input fails as `TASK_INVALID` / `SCHEDULE_INVALID`; files lost before execution fail as `attachment_invalid`. Model/provider image limits still apply; OCR accuracy and token savings are not guaranteed. Refresh/reconnect MCP after upgrading to load the new parameters and skill. See the [attachment contract](docs/INTERFACES.md#图片附件adr-016) and [validation evidence](docs/reports/2026-11-09-native-image-attachments.md).
 
 ## Kimi Code support
 
@@ -115,6 +154,8 @@ Add the same GitHub marketplace and install the plugin:
 claude plugin marketplace add https://github.com/Sandyzzx/codex-zcode-bridge.git
 claude plugin install codex-zcode-bridge@codex-zcode-bridge
 ```
+
+Claude uses `.claude-plugin/plugin.json` to resolve the bundled server with `${CLAUDE_PLUGIN_ROOT}` from any project directory. Codex keeps its own MCP entry. Update independently deployed Bridge hosts separately; upgrading a CLI does not update their code.
 
 ### Install in the Codex desktop app
 

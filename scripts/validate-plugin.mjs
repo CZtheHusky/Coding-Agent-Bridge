@@ -17,10 +17,11 @@ async function readJson(filePath, label) {
 const pkg = await readJson(path.join(root, "package.json"), "package.json");
 const plugin = await readJson(path.join(pluginRoot, "plugin.json"), "plugin.json");
 const codexPlugin = await readJson(path.join(pluginRoot, ".codex-plugin", "plugin.json"), ".codex-plugin/plugin.json");
+const claudePlugin = await readJson(path.join(pluginRoot, ".claude-plugin", "plugin.json"), ".claude-plugin/plugin.json");
 const portableMcp = await readJson(path.join(pluginRoot, "mcp.json"), "mcp.json");
 const codexMcp = await readJson(path.join(pluginRoot, ".mcp.json"), ".mcp.json");
 
-for (const [label, manifest] of [["plugin.json", plugin], [".codex-plugin/plugin.json", codexPlugin]]) {
+for (const [label, manifest] of [["plugin.json", plugin], [".codex-plugin/plugin.json", codexPlugin], [".claude-plugin/plugin.json", claudePlugin]]) {
   const hasLocalCachebuster =
     label === ".codex-plugin/plugin.json" &&
     typeof manifest.version === "string" &&
@@ -29,6 +30,10 @@ for (const [label, manifest] of [["plugin.json", plugin], [".codex-plugin/plugin
   if (manifest.name !== pkg.name || (manifest.version !== pkg.version && !hasLocalCachebuster)) {
     throw new Error(`${label} identity/version must match package.json (${pkg.name}@${pkg.version})`);
   }
+}
+const claudeServer = claudePlugin.mcpServers?.coding_agent_bridge;
+if (claudeServer?.command !== "node" || claudeServer.args?.length !== 1 || claudeServer.args[0] !== "${CLAUDE_PLUGIN_ROOT}/dist/bridge.mjs" || claudeServer.env?.ZCODE_BRIDGE_PLUGIN_MODE !== "1") {
+  throw new Error(".claude-plugin/plugin.json must launch ${CLAUDE_PLUGIN_ROOT}/dist/bridge.mjs with node and ZCODE_BRIDGE_PLUGIN_MODE=1");
 }
 for (const [label, mcp] of [["mcp.json", portableMcp], [".mcp.json", codexMcp]]) {
   const server = mcp.mcpServers?.coding_agent_bridge;

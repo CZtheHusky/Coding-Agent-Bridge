@@ -42,6 +42,16 @@ description: 通过 Coding Agent Bridge 委派本机 ZCode 或 Kimi 编码任务
 8. 用户取消时调用 `coding_agent_schedule_cancel`，确认持久停止意图、目标状态与执行清理；只调 `coding_agent_cancel` 不会关闭预约目标。MCP 调用中断后由 runner 恢复取消；收到 `cancel_failed` 时核对目标 failed 且 `cancel_requested=true`，确认自动续作与清理重试已暂停，处理清理问题，确需人决定时通知用户，不自动无限重试。通知失败或清理失败须如实报告，不把它们写成已通过。正常进展、未达标续作和验收拒绝不通知人，仅验收通过或关键问题需处理时通知。
 9. App 唤醒适配仅为 Observed Linux App 26.1016.61520 / codex-app-tools 0.1.6 内部接口，无公开跨版本保证。本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测已通过（执行器和 App 接收端为 fixture，无模型调用），历史原聊天唤醒实测另列；本机真实 ZCode 自评/续作、App 消息送达和 Codex 独立验收已通过；新版调度在聊天空闲时启动新轮次仍未验证。不自动修改 provider 配置、安装插件、提交、推送或发布。
 
+> Attachment update: 2026-11-09，核对 ADR-016 可选 attachments 参数、示例与官方模型模态；真实识图范围见 docs/reports/2026-11-09-native-image-attachments.md。
+
+## 图片附件
+
+[GLM-5.3 普通版仅支持文本](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3)，不具备原生多模态能力；Bridge 传图不会为模型增加视觉能力。[GLM-5.3-Flash/FlashX 是原生多模态模型](https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash)。本轮实际验证了 GLM-5.3-Flash 与 Kimi 的原生附图、补图和同会话续作，未实测 FlashX；没有自动更换默认模型。 任务需要识图时先明确选择有视觉能力的模型；ZCode 从 catalog 复制实际 ID，不因普通版收到附件而声称它能直接识图，也不默默修改用户默认值。
+
+任务需要图片时，在 `coding_agent_task` 中传 `attachments: [{ path: "执行 Bridge 的机器上的图片绝对路径" }]`；PNG/JPEG/GIF/WebP 随首条原生消息发送，顺序同数组，不必仅在 objective 写路径并要求逐张 Read。SSH 必须使用远端文件路径。仅附上用户授权用于该任务的图片，模型须支持视觉，不能保证固定 token 降幅。
+
+续作可在 `coding_agent_continue.attachments` 补图，只传本轮新增图片；此前图片保留在原 session，不要重复附上。请求重试保持同 task_id / operation_id 和相同附件路径及顺序。预约使用 task.attachments，原图必须保留到执行时；Bridge 不保存图片快照。TASK_INVALID / SCHEDULE_INVALID / attachment_invalid 应检查文件，不得当作成功、悄悄丢图或自动换成文字路径继续。
+
 ## 派发
 
 1. 确认 Codex 项目根目录，并始终把它作为 coding_agent_task 的 `workspace`。根据 Codex 对任务的执行指示决定是否需要 worktree；需要时由 Codex 创建并准备，再把其现存绝对路径作为 `worktree_path`。Bridge 不创建、选择或删除 worktree；未提供该字段时任务直接在项目根目录执行。

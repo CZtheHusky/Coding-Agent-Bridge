@@ -824,10 +824,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path8) {
-  if (!path8)
+function getElementAtPath(obj, path10) {
+  if (!path10)
     return obj;
-  return path8.reduce((acc, key) => acc?.[key], obj);
+  return path10.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -1167,11 +1167,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path8, issues) {
+function prefixIssues(path10, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path8);
+    iss.path.unshift(path10);
     return iss;
   });
 }
@@ -1621,16 +1621,16 @@ function flattenError(error62, mapper = (issue2) => issue2.message) {
 }
 function formatError(error62, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error63, path8 = []) => {
+  const processError = (error63, path10 = []) => {
     for (const issue2 of error63.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else {
-        const fullpath = [...path8, ...issue2.path];
+        const fullpath = [...path10, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -1669,17 +1669,17 @@ function formatError(error62, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error62, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error63, path8 = []) => {
+  const processError = (error63, path10 = []) => {
     var _a3;
     for (const issue2 of error63.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else {
-        const fullpath = [...path8, ...issue2.path];
+        const fullpath = [...path10, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -1718,8 +1718,8 @@ function treeifyError(error62, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path8 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path8) {
+  const path10 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path10) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -18821,13 +18821,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path8 = ref.slice(1).split("/").filter(Boolean);
-  if (path8.length === 0) {
+  const path10 = ref.slice(1).split("/").filter(Boolean);
+  if (path10.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path8[0] === defsKey) {
-    const key = path8[1] === void 0 ? void 0 : decodeJSONPointerSegment(path8[1]);
+  if (path10[0] === defsKey) {
+    const key = path10[1] === void 0 ? void 0 : decodeJSONPointerSegment(path10[1]);
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -19838,6 +19838,7 @@ function isPlainObject2(value) {
 }
 
 // src/prompts/task-prompt.ts
+import path from "node:path";
 var MAX_PROMPT_CHARS = 6e4;
 var MAX_SECTION_CHARS = 4e3;
 var MAX_CONTEXT_CHARS = 2e3;
@@ -19848,9 +19849,10 @@ function buildTaskPrompt(task) {
     `PROJECT WORKSPACE: ${task.workspace}`,
     ...task.worktree_path ? [`HOST-SELECTED EXECUTION WORKTREE: ${task.worktree_path}. Make task changes in the current working directory, which is this worktree; the project workspace above identifies its parent project.`] : [],
     ...task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : [],
-    ...task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : [],
+    ...task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : ["EXECUTION TIME LIMIT: Bridge defaults to 60 minutes for this attempt when timeout_ms is not set; the user runtime configuration may override it (60 seconds to 4 hours). Plan the work and checkpoints accordingly."],
     `OBJECTIVE
 ${task.objective}`,
+    ...renderAttachments(task.attachments),
     renderList("REQUIREMENTS", task.requirements),
     renderPaths("ALLOWED PATHS (write only inside these when provided)", task.allowed_paths),
     renderPaths("FORBIDDEN PATHS (never create, modify, or delete)", task.forbidden_paths),
@@ -19875,6 +19877,7 @@ function buildContinuePrompt(input2) {
   const sections = [
     `TASK ID: ${task.task_id}`,
     "You are a subordinate coding agent continuing a previous task in the same workspace. Stay inside the workspace.",
+    ...renderAttachments(input2.attachments),
     ...task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : []
   ];
   if (previousSessionId) {
@@ -19915,7 +19918,7 @@ ${feedback}`);
     sections.push(renderList("ADDITIONAL REQUIREMENTS", [...additionalRequirements]));
   }
   sections.push(`ORIGINAL TASK
-${buildTaskPrompt(task)}`);
+${buildTaskPrompt({ ...task, attachments: void 0 })}`);
   return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
 }
 var OUTPUT_CONTRACT = [
@@ -19931,6 +19934,11 @@ var DECISION_RULE = [
   "Use only this task package, this prompt, repository files you inspect, and available tools; do not assume access to the calling host's conversation.",
   "Do not choose unresolved items explicitly listed under OPEN DECISIONS; a later explicit Master Feedback decision resolves that item. Also escalate conflicting requirements or missing decisions that would materially change externally visible behavior, even when the calling host did not list them. Record the exact question in issues and set needs_master_decision=true. Continue independent work that does not depend on the decision. For low-impact implementation choices, use the simplest consistent option and state the assumption in issues."
 ].join("\n");
+function renderAttachments(attachments) {
+  if (!attachments?.length) return [];
+  return [`IMAGES ATTACHED TO THIS MESSAGE (in order; inspect the native images directly without a file-reading tool)
+${attachments.map((image, index) => `${index + 1}. ${JSON.stringify(path.basename(image.path))}`).join("\n")}`];
+}
 function renderList(title, items) {
   if (items.length === 0) {
     return `${title}
@@ -19956,6 +19964,52 @@ function joinBoundedPreservingTail(sections, requiredTail) {
   if (joined.length <= MAX_PROMPT_CHARS) return joined;
   void requiredTail;
   throw new Error(`task prompt exceeds ${MAX_PROMPT_CHARS} characters; shorten the task package without dropping constraints`);
+}
+
+// src/attachments/images.ts
+import { constants } from "node:fs";
+import { open as open2, realpath, stat } from "node:fs/promises";
+import path2 from "node:path";
+
+// src/runtime/errors.ts
+var BridgeError = class extends Error {
+  code;
+  constructor(code, message, options) {
+    super(message, options);
+    this.name = "BridgeError";
+    this.code = code;
+  }
+};
+
+// src/attachments/images.ts
+async function resolveImageAttachments(attachments) {
+  if (attachments === void 0) return [];
+  if (!Array.isArray(attachments) || attachments.some((image) => !image || typeof image.path !== "string" || !path2.isAbsolute(image.path))) {
+    throw new BridgeError("attachment_invalid", "attachments must be an array of {path: absolute image path} objects");
+  }
+  const images = [];
+  for (const attachment of attachments) {
+    try {
+      const canonical = await realpath(attachment.path);
+      if (!(await stat(canonical)).isFile()) throw new Error("not a regular file");
+      const file2 = await open2(canonical, constants.O_RDONLY | constants.O_NONBLOCK);
+      try {
+        const info = await file2.stat();
+        if (!info.isFile()) throw new Error("not a regular file");
+        const header = Buffer.alloc(12);
+        const { bytesRead } = await file2.read(header, 0, header.length, 0);
+        const signature = header.subarray(0, bytesRead);
+        const mimeType = signature.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")) ? "image/png" : signature[0] === 255 && signature[1] === 216 && signature[2] === 255 ? "image/jpeg" : /^(GIF87a|GIF89a)$/.test(signature.subarray(0, 6).toString("ascii")) ? "image/gif" : signature.subarray(0, 4).toString("ascii") === "RIFF" && signature.subarray(8, 12).toString("ascii") === "WEBP" ? "image/webp" : null;
+        if (!mimeType) throw new Error("unsupported image signature");
+        images.push({ path: canonical, filename: path2.basename(attachment.path), mimeType, sizeBytes: info.size });
+      } finally {
+        await file2.close();
+      }
+    } catch {
+      throw new BridgeError("attachment_invalid", `Image attachment must be a readable PNG, JPEG, GIF or WebP regular file: ${attachment.path}`);
+    }
+  }
+  return images;
 }
 
 // src/runtime/child-env.ts
@@ -20010,16 +20064,6 @@ function createProxyEnv(source) {
   }
   return env;
 }
-
-// src/runtime/errors.ts
-var BridgeError = class extends Error {
-  code;
-  constructor(code, message, options) {
-    super(message, options);
-    this.name = "BridgeError";
-    this.code = code;
-  }
-};
 
 // src/runtime/task-timeout.ts
 var DEFAULT_TASK_TIMEOUT_MS = 60 * 60 * 1e3;
@@ -20191,8 +20235,8 @@ function createPlatformProbe(options = {}) {
         const map2 = /* @__PURE__ */ new Map();
         for (const pid of distinct) {
           try {
-            const stat = await readFile(`/proc/${pid}/stat`, "utf8");
-            const afterComm = stat.slice(stat.lastIndexOf(")") + 2);
+            const stat2 = await readFile(`/proc/${pid}/stat`, "utf8");
+            const afterComm = stat2.slice(stat2.lastIndexOf(")") + 2);
             const fields = afterComm.split(" ");
             const starttime = fields[19];
             if (starttime) map2.set(pid, starttime.trim());
@@ -20231,8 +20275,8 @@ function createPlatformProbe(options = {}) {
       if (process.platform === "linux") {
         const map2 = /* @__PURE__ */ new Map();
         try {
-          const stat = await readFile(`/proc/${pid}/stat`, "utf8");
-          const afterComm = stat.slice(stat.lastIndexOf(")") + 2);
+          const stat2 = await readFile(`/proc/${pid}/stat`, "utf8");
+          const afterComm = stat2.slice(stat2.lastIndexOf(")") + 2);
           const starttime = afterComm.split(" ")[19];
           if (starttime) map2.set(pid, starttime.trim());
         } catch {
@@ -21288,10 +21332,10 @@ var KimiAdapter = class {
     this.#options = options;
   }
   async startTask(input2) {
-    return this.#start(input2.task, input2.workspace, buildTaskPrompt(input2.task), null, input2.attempt);
+    return this.#start(input2.task, input2.workspace, buildTaskPrompt(input2.task), null, input2.attempt, input2.task.attachments);
   }
   async continueTask(input2) {
-    return this.#start(input2.task, input2.workspace, buildContinuePrompt(input2), input2.previousSessionId, input2.attempt);
+    return this.#start(input2.task, input2.workspace, buildContinuePrompt(input2), input2.previousSessionId, input2.attempt, input2.attachments);
   }
   async getStatus(handle) {
     const run = this.#runs.get(handle);
@@ -21306,14 +21350,14 @@ var KimiAdapter = class {
     run.controller.abort();
     await run.result;
   }
-  #start(task, workspace, prompt, previousSessionId, attempt) {
+  #start(task, workspace, prompt, previousSessionId, attempt, attachments) {
     const controller = new AbortController();
-    const run = { controller, child: null, cancelled: false, timedOut: false, result: Promise.resolve().then(() => this.#execute(run, task, workspace, prompt, previousSessionId)) };
+    const run = { controller, child: null, cancelled: false, timedOut: false, result: Promise.resolve().then(() => this.#execute(run, task, workspace, prompt, previousSessionId, attachments)) };
     const handle = { taskId: task.task_id, attempt, workerPid: process.pid, zcodePid: null, startedAt: (/* @__PURE__ */ new Date()).toISOString() };
     this.#runs.set(handle, run);
     return handle;
   }
-  async #execute(run, task, workspace, prompt, previousSessionId) {
+  async #execute(run, task, workspace, prompt, previousSessionId, attachments) {
     const emit = this.#options.onEvent;
     const signal = run.controller.signal;
     const timer = setTimeout(() => {
@@ -21331,6 +21375,8 @@ var KimiAdapter = class {
     let cleanupError = null;
     let usage = null;
     try {
+      signal.throwIfAborted();
+      const images = await resolveImageAttachments(attachments);
       signal.throwIfAborted();
       const env = { ...createMinimalOsEnv(process.env), ...createProxyEnv(process.env) };
       if (process.env["KIMI_CODE_HOME"]) env["KIMI_CODE_HOME"] = process.env["KIMI_CODE_HOME"];
@@ -21516,7 +21562,7 @@ var KimiAdapter = class {
         };
       });
       await request(`sessions/${encodeURIComponent(session.id)}/prompts`, object2, {
-        content: [{ type: "text", text: prompt }],
+        content: [{ type: "text", text: prompt }, ...images.map((image) => ({ type: "image", source: { kind: "path", path: image.path }, name: image.filename }))],
         prompt_id: promptId,
         permission_mode: task.kimi?.permission_mode ?? "yolo",
         ...selectedModel ? { model: selectedModel } : {},
@@ -21534,7 +21580,7 @@ var KimiAdapter = class {
       emit?.({ type: "model_selected", summary: "Kimi runtime model", details: { model_id: final.agent_config.model, ...final.agent_config.thinking ? { reasoning_level: final.agent_config.thinking } : {} } });
     } catch (error62) {
       if (!errorCode) {
-        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error62 instanceof BridgeError && error62.code === "spawn_failed" ? "spawn_failed" : "kimi_nonzero_exit";
+        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error62 instanceof BridgeError && (error62.code === "spawn_failed" || error62.code === "attachment_invalid") ? error62.code : "kimi_nonzero_exit";
         reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error62 instanceof BridgeError ? error62.message : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
       }
     } finally {
@@ -21584,26 +21630,26 @@ var KimiAdapter = class {
 // src/adapters/zcode-app-server-adapter.ts
 import { spawn as spawn4 } from "node:child_process";
 import { homedir as homedir3 } from "node:os";
-import path5 from "node:path";
+import path7 from "node:path";
 
 // src/runtime/resolver.ts
 import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import path2 from "node:path";
+import path4 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/host/profile.ts
 import { homedir } from "node:os";
-import path from "node:path";
+import path3 from "node:path";
 function codexHostProfile(homeDirectory = homedir()) {
-  return { name: "codex-zcode-bridge", settingsDirectory: path.join(homeDirectory, ".codex", "codex-zcode-bridge") };
+  return { name: "codex-zcode-bridge", settingsDirectory: path3.join(homeDirectory, ".codex", "codex-zcode-bridge") };
 }
 function validateHostProfile(host) {
-  if (!host || typeof host.name !== "string" || !host.name.trim() || typeof host.settingsDirectory !== "string" || !path.isAbsolute(host.settingsDirectory)) throw new Error("invalid Bridge host profile");
-  if (host.legacySettingsDirectories !== void 0 && (!Array.isArray(host.legacySettingsDirectories) || host.legacySettingsDirectories.some((directory) => typeof directory !== "string" || !path.isAbsolute(directory)))) throw new Error("host migration directories must be absolute");
-  if (host.workerEntryPath !== void 0 && (typeof host.workerEntryPath !== "string" || !path.isAbsolute(host.workerEntryPath))) throw new Error("host worker entry must be absolute");
+  if (!host || typeof host.name !== "string" || !host.name.trim() || typeof host.settingsDirectory !== "string" || !path3.isAbsolute(host.settingsDirectory)) throw new Error("invalid Bridge host profile");
+  if (host.legacySettingsDirectories !== void 0 && (!Array.isArray(host.legacySettingsDirectories) || host.legacySettingsDirectories.some((directory) => typeof directory !== "string" || !path3.isAbsolute(directory)))) throw new Error("host migration directories must be absolute");
+  if (host.workerEntryPath !== void 0 && (typeof host.workerEntryPath !== "string" || !path3.isAbsolute(host.workerEntryPath))) throw new Error("host worker entry must be absolute");
   if (host.instructions !== void 0 && typeof host.instructions !== "string") throw new Error("host instructions must be text");
-  if (host.defaultDataRoot !== void 0 && (typeof host.defaultDataRoot !== "string" || !path.isAbsolute(host.defaultDataRoot))) throw new Error("host default data root must be absolute");
+  if (host.defaultDataRoot !== void 0 && (typeof host.defaultDataRoot !== "string" || !path3.isAbsolute(host.defaultDataRoot))) throw new Error("host default data root must be absolute");
   return host;
 }
 
@@ -21628,15 +21674,15 @@ var PERSISTED_RUNTIME_KEYS = [
 ];
 function loadPersistedRuntimeEnvironment(source, homeDir = homedir2(), host = codexHostProfile(homeDir)) {
   validateHostProfile(host);
-  const settingsPaths = [host.settingsDirectory, ...host.legacySettingsDirectories ?? []].map((directory) => path2.join(directory, "runtime-config.json"));
+  const settingsPaths = [host.settingsDirectory, ...host.legacySettingsDirectories ?? []].map((directory) => path4.join(directory, "runtime-config.json"));
   const legacyDataRoot = source["ZCODE_BRIDGE_DATA_DIR"]?.trim();
-  if (legacyDataRoot && path2.isAbsolute(legacyDataRoot)) {
-    settingsPaths.push(path2.join(legacyDataRoot, "runtime-config.json"));
+  if (legacyDataRoot && path4.isAbsolute(legacyDataRoot)) {
+    settingsPaths.push(path4.join(legacyDataRoot, "runtime-config.json"));
   }
   let parsed = null;
   const seenPaths = /* @__PURE__ */ new Set();
   for (const settingsPath of settingsPaths) {
-    const normalized = path2.resolve(settingsPath);
+    const normalized = path4.resolve(settingsPath);
     const identity = process.platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized;
     if (seenPaths.has(identity)) continue;
     seenPaths.add(identity);
@@ -21740,11 +21786,11 @@ var NodeRuntimeResolver = class {
         this.#validatePersonalConfig(personalEnv);
         personalConfigFile = personalEnv;
       } else {
-        const candidates = zcodeHome ? [path2.join(zcodeHome, "v2", "provider_config.json")] : [
+        const candidates = zcodeHome ? [path4.join(zcodeHome, "v2", "provider_config.json")] : [
           env["ZCODE_DATA_BASE_DIR"]?.trim(),
           ...configuredDataBaseDirs(this.#homeDir),
           this.#homeDir
-        ].filter((base) => Boolean(base)).filter((base, index, values) => values.indexOf(base) === index).map((base) => path2.join(base, ".zcode", "v2", "provider_config.json"));
+        ].filter((base) => Boolean(base)).filter((base, index, values) => values.indexOf(base) === index).map((base) => path4.join(base, ".zcode", "v2", "provider_config.json"));
         const existing = candidates.filter((candidate) => existsSync(candidate));
         if (existing.length === 0) {
           throw new BridgeError(
@@ -21772,7 +21818,7 @@ var NodeRuntimeResolver = class {
         personalConfigFile = accepted;
       }
     }
-    if (zcodeHome && !samePath(personalConfigFile, path2.join(zcodeHome, "v2", "provider_config.json"))) {
+    if (zcodeHome && !samePath(personalConfigFile, path4.join(zcodeHome, "v2", "provider_config.json"))) {
       throw new BridgeError(
         "provider_config_invalid",
         `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE must be ZCODE_HOME/v2/provider_config.json (${zcodeHome})`
@@ -21781,12 +21827,12 @@ var NodeRuntimeResolver = class {
     const dataOverride = env["ZCODE_BRIDGE_DATA_DIR"]?.trim();
     let dataRoot2;
     if (dataOverride) {
-      if (!path2.isAbsolute(dataOverride)) {
+      if (!path4.isAbsolute(dataOverride)) {
         throw new Error(
           `ZCODE_BRIDGE_DATA_DIR must be an absolute path when set, got: ${dataOverride}`
         );
       }
-      dataRoot2 = path2.normalize(dataOverride);
+      dataRoot2 = path4.normalize(dataOverride);
     } else {
       dataRoot2 = this.#packageRoot ?? findPackageRoot();
     }
@@ -21866,20 +21912,20 @@ var NodeRuntimeResolver = class {
 function installCandidates(env, relative) {
   const roots = [
     env["ZCODE_WINDOWS_APP_INSTALL_DIR"]?.trim(),
-    env["LOCALAPPDATA"]?.trim() ? path2.join(env["LOCALAPPDATA"].trim(), "Programs", "ZCode") : null,
-    env["ProgramFiles"]?.trim() ? path2.join(env["ProgramFiles"].trim(), "ZCode") : null
+    env["LOCALAPPDATA"]?.trim() ? path4.join(env["LOCALAPPDATA"].trim(), "Programs", "ZCode") : null,
+    env["ProgramFiles"]?.trim() ? path4.join(env["ProgramFiles"].trim(), "ZCode") : null
   ].filter((root) => Boolean(root));
-  return roots.map((root) => path2.join(root, ...relative));
+  return roots.map((root) => path4.join(root, ...relative));
 }
 function configuredDataBaseDirs(homeDir) {
-  const candidates = [path2.join(homeDir, ".zcode", "v2", "setting.json")];
+  const candidates = [path4.join(homeDir, ".zcode", "v2", "setting.json")];
   for (const settingPath of candidates) {
     try {
       const parsed = JSON.parse(readFileSync(settingPath, "utf8"));
       if (!isPlainObject3(parsed)) continue;
       const dataBaseDir = parsed["dataBaseDir"];
-      if (typeof dataBaseDir === "string" && path2.isAbsolute(dataBaseDir.trim())) {
-        return [path2.normalize(dataBaseDir.trim())];
+      if (typeof dataBaseDir === "string" && path4.isAbsolute(dataBaseDir.trim())) {
+        return [path4.normalize(dataBaseDir.trim())];
       }
     } catch {
     }
@@ -21889,11 +21935,11 @@ function configuredDataBaseDirs(homeDir) {
 function resolveZcodeHome(env) {
   const configured = env["ZCODE_HOME"]?.trim();
   if (!configured) return null;
-  if (!path2.isAbsolute(configured)) {
+  if (!path4.isAbsolute(configured)) {
     throw new BridgeError("provider_config_invalid", "ZCODE_HOME must be an absolute path");
   }
-  const resolved = path2.normalize(configured);
-  if (path2.basename(resolved).toLowerCase() !== ".zcode") {
+  const resolved = path4.normalize(configured);
+  if (path4.basename(resolved).toLowerCase() !== ".zcode") {
     throw new BridgeError(
       "provider_config_invalid",
       "ZCODE_HOME must name a .zcode directory so app-server can use the same data root"
@@ -21910,8 +21956,8 @@ function resolveZcodeHome(env) {
   return resolved;
 }
 function samePath(left, right) {
-  const resolvedLeft = path2.resolve(left);
-  const resolvedRight = path2.resolve(right);
+  const resolvedLeft = path4.resolve(left);
+  const resolvedRight = path4.resolve(right);
   return process.platform === "win32" ? resolvedLeft.toLowerCase() === resolvedRight.toLowerCase() : resolvedLeft === resolvedRight;
 }
 function isReadableFile(filePath) {
@@ -21924,12 +21970,12 @@ function isReadableFile(filePath) {
   }
 }
 function findPackageRoot(startDir) {
-  let current = startDir ?? path2.dirname(fileURLToPath(import.meta.url));
+  let current = startDir ?? path4.dirname(fileURLToPath(import.meta.url));
   for (let depth = 0; depth < 10; depth++) {
-    if (existsSync(path2.join(current, "package.json"))) {
+    if (existsSync(path4.join(current, "package.json"))) {
       return current;
     }
-    const parent = path2.dirname(current);
+    const parent = path4.dirname(current);
     if (parent === current) break;
     current = parent;
   }
@@ -21953,16 +21999,16 @@ function errorText(error62) {
 // src/runtime/account-provider.ts
 import { createHash } from "node:crypto";
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import path3 from "node:path";
+import path5 from "node:path";
 function buildAccountProviderPayload(config2) {
   const table = readJson(config2.providerBuiltinConfigFile);
   const providerRules = readProviderRules(table).filter(isRecord).map((rule) => rule).filter((rule) => rule.config?.access?.type === "zhipu-account" && typeof rule.providerId === "string");
   if (!providerRules.length) return null;
   const dataDir = zcodeV2DataDir(config2.providerPersonalConfigFile);
   if (!dataDir) return null;
-  const credentials = readJson(path3.join(dataDir, "config.json"));
+  const credentials = readJson(path5.join(dataDir, "config.json"));
   const credentialProviders = asRecord(credentials?.provider);
-  const cache = readJson(path3.join(dataDir, "coding-plan-cache.json"));
+  const cache = readJson(path5.join(dataDir, "coding-plan-cache.json"));
   const cacheItems = asRecord(asRecord(cache?.entryStatus).items);
   const providers = {};
   const states = {};
@@ -21984,7 +22030,7 @@ function buildAccountProviderPayload(config2) {
     };
   }
   const revision = typeof table?.revision === "number" ? table.revision : 0;
-  const resolvedBuiltinPath = path3.resolve(config2.providerBuiltinConfigFile);
+  const resolvedBuiltinPath = path5.resolve(config2.providerBuiltinConfigFile);
   return {
     revision: `account:codex-zcode-bridge:${Date.now()}`,
     basedOnZCodeBuiltinRevision: `zcode-builtin:${revision}:${createHash("sha256").update(resolvedBuiltinPath).digest("hex")}`,
@@ -22032,8 +22078,8 @@ function runtimeAuthReply(providerId, config2) {
   const legacyId = configProviderId(providerId, rule);
   const dataDir = zcodeV2DataDir(config2.providerPersonalConfigFile);
   if (!dataDir) return unavailable;
-  const credentials = readJson(path3.join(dataDir, "config.json"));
-  const cache = readJson(path3.join(dataDir, "coding-plan-cache.json"));
+  const credentials = readJson(path5.join(dataDir, "config.json"));
+  const cache = readJson(path5.join(dataDir, "coding-plan-cache.json"));
   const status = asRecord(asRecord(asRecord(cache?.entryStatus).items)[legacyId]).status;
   const provider = asRecord(asRecord(credentials?.provider)[legacyId]);
   const options = asRecord(provider.options);
@@ -22043,19 +22089,19 @@ function runtimeAuthReply(providerId, config2) {
 }
 function zcodeDataBaseDir(personalProviderConfigFile) {
   const dataDir = zcodeV2DataDir(personalProviderConfigFile);
-  return dataDir ? path3.dirname(path3.dirname(dataDir)) : null;
+  return dataDir ? path5.dirname(path5.dirname(dataDir)) : null;
 }
 function zcodeTasksIndexPath(personalProviderConfigFile) {
   const dataDir = zcodeV2DataDir(personalProviderConfigFile);
-  return dataDir ? path3.join(dataDir, "tasks-index.sqlite") : null;
+  return dataDir ? path5.join(dataDir, "tasks-index.sqlite") : null;
 }
 function zcodeV2DataDir(personalProviderConfigFile) {
-  const absolute = path3.resolve(personalProviderConfigFile);
-  if (path3.basename(absolute).toLowerCase() !== "provider_config.json") return null;
-  const v2Dir = path3.dirname(absolute);
-  if (path3.basename(v2Dir).toLowerCase() !== "v2") return null;
-  const zcodeDir = path3.dirname(v2Dir);
-  if (path3.basename(zcodeDir).toLowerCase() !== ".zcode") return null;
+  const absolute = path5.resolve(personalProviderConfigFile);
+  if (path5.basename(absolute).toLowerCase() !== "provider_config.json") return null;
+  const v2Dir = path5.dirname(absolute);
+  if (path5.basename(v2Dir).toLowerCase() !== "v2") return null;
+  const zcodeDir = path5.dirname(v2Dir);
+  if (path5.basename(zcodeDir).toLowerCase() !== ".zcode") return null;
   return v2Dir;
 }
 function configProviderId(providerId, rule) {
@@ -23173,7 +23219,7 @@ function boundedReason(error62) {
 
 // src/browser/load-backend.ts
 import { existsSync as existsSync4 } from "node:fs";
-import path4 from "node:path";
+import path6 from "node:path";
 import { fileURLToPath as fileURLToPath2, pathToFileURL } from "node:url";
 function devRuntimeSpecifier() {
   return ["./runtime", "js"].join(".");
@@ -23190,8 +23236,8 @@ function asBackendModule(imported, label) {
   throw new Error(`${label} does not export createManagedCdpBrowserRuntime`);
 }
 async function loadBackendModule() {
-  const moduleDir = path4.dirname(fileURLToPath2(import.meta.url));
-  const vendorEntry = path4.join(moduleDir, "vendor", "pkg", "browser-host.cjs");
+  const moduleDir = path6.dirname(fileURLToPath2(import.meta.url));
+  const vendorEntry = path6.join(moduleDir, "vendor", "pkg", "browser-host.cjs");
   if (existsSync4(vendorEntry)) {
     return asBackendModule(
       await import(pathToFileURL(vendorEntry).href),
@@ -23262,7 +23308,7 @@ var ZCodeAppServerAdapter = class {
     this.#browser = options.browser;
   }
   async startTask(input2) {
-    return this.#launch(input2.task, input2.workspace, input2.attempt, buildTaskPrompt(input2.task), null);
+    return this.#launch(input2.task, input2.workspace, input2.attempt, buildTaskPrompt(input2.task), null, input2.task.attachments);
   }
   async continueTask(input2) {
     const priorWorkspace = this.#workspaceByTask.get(input2.task.task_id);
@@ -23278,9 +23324,11 @@ var ZCodeAppServerAdapter = class {
         feedback: input2.feedback,
         additionalRequirements: input2.additionalRequirements,
         previousSessionId: input2.previousSessionId,
-        previousResult: input2.previousResult
+        previousResult: input2.previousResult,
+        attachments: input2.attachments
       }),
-      input2.previousSessionId
+      input2.previousSessionId,
+      input2.attachments
     );
   }
   async getStatus(handle) {
@@ -23311,7 +23359,7 @@ var ZCodeAppServerAdapter = class {
       if (!(error62 instanceof BridgeError) || error62.code !== "cancelled") throw error62;
     }
   }
-  async #launch(task, workspace, attempt, prompt, resumeSessionId) {
+  async #launch(task, workspace, attempt, prompt, resumeSessionId, attachments) {
     const handle = {
       taskId: task.task_id,
       attempt,
@@ -23374,7 +23422,7 @@ var ZCodeAppServerAdapter = class {
     };
     this.#runs.set(handle, entry);
     this.#workspaceByTask.set(task.task_id, workspace.canonicalPath);
-    entry.runPromise = this.#execute(entry, task, workspace, prompt, resumeSessionId, turn);
+    entry.runPromise = this.#execute(entry, task, workspace, prompt, resumeSessionId, turn, attachments);
     void entry.runPromise.then(
       (outcome) => {
         entry.outcome = outcome;
@@ -23387,13 +23435,14 @@ var ZCodeAppServerAdapter = class {
     );
     return handle;
   }
-  async #execute(entry, task, workspace, prompt, resumeSessionId, turn) {
+  async #execute(entry, task, workspace, prompt, resumeSessionId, turn, attachments) {
     const startedAt = this.#now();
     const projectPath = workspace.sourcePath ?? workspace.canonicalPath;
     let timer;
     let warningTimer;
     let desktopTask = null;
     try {
+      const images = await resolveImageAttachments(attachments);
       const runtimeEnv = loadPersistedRuntimeEnvironment(this.#childEnvBase, this.#homeDir, this.#host);
       const timeoutMs = this.#timeoutMs ?? resolveTaskTimeout(task, runtimeEnv);
       const config2 = await this.#resolver.resolve();
@@ -23618,7 +23667,11 @@ var ZCodeAppServerAdapter = class {
         afterSeq: runtimeSeq
       });
       entry.acceptingTurn = true;
-      await client.request("session/send", { sessionId, content: prompt });
+      await client.request("session/send", {
+        sessionId,
+        content: prompt,
+        ...images.length ? { attachments: images.map((image) => ({ kind: "image", filename: image.filename, mimeType: image.mimeType, sizeBytes: image.sizeBytes, localPath: image.path })) } : {}
+      });
       entry.rpcAcceptedAt = this.#now().toISOString();
       entry.onEvent({ type: "turn_started", summary: "ZCode accepted the task and started a turn", details: { rpc_accepted: true, ...entry.turnId ? { turn_id: entry.turnId } : {} } });
       entry.bindingTimer = setTimeout(() => {
@@ -24499,7 +24552,7 @@ function browserHostClosedResult() {
   };
 }
 function sameWorkspacePath(left, right) {
-  const normalize = (value) => path5.normalize(value).replace(/[/\\]+/gu, (match) => match.includes("\\") || process.platform === "win32" ? "\\" : "/");
+  const normalize = (value) => path7.normalize(value).replace(/[/\\]+/gu, (match) => match.includes("\\") || process.platform === "win32" ? "\\" : "/");
   const resolvedLeft = normalize(left);
   const resolvedRight = normalize(right);
   return process.platform === "win32" ? resolvedLeft.toLocaleLowerCase("en-US") === resolvedRight.toLocaleLowerCase("en-US") : resolvedLeft === resolvedRight;
@@ -24578,14 +24631,14 @@ function readEffectiveReasoningLevel(snapshot) {
   const level = thoughtLevel.current;
   return typeof level === "string" && level.trim() ? level.trim() : null;
 }
-function nestedString(record2, path8) {
+function nestedString(record2, path10) {
   let value = record2;
-  for (const part of path8) value = asRecord2(value)[part];
+  for (const part of path10) value = asRecord2(value)[part];
   return typeof value === "string" ? value : null;
 }
-function nestedNumber(record2, path8) {
+function nestedNumber(record2, path10) {
   let value = record2;
-  for (const part of path8) value = asRecord2(value)[part];
+  for (const part of path10) value = asRecord2(value)[part];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 function asRecord2(value) {
@@ -24744,13 +24797,13 @@ function truncate(text, maxChars) {
 // src/store/task-store.ts
 import { appendFileSync, chmodSync, closeSync, copyFileSync, existsSync as existsSync6, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync4, readSync, readdirSync, rmSync, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
 import { createHash as createHash2, randomUUID as randomUUID3 } from "node:crypto";
-import path7 from "node:path";
+import path9 from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
 // src/store/process-lock.ts
 import { existsSync as existsSync5, mkdirSync, readFileSync as readFileSync3, renameSync, rmdirSync, statSync as statSync2, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID as randomUUID2 } from "node:crypto";
-import path6 from "node:path";
+import path8 from "node:path";
 var selfIdentity = null;
 var TRANSIENT_LOCK_FS_CODES = /* @__PURE__ */ new Set(["EEXIST", "EPERM", "EACCES", "EBUSY", "ENOTEMPTY"]);
 var DESTINATION_PRESENT_CONTENTION_CODES = /* @__PURE__ */ new Set(["EEXIST", "ENOTEMPTY"]);
@@ -24782,7 +24835,7 @@ function tryAcquireProcessLockWithRetry(directory, retries) {
   };
   try {
     mkdirSync(staging, { mode: 448 });
-    writeFileSync(path6.join(staging, "owner.json"), JSON.stringify(ownerRecord), { mode: 384, flag: "wx" });
+    writeFileSync(path8.join(staging, "owner.json"), JSON.stringify(ownerRecord), { mode: 384, flag: "wx" });
     try {
       renameSync(staging, directory);
     } catch (error62) {
@@ -24803,7 +24856,7 @@ function tryAcquireProcessLockWithRetry(directory, retries) {
     throw error62;
   }
   return () => {
-    const owner = JSON.parse(readFileSync3(path6.join(directory, "owner.json"), "utf8"));
+    const owner = JSON.parse(readFileSync3(path8.join(directory, "owner.json"), "utf8"));
     if (owner.token !== token) throw new Error("process lock ownership changed");
     const retired = `${directory}.${token}.retired`;
     renameWithTransientRetry(directory, retired);
@@ -24825,7 +24878,7 @@ function renameWithTransientRetry(source, target) {
 function acquireExistingLock(directory) {
   let owner;
   try {
-    owner = JSON.parse(readFileSync3(path6.join(directory, "owner.json"), "utf8"));
+    owner = JSON.parse(readFileSync3(path8.join(directory, "owner.json"), "utf8"));
     if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) throw new Error("invalid lock owner");
   } catch {
     try {
@@ -24845,7 +24898,7 @@ function acquireExistingLock(directory) {
   return null;
 }
 function removeStagedLock(directory) {
-  removePrivateFile(path6.join(directory, "owner.json"));
+  removePrivateFile(path8.join(directory, "owner.json"));
   removePrivateDirectory(directory);
 }
 function removePrivateFile(file2) {
@@ -24884,7 +24937,7 @@ function reclaimDeadOwner(directory) {
   }
   let outcome;
   try {
-    const owner = JSON.parse(readFileSync3(path6.join(directory, "owner.json"), "utf8"));
+    const owner = JSON.parse(readFileSync3(path8.join(directory, "owner.json"), "utf8"));
     if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) {
       outcome = { kind: "busy" };
     } else {
@@ -25004,7 +25057,7 @@ var TaskStore = class {
   #maxEventBytes;
   constructor(dataRoot2, options = {}) {
     this.#dataRoot = dataRoot2;
-    this.#tasksRoot = path7.join(dataRoot2, ".tasks");
+    this.#tasksRoot = path9.join(dataRoot2, ".tasks");
     this.#maxLogBytes = options.maxLogBytes ?? DEFAULT_MAX_LOG_BYTES;
     this.#maxEventBytes = options.maxEventBytes ?? DEFAULT_MAX_LOG_BYTES;
     privateMkdir(this.#tasksRoot);
@@ -25022,11 +25075,11 @@ var TaskStore = class {
   }
   taskDir(taskId2) {
     this.assertValidTaskId(taskId2);
-    return path7.join(this.#tasksRoot, taskId2);
+    return path9.join(this.#tasksRoot, taskId2);
   }
   hasTask(taskId2) {
     try {
-      return existsSync6(path7.join(this.taskDir(taskId2), "status.json"));
+      return existsSync6(path9.join(this.taskDir(taskId2), "status.json"));
     } catch {
       return false;
     }
@@ -25034,17 +25087,17 @@ var TaskStore = class {
   listTaskIds() {
     if (!existsSync6(this.#tasksRoot)) return [];
     return readdirSync(this.#tasksRoot).filter(
-      (entry) => existsSync6(path7.join(this.#tasksRoot, entry, "status.json"))
+      (entry) => existsSync6(path9.join(this.#tasksRoot, entry, "status.json"))
     );
   }
   createTask(task, createdAt) {
     this.assertValidTaskId(task.task_id);
     const dir = this.taskDir(task.task_id);
-    if (existsSync6(path7.join(dir, "task.json"))) {
+    if (existsSync6(path9.join(dir, "task.json"))) {
       throw new Error(`task already exists: ${task.task_id}`);
     }
-    privateMkdir(path7.join(dir, "attempts"));
-    this.#writeJsonAtomic(path7.join(dir, "task.json"), task);
+    privateMkdir(path9.join(dir, "attempts"));
+    this.#writeJsonAtomic(path9.join(dir, "task.json"), task);
     const status = {
       task_id: task.task_id,
       status: "queued",
@@ -25057,35 +25110,35 @@ var TaskStore = class {
       zcode_session_id: null,
       exit_code: null
     };
-    this.#writeJsonAtomic(path7.join(dir, "status.json"), status);
+    this.#writeJsonAtomic(path9.join(dir, "status.json"), status);
   }
   readTask(taskId2) {
-    const file2 = path7.join(this.taskDir(taskId2), "task.json");
+    const file2 = path9.join(this.taskDir(taskId2), "task.json");
     const parsed = this.#readJson(file2);
     const task = parsed;
     if (!task || task.task_id !== taskId2 || typeof task.workspace !== "string" || !task.workspace || typeof task.objective !== "string" || [task.requirements, task.allowed_paths, task.forbidden_paths, task.acceptance_criteria, task.test_commands].some((items) => !Array.isArray(items) || items.some((item) => typeof item !== "string"))) throw new Error(`corrupt task record: ${file2}`);
     return task;
   }
   readSubmission(taskId2) {
-    const file2 = path7.join(this.taskDir(taskId2), "submission.json");
+    const file2 = path9.join(this.taskDir(taskId2), "submission.json");
     if (!existsSync6(file2)) return null;
     return this.#readJson(file2);
   }
   writeSubmission(taskId2, submission) {
-    this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "submission.json"), submission);
+    this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "submission.json"), submission);
   }
   writeWorkspaceRef(taskId2, workspace) {
-    this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "workspace.json"), workspace);
+    this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "workspace.json"), workspace);
   }
   readWorkspaceRef(taskId2) {
-    const file2 = path7.join(this.taskDir(taskId2), "workspace.json");
+    const file2 = path9.join(this.taskDir(taskId2), "workspace.json");
     if (!existsSync6(file2)) return null;
     const workspace = this.#readJson(file2);
     if (!workspace || typeof workspace.canonicalPath !== "string" || typeof workspace.requestedPath !== "string" || !["direct", "worktree"].includes(workspace.mode)) throw new Error(`corrupt workspace record: ${file2}`);
     return workspace;
   }
   readStatus(taskId2) {
-    const file2 = path7.join(this.taskDir(taskId2), "status.json");
+    const file2 = path9.join(this.taskDir(taskId2), "status.json");
     const parsed = this.#readJson(file2);
     if (!parsed || parsed.task_id !== taskId2 || !["queued", "running", "completed", "failed", "cancelled", "waiting_for_master"].includes(parsed.status) || !Number.isSafeInteger(parsed.attempt) || parsed.attempt < 1 || typeof parsed.created_at !== "string") {
       throw new Error(`corrupt status record: ${file2}`);
@@ -25094,7 +25147,7 @@ var TaskStore = class {
   }
   /** Read-merge-write with an updated timestamp; atomic via temp file + rename. */
   writeStatus(taskId2, patch, expectedAttempt) {
-    return withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    return withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const current = this.readStatus(taskId2);
       if (expectedAttempt !== void 0 && (current.attempt !== expectedAttempt || isTerminalStatus(current.status))) throw new Error("stale or terminal worker status rejected");
       const next = {
@@ -25103,27 +25156,27 @@ var TaskStore = class {
         task_id: current.task_id,
         updated_at: (/* @__PURE__ */ new Date()).toISOString()
       };
-      this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "status.json"), next);
+      this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "status.json"), next);
       return next;
     });
   }
   readResult(taskId2) {
-    const file2 = path7.join(this.taskDir(taskId2), "result.json");
+    const file2 = path9.join(this.taskDir(taskId2), "result.json");
     if (!existsSync6(file2)) return null;
     const result = this.#readJson(file2);
     if (!result || result.task_id !== taskId2 || !Number.isSafeInteger(result.attempt) || !isTerminalStatus(result.status)) throw new Error(`corrupt result record: ${file2}`);
     return result.attempt === this.readStatus(taskId2).attempt ? result : null;
   }
   writeResult(taskId2, result) {
-    withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       if (this.readStatus(taskId2).attempt !== result.attempt) throw new Error("stale worker attempt result rejected");
-      this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "result.json"), result);
+      this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "result.json"), result);
     });
   }
   commitWorkerResult(taskId2, attempt, result, patch) {
-    withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       this.assertWorkerAttempt(taskId2, attempt);
-      this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "result.json"), result);
+      this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "result.json"), result);
       const current = this.readStatus(taskId2);
       let effective = patch;
       if (current.cleanup_unverified === true) {
@@ -25132,34 +25185,34 @@ var TaskStore = class {
           effective = { ...effective, error: current.error };
         }
       }
-      this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "status.json"), { ...current, ...effective, task_id: taskId2, attempt, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
+      this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "status.json"), { ...current, ...effective, task_id: taskId2, attempt, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
     });
   }
   patchRunningAttempt(taskId2, attempt, patch) {
-    withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const current = this.readStatus(taskId2);
       if (current.attempt !== attempt || current.status !== "running") return;
-      this.#writeJsonAtomic(path7.join(this.taskDir(taskId2), "status.json"), { ...current, ...patch, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
+      this.#writeJsonAtomic(path9.join(this.taskDir(taskId2), "status.json"), { ...current, ...patch, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
     });
   }
   /** Copies evidence before the continuation status commit; the old result remains recoverable. */
   archiveResultToAttempt(taskId2, attempt) {
     const dir = this.taskDir(taskId2);
-    const source = path7.join(dir, "result.json");
+    const source = path9.join(dir, "result.json");
     if (!existsSync6(source)) return;
     const targetDir = this.attemptDir(taskId2, attempt);
     privateMkdir(targetDir);
-    copyFileSync(source, path7.join(targetDir, "result.json"));
-    privateFile(path7.join(targetDir, "result.json"));
+    copyFileSync(source, path9.join(targetDir, "result.json"));
+    privateFile(path9.join(targetDir, "result.json"));
   }
   /** A claim is permanent: a started attempt must never execute again. */
   claimWorkerExecution(taskId2, attempt) {
-    return withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    return withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const status = this.readStatus(taskId2);
       if (status.attempt !== attempt || isTerminalStatus(status.status)) return false;
       privateMkdir(this.attemptDir(taskId2, attempt));
       try {
-        writeFileSync2(path7.join(this.attemptDir(taskId2, attempt), "execution.claim"), JSON.stringify({ pid: process.pid }), { flag: "wx", mode: 384 });
+        writeFileSync2(path9.join(this.attemptDir(taskId2, attempt), "execution.claim"), JSON.stringify({ pid: process.pid }), { flag: "wx", mode: 384 });
         return true;
       } catch (error62) {
         if (error62.code === "EEXIST") return false;
@@ -25172,36 +25225,36 @@ var TaskStore = class {
     if (status.attempt !== attempt || isTerminalStatus(status.status)) throw new Error("stale or terminal worker attempt rejected");
   }
   readArchivedResult(taskId2, attempt) {
-    const file2 = path7.join(this.attemptDir(taskId2, attempt), "result.json");
+    const file2 = path9.join(this.attemptDir(taskId2, attempt), "result.json");
     if (!existsSync6(file2)) return null;
     return this.#readJson(file2);
   }
   attemptDir(taskId2, attempt) {
-    return path7.join(this.taskDir(taskId2), "attempts", String(attempt));
+    return path9.join(this.taskDir(taskId2), "attempts", String(attempt));
   }
   writeAttemptFile(taskId2, attempt, fileName, content) {
     const dir = this.attemptDir(taskId2, attempt);
     privateMkdir(dir);
-    this.#writeTextAtomic(path7.join(dir, fileName), content);
+    this.#writeTextAtomic(path9.join(dir, fileName), content);
   }
   writeAttemptMeta(taskId2, attempt, fileName, meta3) {
     const dir = this.attemptDir(taskId2, attempt);
     privateMkdir(dir);
-    this.#writeJsonAtomic(path7.join(dir, fileName), meta3);
+    this.#writeJsonAtomic(path9.join(dir, fileName), meta3);
   }
   readAttemptMeta(taskId2, attempt, fileName) {
-    const file2 = path7.join(this.attemptDir(taskId2, attempt), fileName);
+    const file2 = path9.join(this.attemptDir(taskId2, attempt), fileName);
     if (!existsSync6(file2)) return null;
     return this.#readJson(file2);
   }
   writeWorkerHeartbeat(taskId2, attempt, heartbeat) {
-    withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const status = this.readStatus(taskId2);
       const claim2 = this.readAttemptMeta(taskId2, attempt, "execution.claim");
       if (status.attempt !== attempt || status.status !== "running" || status.worker_pid !== heartbeat.worker_pid || claim2?.pid !== heartbeat.worker_pid) {
         throw new Error("stale or unowned worker heartbeat rejected");
       }
-      this.#writeJsonAtomic(path7.join(this.attemptDir(taskId2, attempt), "heartbeat.json"), heartbeat);
+      this.#writeJsonAtomic(path9.join(this.attemptDir(taskId2, attempt), "heartbeat.json"), heartbeat);
     });
   }
   readWorkerHeartbeat(taskId2, attempt) {
@@ -25210,7 +25263,7 @@ var TaskStore = class {
     return value;
   }
   readAttemptText(taskId2, attempt, fileName) {
-    const file2 = path7.join(this.attemptDir(taskId2, attempt), fileName);
+    const file2 = path9.join(this.attemptDir(taskId2, attempt), fileName);
     if (!existsSync6(file2)) return null;
     return readFileSync4(file2, "utf8");
   }
@@ -25229,7 +25282,7 @@ var TaskStore = class {
   }
   /** Last complete event line, read from a bounded tail window. */
   readLastBusinessEvent(taskId2) {
-    const file2 = path7.join(this.taskDir(taskId2), "events.jsonl");
+    const file2 = path9.join(this.taskDir(taskId2), "events.jsonl");
     if (!existsSync6(file2)) return null;
     let size = 0;
     try {
@@ -25263,7 +25316,7 @@ var TaskStore = class {
   }
   /** Distinct event types from a bounded tail window (A3 stage inference). */
   listRecentEventTypes(taskId2, maxLines) {
-    const file2 = path7.join(this.taskDir(taskId2), "events.jsonl");
+    const file2 = path9.join(this.taskDir(taskId2), "events.jsonl");
     if (!existsSync6(file2)) return [];
     let size = 0;
     try {
@@ -25297,7 +25350,7 @@ var TaskStore = class {
   }
   /** Newest unanswered interaction request (bounded directory scan). */
   readPendingInteraction(taskId2) {
-    const directory = path7.join(this.taskDir(taskId2), "interactions");
+    const directory = path9.join(this.taskDir(taskId2), "interactions");
     let entries;
     try {
       entries = readdirSync(directory);
@@ -25308,7 +25361,7 @@ var TaskStore = class {
     let newest = null;
     for (const file2 of files) {
       try {
-        const record2 = JSON.parse(readFileSync4(path7.join(directory, file2), "utf8"));
+        const record2 = JSON.parse(readFileSync4(path9.join(directory, file2), "utf8"));
         if (record2.state === "pending" && typeof record2.method === "string" && typeof record2.created_at === "string") {
           if (!newest || record2.created_at > newest.created_at) newest = { method: record2.method, created_at: record2.created_at };
         }
@@ -25321,7 +25374,7 @@ var TaskStore = class {
    * Public request ids are attempt-prefixed ("<attempt>:<runtime id>"), so a
    * monitor can wake a host exactly once per still-pending request. */
   listPendingInteractions(taskId2, max = 16) {
-    const directory = path7.join(this.taskDir(taskId2), "interactions");
+    const directory = path9.join(this.taskDir(taskId2), "interactions");
     const prefix = `${this.readStatus(taskId2).attempt}-`;
     let entries;
     try {
@@ -25332,7 +25385,7 @@ var TaskStore = class {
     }
     const records = [];
     for (const file2 of entries.filter((entry) => entry.startsWith(prefix) && entry.endsWith(".json"))) {
-      const record2 = JSON.parse(readFileSync4(path7.join(directory, file2), "utf8"));
+      const record2 = JSON.parse(readFileSync4(path9.join(directory, file2), "utf8"));
       if (record2.state === "pending") records.push({ request_id: record2.request_id, method: record2.method, created_at: record2.created_at });
     }
     records.sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -25346,7 +25399,7 @@ var TaskStore = class {
    * is per writer and must strictly increase within one writer identity.
    */
   writeWorkerObservation(taskId2, attempt, writerPid, patch, revision, updatedAt = (/* @__PURE__ */ new Date()).toISOString()) {
-    withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const status = this.readStatus(taskId2);
       if (status.attempt !== attempt) throw new Error("stale attempt observation rejected");
       const claim2 = this.readAttemptMeta(taskId2, attempt, "execution.claim");
@@ -25357,14 +25410,14 @@ var TaskStore = class {
   /** Writes manager-owned snapshot fields (probe verdicts); worker business
    * phases are never overwritten from the manager side. */
   writeManagerObservation(taskId2, attempt, patch, revision, updatedAt = (/* @__PURE__ */ new Date()).toISOString()) {
-    withEventLock(path7.join(this.taskDir(taskId2), "state.lock"), () => {
+    withEventLock(path9.join(this.taskDir(taskId2), "state.lock"), () => {
       const status = this.readStatus(taskId2);
       if (status.attempt !== attempt) throw new Error("stale attempt observation rejected");
       this.#mergeObservationSnapshot(taskId2, attempt, "manager", revision, patch, updatedAt);
     });
   }
   readObservationSnapshot(taskId2, attempt) {
-    const file2 = path7.join(this.attemptDir(taskId2, attempt), "observation.json");
+    const file2 = path9.join(this.attemptDir(taskId2, attempt), "observation.json");
     if (!existsSync6(file2)) return { snapshot: null, corrupt: false };
     try {
       const parsed = JSON.parse(readFileSync4(file2, "utf8"));
@@ -25422,7 +25475,7 @@ var TaskStore = class {
     const dir = this.attemptDir(taskId2, attempt);
     privateMkdir(dir);
     try {
-      closeSync(openSync(path7.join(dir, "respawn.claim"), "wx"));
+      closeSync(openSync(path9.join(dir, "respawn.claim"), "wx"));
       return true;
     } catch (error62) {
       if (error62.code === "EEXIST") return false;
@@ -25432,7 +25485,7 @@ var TaskStore = class {
   /** File time of the respawn claim, or null when the attempt is unclaimed. */
   respawnClaimedAt(taskId2, attempt) {
     try {
-      return statSync3(path7.join(this.attemptDir(taskId2, attempt), "respawn.claim")).mtime;
+      return statSync3(path9.join(this.attemptDir(taskId2, attempt), "respawn.claim")).mtime;
     } catch {
       return null;
     }
@@ -25442,7 +25495,7 @@ var TaskStore = class {
     if (!text) return { truncated: false };
     const dir = this.taskDir(taskId2);
     privateMkdir(dir);
-    const file2 = path7.join(dir, `${kind}.log`);
+    const file2 = path9.join(dir, `${kind}.log`);
     let currentBytes = 0;
     try {
       currentBytes = statSync3(file2).size;
@@ -25457,16 +25510,16 @@ var TaskStore = class {
     return { truncated: bytes.length > room };
   }
   readLog(taskId2, kind) {
-    const file2 = path7.join(this.taskDir(taskId2), `${kind}.log`);
+    const file2 = path9.join(this.taskDir(taskId2), `${kind}.log`);
     return existsSync6(file2) ? readFileSync4(file2, "utf8") : "";
   }
   appendEvent(taskId2, type, summary, details, at = (/* @__PURE__ */ new Date()).toISOString()) {
     const dir = this.taskDir(taskId2);
     mkdirSync2(dir, { recursive: true });
-    const lockDir = path7.join(dir, "events.lock");
+    const lockDir = path9.join(dir, "events.lock");
     return withEventLock(lockDir, () => {
-      const file2 = path7.join(dir, "events.jsonl");
-      const seqFile = path7.join(dir, "events.seq");
+      const file2 = path9.join(dir, "events.jsonl");
+      const seqFile = path9.join(dir, "events.seq");
       let bytes = 0;
       let previousSeq = 0;
       let needsSeparator = false;
@@ -25512,12 +25565,12 @@ var TaskStore = class {
       const eventOffset = bytes + (needsSeparator ? 1 : 0);
       appendFileSync(file2, `${needsSeparator ? "\n" : ""}${line}`, { encoding: "utf8", mode: 384 });
       privateFile(file2);
-      const genFile = path7.join(dir, "events.gen");
+      const genFile = path9.join(dir, "events.gen");
       if (!existsSync6(genFile)) {
         this.#writeTextAtomic(genFile, randomUUID3());
       }
       if (event.seq % 100 === 0) {
-        const index = path7.join(dir, "events.index");
+        const index = path9.join(dir, "events.index");
         appendFileSync(index, `${event.seq}	${eventOffset}
 `, { encoding: "utf8", mode: 384 });
         privateFile(index);
@@ -25526,10 +25579,10 @@ var TaskStore = class {
     });
   }
   readEvents(taskId2, afterSeq = 0, limit = 100, view = "raw") {
-    const file2 = path7.join(this.taskDir(taskId2), "events.jsonl");
+    const file2 = path9.join(this.taskDir(taskId2), "events.jsonl");
     if (!existsSync6(file2)) return { events: [], nextSeq: afterSeq, hasMore: false, omittedEvents: 0 };
     let offset = 0;
-    const indexFile = path7.join(this.taskDir(taskId2), "events.index");
+    const indexFile = path9.join(this.taskDir(taskId2), "events.index");
     if (existsSync6(indexFile)) {
       for (const row of readFileSync4(indexFile, "utf8").split(/\r?\n/u)) {
         const [seqText, offsetText] = row.split("	");
@@ -25614,7 +25667,7 @@ var TaskStore = class {
     const limit = input2.limit ?? 100;
     const view = input2.view ?? "raw";
     const budget = input2.maxBytes ?? this.#maxEventBytes;
-    const file2 = path7.join(this.taskDir(taskId2), "events.jsonl");
+    const file2 = path9.join(this.taskDir(taskId2), "events.jsonl");
     const empty = {
       events: [],
       nextSeq: afterSeq,
@@ -25650,7 +25703,7 @@ var TaskStore = class {
     }
     let indexFallback = false;
     if (startOffset === 0) {
-      const indexFile = path7.join(this.taskDir(taskId2), "events.index");
+      const indexFile = path9.join(this.taskDir(taskId2), "events.index");
       if (existsSync6(indexFile)) {
         try {
           let lastSeq = 0;
@@ -25807,7 +25860,7 @@ var TaskStore = class {
   /** Generation marker detecting log replacement/truncation across reads. */
   readEventGeneration(taskId2) {
     try {
-      const value = readFileSync4(path7.join(this.taskDir(taskId2), "events.gen"), "utf8").trim();
+      const value = readFileSync4(path9.join(this.taskDir(taskId2), "events.gen"), "utf8").trim();
       return value || null;
     } catch {
       return null;
@@ -25834,10 +25887,10 @@ var TaskStore = class {
     return event ? event.seq : null;
   }
   writeInteractionRequest(taskId2, request, createdAt = (/* @__PURE__ */ new Date()).toISOString()) {
-    const directory = path7.join(this.taskDir(taskId2), "interactions");
+    const directory = path9.join(this.taskDir(taskId2), "interactions");
     privateMkdir(directory);
     const file2 = this.interactionFile(taskId2, request.request_id);
-    return withEventLock(path7.join(this.taskDir(taskId2), "interactions.lock"), () => {
+    return withEventLock(path9.join(this.taskDir(taskId2), "interactions.lock"), () => {
       if (existsSync6(file2)) {
         const record3 = this.#readJson(file2);
         if (record3.request_id !== request.request_id || record3.method !== request.method || stableJson(record3.params) !== stableJson(request.params)) {
@@ -25924,7 +25977,7 @@ var TaskStore = class {
   }
   answerInteractionRequest(taskId2, requestId, answer, answeredAt = (/* @__PURE__ */ new Date()).toISOString()) {
     const file2 = this.interactionFile(taskId2, requestId);
-    return withEventLock(path7.join(this.taskDir(taskId2), "interactions.lock"), () => {
+    return withEventLock(path9.join(this.taskDir(taskId2), "interactions.lock"), () => {
       if (!existsSync6(file2)) throw new Error(`unknown ZCode interaction request: ${requestId}`);
       const current = this.#readJson(file2);
       if (current.request_id !== requestId) throw new Error("interaction request id hash mismatch");
@@ -25944,7 +25997,7 @@ var TaskStore = class {
    * check-then-write window where an edited record could slip through. */
   answerInteractionRequestVerified(taskId2, requestId, answer, options, answeredAt = (/* @__PURE__ */ new Date()).toISOString()) {
     const file2 = this.interactionFile(taskId2, requestId);
-    return withEventLock(path7.join(this.taskDir(taskId2), "interactions.lock"), () => {
+    return withEventLock(path9.join(this.taskDir(taskId2), "interactions.lock"), () => {
       if (!existsSync6(file2)) throw new Error(`unknown ZCode interaction request: ${requestId}`);
       const current = this.#readJson(file2);
       if (current.request_id !== requestId) throw new Error("interaction request id hash mismatch");
@@ -25965,7 +26018,7 @@ var TaskStore = class {
   interactionFile(taskId2, requestId) {
     if (!requestId || requestId.length > 512) throw new Error("invalid ZCode interaction request_id");
     const key = createHash2("sha256").update(requestId).digest("hex");
-    return path7.join(this.taskDir(taskId2), "interactions", `${this.readStatus(taskId2).attempt}-${key}.json`);
+    return path9.join(this.taskDir(taskId2), "interactions", `${this.readStatus(taskId2).attempt}-${key}.json`);
   }
   #readJson(file2) {
     try {
@@ -26237,6 +26290,7 @@ async function runWorkerTask(options) {
       task,
       feedback: continueSpec.feedback,
       additionalRequirements: continueSpec.additional_requirements ?? [],
+      attachments: continueSpec.attachments,
       previousSessionId: continueSpec.previous_session_id,
       previousResult
     }) : buildTaskPrompt(task);
@@ -26495,6 +26549,7 @@ async function runWorkerTask(options) {
         attempt,
         feedback: continueSpec.feedback,
         additionalRequirements: [...continueSpec.additional_requirements ?? []],
+        attachments: continueSpec.attachments,
         previousSessionId: continueSpec.previous_session_id,
         previousResult
       }) : await adapter.startTask({ task, workspace: workspaceRef, attempt });

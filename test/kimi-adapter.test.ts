@@ -191,3 +191,35 @@ test("Kimi reports the runtime-confirmed effort rather than the requested effort
     assert.deepEqual(confirmed, ["high"]);
   } finally { f.cleanup(); }
 });
+
+test("Kimi uses REST image/path content, keeps ordering, and does not resend prior attachments", async () => {
+  const f = fixture(); const events: unknown[] = [];
+  try {
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+    const imagePaths = [path.join(f.cwd, "first.png"), path.join(f.cwd, "second.png")];
+    for (const imagePath of imagePaths) writeFileSync(imagePath, png);
+    f.task.attachments = imagePaths.map(imagePath => ({ path: imagePath }));
+    const adapter = new KimiAdapter({ onEvent: e => events.push(e) });
+    const first = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    const second = await adapter.getResult(await adapter.continueTask({ ...f, attempt: 2, feedback: "inspect new", additionalRequirements: [], previousSessionId: first.sessionId, previousResult: null, attachments: [f.task.attachments[1]!] }));
+    const third = await adapter.getResult(await adapter.continueTask({ ...f, attempt: 3, feedback: "recall history", additionalRequirements: [], previousSessionId: second.sessionId, previousResult: null }));
+    assert.equal(third.errorCode, null); assert.equal(third.sessionId, first.sessionId);
+    const prompts = f.requests().filter((r: { route: string }) => r.route.endsWith("/prompts"));
+    assert.deepEqual(prompts[0].body.content.slice(1), imagePaths.map(imagePath => ({ type: "image", source: { kind: "path", path: imagePath }, name: path.basename(imagePath) })));
+    assert.deepEqual(prompts[1].body.content.slice(1), [prompts[0].body.content[2]]);
+    assert.equal(prompts[2].body.content.length, 1);
+    assert.equal(f.requests().filter((r: { route: string; body?: unknown }) => r.route === "/api/v1/sessions" && r.body).length, 1);
+    assert.doesNotMatch(JSON.stringify(events), /dataBase64|iVBORw0KGgo/);
+  } finally { f.cleanup(); }
+});
+
+test("Kimi returns a specific attachment error without launching a server for missing images", async () => {
+  const f = fixture(); const events: unknown[] = [];
+  try {
+    f.task.attachments = [{ path: path.join(f.cwd, "missing.png") }];
+    const adapter = new KimiAdapter({ onEvent: e => events.push(e) });
+    const result = await adapter.getResult(await adapter.startTask({ ...f, attempt: 1 }));
+    assert.equal(result.errorCode, "attachment_invalid"); assert.equal(result.cleanupVerified, true);
+    assert.equal(events.some(e => (e as { type: string }).type === "app_server_started"), false);
+  } finally { f.cleanup(); }
+});

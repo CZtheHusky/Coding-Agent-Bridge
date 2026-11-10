@@ -1,8 +1,8 @@
 // src/schedule/runner-main.ts
-import path10 from "node:path";
+import path12 from "node:path";
 
 // src/manager/task-manager.ts
-import path5 from "node:path";
+import path7 from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 import { existsSync as existsSync3, statSync as statSync3, writeFileSync as writeFileSync3 } from "node:fs";
 
@@ -1739,8 +1739,8 @@ function createPlatformProbe(options = {}) {
         const map = /* @__PURE__ */ new Map();
         for (const pid of distinct) {
           try {
-            const stat = await readFile(`/proc/${pid}/stat`, "utf8");
-            const afterComm = stat.slice(stat.lastIndexOf(")") + 2);
+            const stat2 = await readFile(`/proc/${pid}/stat`, "utf8");
+            const afterComm = stat2.slice(stat2.lastIndexOf(")") + 2);
             const fields = afterComm.split(" ");
             const starttime = fields[19];
             if (starttime) map.set(pid, starttime.trim());
@@ -1779,8 +1779,8 @@ function createPlatformProbe(options = {}) {
       if (process.platform === "linux") {
         const map = /* @__PURE__ */ new Map();
         try {
-          const stat = await readFile(`/proc/${pid}/stat`, "utf8");
-          const afterComm = stat.slice(stat.lastIndexOf(")") + 2);
+          const stat2 = await readFile(`/proc/${pid}/stat`, "utf8");
+          const afterComm = stat2.slice(stat2.lastIndexOf(")") + 2);
           const starttime = afterComm.split(" ")[19];
           if (starttime) map.set(pid, starttime.trim());
         } catch {
@@ -2806,6 +2806,7 @@ function validateTaskTimeout(value) {
 }
 
 // src/prompts/task-prompt.ts
+import path5 from "node:path";
 var MAX_PROMPT_CHARS = 6e4;
 var MAX_SECTION_CHARS = 4e3;
 var MAX_CONTEXT_CHARS = 2e3;
@@ -2816,9 +2817,10 @@ function buildTaskPrompt(task) {
     `PROJECT WORKSPACE: ${task.workspace}`,
     ...task.worktree_path ? [`HOST-SELECTED EXECUTION WORKTREE: ${task.worktree_path}. Make task changes in the current working directory, which is this worktree; the project workspace above identifies its parent project.`] : [],
     ...task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : [],
-    ...task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : [],
+    ...task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : ["EXECUTION TIME LIMIT: Bridge defaults to 60 minutes for this attempt when timeout_ms is not set; the user runtime configuration may override it (60 seconds to 4 hours). Plan the work and checkpoints accordingly."],
     `OBJECTIVE
 ${task.objective}`,
+    ...renderAttachments(task.attachments),
     renderList("REQUIREMENTS", task.requirements),
     renderPaths("ALLOWED PATHS (write only inside these when provided)", task.allowed_paths),
     renderPaths("FORBIDDEN PATHS (never create, modify, or delete)", task.forbidden_paths),
@@ -2843,6 +2845,7 @@ function buildContinuePrompt(input) {
   const sections = [
     `TASK ID: ${task.task_id}`,
     "You are a subordinate coding agent continuing a previous task in the same workspace. Stay inside the workspace.",
+    ...renderAttachments(input.attachments),
     ...task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : []
   ];
   if (previousSessionId) {
@@ -2883,7 +2886,7 @@ ${feedback}`);
     sections.push(renderList("ADDITIONAL REQUIREMENTS", [...additionalRequirements]));
   }
   sections.push(`ORIGINAL TASK
-${buildTaskPrompt(task)}`);
+${buildTaskPrompt({ ...task, attachments: void 0 })}`);
   return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
 }
 var OUTPUT_CONTRACT = [
@@ -2899,6 +2902,11 @@ var DECISION_RULE = [
   "Use only this task package, this prompt, repository files you inspect, and available tools; do not assume access to the calling host's conversation.",
   "Do not choose unresolved items explicitly listed under OPEN DECISIONS; a later explicit Master Feedback decision resolves that item. Also escalate conflicting requirements or missing decisions that would materially change externally visible behavior, even when the calling host did not list them. Record the exact question in issues and set needs_master_decision=true. Continue independent work that does not depend on the decision. For low-impact implementation choices, use the simplest consistent option and state the assumption in issues."
 ].join("\n");
+function renderAttachments(attachments) {
+  if (!attachments?.length) return [];
+  return [`IMAGES ATTACHED TO THIS MESSAGE (in order; inspect the native images directly without a file-reading tool)
+${attachments.map((image, index) => `${index + 1}. ${JSON.stringify(path5.basename(image.path))}`).join("\n")}`];
+}
 function renderList(title, items) {
   if (items.length === 0) {
     return `${title}
@@ -2924,6 +2932,52 @@ function joinBoundedPreservingTail(sections, requiredTail) {
   if (joined.length <= MAX_PROMPT_CHARS) return joined;
   void requiredTail;
   throw new Error(`task prompt exceeds ${MAX_PROMPT_CHARS} characters; shorten the task package without dropping constraints`);
+}
+
+// src/attachments/images.ts
+import { constants } from "node:fs";
+import { open, realpath, stat } from "node:fs/promises";
+import path6 from "node:path";
+
+// src/runtime/errors.ts
+var BridgeError = class extends Error {
+  code;
+  constructor(code, message, options) {
+    super(message, options);
+    this.name = "BridgeError";
+    this.code = code;
+  }
+};
+
+// src/attachments/images.ts
+async function resolveImageAttachments(attachments) {
+  if (attachments === void 0) return [];
+  if (!Array.isArray(attachments) || attachments.some((image) => !image || typeof image.path !== "string" || !path6.isAbsolute(image.path))) {
+    throw new BridgeError("attachment_invalid", "attachments must be an array of {path: absolute image path} objects");
+  }
+  const images = [];
+  for (const attachment of attachments) {
+    try {
+      const canonical = await realpath(attachment.path);
+      if (!(await stat(canonical)).isFile()) throw new Error("not a regular file");
+      const file = await open(canonical, constants.O_RDONLY | constants.O_NONBLOCK);
+      try {
+        const info = await file.stat();
+        if (!info.isFile()) throw new Error("not a regular file");
+        const header = Buffer.alloc(12);
+        const { bytesRead } = await file.read(header, 0, header.length, 0);
+        const signature = header.subarray(0, bytesRead);
+        const mimeType = signature.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")) ? "image/png" : signature[0] === 255 && signature[1] === 216 && signature[2] === 255 ? "image/jpeg" : /^(GIF87a|GIF89a)$/.test(signature.subarray(0, 6).toString("ascii")) ? "image/gif" : signature.subarray(0, 4).toString("ascii") === "RIFF" && signature.subarray(8, 12).toString("ascii") === "WEBP" ? "image/webp" : null;
+        if (!mimeType) throw new Error("unsupported image signature");
+        images.push({ path: canonical, filename: path6.basename(attachment.path), mimeType, sizeBytes: info.size });
+      } finally {
+        await file.close();
+      }
+    } catch {
+      throw new BridgeError("attachment_invalid", `Image attachment must be a readable PNG, JPEG, GIF or WebP regular file: ${attachment.path}`);
+    }
+  }
+  return images;
 }
 
 // src/observation/types.ts
@@ -3311,9 +3365,9 @@ var BridgeTaskManager = class _BridgeTaskManager {
    * blocks the others. */
   async recoverTasks() {
     if (this.#recoveryPromise) return this.#recoveryPromise;
-    const releaseRecovery = tryAcquireProcessLock(path5.join(this.#store.tasksRoot, ".recovery.lock"));
+    const releaseRecovery = tryAcquireProcessLock(path7.join(this.#store.tasksRoot, ".recovery.lock"));
     if (!releaseRecovery) return;
-    const lastRunFile = path5.join(this.#store.tasksRoot, ".recovery-last-run");
+    const lastRunFile = path7.join(this.#store.tasksRoot, ".recovery-last-run");
     if (this.#recoveryCooldownMs > 0 && existsSync3(lastRunFile) && Date.now() - statSync3(lastRunFile).mtimeMs < this.#recoveryCooldownMs) {
       releaseRecovery();
       return;
@@ -3728,8 +3782,8 @@ var BridgeTaskManager = class _BridgeTaskManager {
       if (this.#store.hasTask(task.task_id)) {
         const existing = this.#store.readTask(task.task_id);
         const ref = this.#store.readWorkspaceRef(task.task_id);
-        const sameWorkspace = path5.resolve(task.workspace) === path5.resolve(ref?.requestedPath ?? existing.workspace);
-        const sameExecutionPath = task.worktree_path === void 0 ? existing.worktree_path === void 0 : existing.worktree_path !== void 0 && path5.resolve(task.worktree_path) === path5.resolve(ref?.canonicalPath ?? existing.worktree_path);
+        const sameWorkspace = path7.resolve(task.workspace) === path7.resolve(ref?.requestedPath ?? existing.workspace);
+        const sameExecutionPath = task.worktree_path === void 0 ? existing.worktree_path === void 0 : existing.worktree_path !== void 0 && path7.resolve(task.worktree_path) === path7.resolve(ref?.canonicalPath ?? existing.worktree_path);
         const normalizedRetry = {
           ...task,
           workspace: existing.workspace,
@@ -3749,6 +3803,11 @@ var BridgeTaskManager = class _BridgeTaskManager {
         };
         this.#store.writeSubmission(task.task_id, { fingerprint: fingerprint2, receipt: receipt2 });
         return receipt2;
+      }
+      try {
+        await resolveImageAttachments(task.attachments);
+      } catch (error) {
+        throw new TaskManagerError("TASK_INVALID", error instanceof Error ? error.message : String(error));
       }
       let workspaceRef;
       try {
@@ -4008,7 +4067,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
         throw new TaskManagerError("TASK_INVALID", "additional_requirements must be an array of strings");
       }
       const status = this.#store.readStatus(taskId2);
-      const continueFingerprint = createHash2("sha256").update(stableJson2({ feedback: input.feedback, additional_requirements: input.additional_requirements ?? [] })).digest("hex");
+      const continueFingerprint = createHash2("sha256").update(stableJson2({ feedback: input.feedback, additional_requirements: input.additional_requirements ?? [], ...input.attachments?.length ? { attachments: input.attachments } : {} })).digest("hex");
       if (input.operation_id !== void 0 && (typeof input.operation_id !== "string" || !input.operation_id.trim() || input.operation_id.length > 128)) {
         throw new TaskManagerError("TASK_INVALID", "operation_id must be a non-empty string up to 128 characters");
       }
@@ -4031,6 +4090,11 @@ var BridgeTaskManager = class _BridgeTaskManager {
         );
       }
       if (status.cleanup_unverified) throw new TaskManagerError("TASK_STATE", "Cannot continue until unverified ZCode process cleanup is resolved");
+      try {
+        await resolveImageAttachments(input.attachments);
+      } catch (error) {
+        throw new TaskManagerError("TASK_INVALID", error instanceof Error ? error.message : String(error));
+      }
       const task = this.#store.readTask(taskId2);
       try {
         const ref = await this.#workspaceProvider.resolve(task.workspace, taskId2, task.worktree_path);
@@ -4047,7 +4111,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
       const previousAttempt = status.attempt;
       const previousResult = this.#store.readResult(taskId2);
       try {
-        buildContinuePrompt({ task, feedback: input.feedback, additionalRequirements: input.additional_requirements ?? [], previousSessionId: previousResult?.session_id ?? status.zcode_session_id, previousResult });
+        buildContinuePrompt({ task, feedback: input.feedback, additionalRequirements: input.additional_requirements ?? [], previousSessionId: previousResult?.session_id ?? status.zcode_session_id, previousResult, attachments: input.attachments });
       } catch (error) {
         throw new TaskManagerError("TASK_INVALID", String(error));
       }
@@ -4059,6 +4123,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
         ...input.operation_id ? { operation_id: input.operation_id, fingerprint: continueFingerprint, receipt: continuationReceipt } : {},
         feedback: input.feedback,
         additional_requirements: [...input.additional_requirements ?? []],
+        ...input.attachments === void 0 ? {} : { attachments: input.attachments },
         previous_session_id: previousResult?.session_id ?? status.zcode_session_id,
         previous_attempt: previousAttempt
       });
@@ -4431,7 +4496,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
   #executionPathKeyLocked(taskId2) {
     const recorded = this.#store.readWorkspaceRef(taskId2)?.canonicalPath;
     const task = recorded ? null : this.#store.readTask(taskId2);
-    const resolved = path5.resolve(recorded ?? task.worktree_path ?? task.workspace);
+    const resolved = path7.resolve(recorded ?? task.worktree_path ?? task.workspace);
     return process.platform === "win32" ? resolved.toLocaleLowerCase("en-US") : resolved;
   }
   #startWorkerLocked(taskId2) {
@@ -4539,7 +4604,7 @@ var BridgeTaskManager = class _BridgeTaskManager {
       clearTimeout(timeout);
       this.#queuedOperations = Math.max(0, this.#queuedOperations - 1);
       try {
-        return await withProcessLock(path5.join(this.#store.tasksRoot, ".manager.lock"), operation, 5e3);
+        return await withProcessLock(path7.join(this.#store.tasksRoot, ".manager.lock"), operation, 5e3);
       } catch (error) {
         if (error instanceof Error && error.message.startsWith("timed out waiting for process lock:")) {
           throw new TaskManagerError("REQUEST_QUEUE_TIMEOUT", "Bridge operation did not acquire the shared scheduling lock within 5 seconds; retry with the same task_id");
@@ -4571,9 +4636,9 @@ var BridgeTaskManager = class _BridgeTaskManager {
   }
 };
 function pathsOverlap(left, right) {
-  const relative = path5.relative(left, right);
-  const reverse = path5.relative(right, left);
-  const inside = (value) => value === "" || !path5.isAbsolute(value) && value !== ".." && !value.startsWith(`..${path5.sep}`);
+  const relative = path7.relative(left, right);
+  const reverse = path7.relative(right, left);
+  const inside = (value) => value === "" || !path7.isAbsolute(value) && value !== ".." && !value.startsWith(`..${path7.sep}`);
   return inside(relative) || inside(reverse);
 }
 function encodeScanCursor(cursor) {
@@ -4641,7 +4706,7 @@ function sleep2(ms) {
 
 // src/workspace/direct-provider.ts
 import { realpathSync, statSync as statSync4 } from "node:fs";
-import path6 from "node:path";
+import path8 from "node:path";
 var DirectWorkspaceProvider = class {
   async resolve(workspacePath, _taskId, executionPath) {
     const projectPath = resolveExistingDirectory(workspacePath, "workspace");
@@ -4660,14 +4725,14 @@ function resolveExistingDirectory(input, field) {
   if (typeof input !== "string" || input.trim().length === 0) {
     throw new Error(`${field} must be a non-empty string`);
   }
-  if (!path6.isAbsolute(input)) throw new Error(`${field} must be an absolute path: ${input}`);
-  let stat;
+  if (!path8.isAbsolute(input)) throw new Error(`${field} must be an absolute path: ${input}`);
+  let stat2;
   try {
-    stat = statSync4(input);
+    stat2 = statSync4(input);
   } catch {
     throw new Error(`${field} does not exist: ${input}`);
   }
-  if (!stat.isDirectory()) throw new Error(`${field} is not a directory: ${input}`);
+  if (!stat2.isDirectory()) throw new Error(`${field} is not a directory: ${input}`);
   try {
     return { requestedPath: input, canonicalPath: realpathSync(input) };
   } catch {
@@ -4810,7 +4875,7 @@ function readFramedResponse(socket, frame, timeoutMs) {
 // src/schedule/controller.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 import { mkdirSync as mkdirSync4 } from "node:fs";
-import path8 from "node:path";
+import path10 from "node:path";
 
 // src/schedule/errors.ts
 var ScheduleError = class extends Error {
@@ -4905,12 +4970,12 @@ ${feedback}`
 
 // src/schedule/supervisor.ts
 import { execFile as execFileCallback } from "node:child_process";
-import path7 from "node:path";
+import path9 from "node:path";
 import { promisify } from "node:util";
 var execFile = promisify(execFileCallback);
 function planSystemdRunUnit(options) {
   const unit = options.unit;
-  const logPath = path7.join(options.scheduleDir, "runner.log");
+  const logPath = path9.join(options.scheduleDir, "runner.log");
   const command = options.nodeExecutable ?? process.execPath;
   const args = [options.runnerEntryPath, options.dataRoot, options.taskId];
   const forwarded = {
@@ -5055,7 +5120,7 @@ var ScheduleController = class {
     }
     const taskId2 = input.task.task_id;
     mkdirSync4(this.#store.scheduleDir(taskId2), { recursive: true, mode: 448 });
-    return withProcessLock(path8.join(this.#store.scheduleDir(taskId2), "state.lock"), async () => {
+    return withProcessLock(path10.join(this.#store.scheduleDir(taskId2), "state.lock"), async () => {
       let spec;
       if (this.#store.hasSchedule(taskId2)) {
         spec = this.#store.readSpec(taskId2);
@@ -5063,6 +5128,11 @@ var ScheduleController = class {
           throw new ScheduleError("SCHEDULE_CONFLICT", `schedule ${taskId2} already exists with a different request`);
         }
       } else {
+        try {
+          await resolveImageAttachments(input.task.attachments);
+        } catch (error) {
+          throw new ScheduleError("SCHEDULE_INVALID", error instanceof Error ? error.message : String(error));
+        }
         const existing = await this.#manager.getStatus(taskId2).catch((error) => {
           if (error instanceof TaskManagerError && error.code === "TASK_NOT_FOUND") return null;
           throw error;
@@ -5324,9 +5394,9 @@ var ScheduleController = class {
   }
   async #finishReviewLocked(taskId2, state, input, operationId) {
     if (input.accepted) {
-      const tasksRoot = path8.join(this.#dataRoot, ".tasks");
+      const tasksRoot = path10.join(this.#dataRoot, ".tasks");
       mkdirSync4(tasksRoot, { recursive: true, mode: 448 });
-      return withProcessLock(path8.join(tasksRoot, ".manager.lock"), async () => {
+      return withProcessLock(path10.join(tasksRoot, ".manager.lock"), async () => {
         const current = await this.#manager.getStatus(taskId2);
         if (current.attempt !== input.attempt || !["completed", "failed", "waiting_for_master"].includes(current.status)) throw new ScheduleError("SCHEDULE_STALE_REVIEW", "execution has advanced since this review was requested");
         if (current.observation?.cleanup !== "verified") throw new ScheduleError("SCHEDULE_STATE", "process cleanup must be verified before acceptance");
@@ -5371,12 +5441,12 @@ var ScheduleController = class {
       }
       if (state.status === "accepted") throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId2} was accepted; nothing to cancel`);
       this.#store.writeState({ ...state, cancel_requested: true, updated_at: this.#now().toISOString() });
-      const tasksRoot = path8.join(this.#dataRoot, ".tasks");
+      const tasksRoot = path10.join(this.#dataRoot, ".tasks");
       mkdirSync4(tasksRoot, { recursive: true, mode: 448 });
       let attempt = state.attempt_under_review ?? state.attention?.attempt ?? 1;
       try {
         while (true) {
-          const committed = await withProcessLock(path8.join(tasksRoot, ".manager.lock"), async () => {
+          const committed = await withProcessLock(path10.join(tasksRoot, ".manager.lock"), async () => {
             const execution = await this.#manager.getStatus(taskId2).catch((error) => {
               if (error instanceof TaskManagerError && error.code === "TASK_NOT_FOUND") return null;
               throw error;
@@ -5558,7 +5628,7 @@ var ScheduleController = class {
   }
   async #locked(taskId2, operation) {
     this.#store.readSpec(taskId2);
-    return withProcessLock(path8.join(this.#store.scheduleDir(taskId2), "state.lock"), async () => {
+    return withProcessLock(path10.join(this.#store.scheduleDir(taskId2), "state.lock"), async () => {
       const spec = this.#store.readSpec(taskId2);
       return operation(this.#store.readState(taskId2), spec);
     }, 6e4);
@@ -5584,13 +5654,13 @@ function initialState(taskId2, createdAt) {
 
 // src/schedule/store.ts
 import { existsSync as existsSync5, mkdirSync as mkdirSync5, readFileSync as readFileSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import path9 from "node:path";
+import path11 from "node:path";
 import { randomUUID as randomUUID4 } from "node:crypto";
 function schedulesRootFor(dataRoot2) {
-  return path9.join(dataRoot2, ".schedules");
+  return path11.join(dataRoot2, ".schedules");
 }
 function writeJsonAtomic(file, value) {
-  mkdirSync5(path9.dirname(file), { recursive: true, mode: 448 });
+  mkdirSync5(path11.dirname(file), { recursive: true, mode: 448 });
   const temp = `${file}.${process.pid}.${randomUUID4()}.tmp`;
   writeFileSync4(temp, JSON.stringify(value, null, 2), { mode: 384 });
   atomicRenameSync(temp, file);
@@ -5604,38 +5674,38 @@ var ScheduleStore = class {
     return this.#root;
   }
   scheduleDir(taskId2) {
-    return path9.join(this.#root, taskId2);
+    return path11.join(this.#root, taskId2);
   }
   hasSchedule(taskId2) {
-    return existsSync5(path9.join(this.scheduleDir(taskId2), "spec.json"));
+    return existsSync5(path11.join(this.scheduleDir(taskId2), "spec.json"));
   }
   hasState(taskId2) {
-    return existsSync5(path9.join(this.scheduleDir(taskId2), "state.json"));
+    return existsSync5(path11.join(this.scheduleDir(taskId2), "state.json"));
   }
   readSpec(taskId2) {
     try {
-      return JSON.parse(readFileSync4(path9.join(this.scheduleDir(taskId2), "spec.json"), "utf8"));
+      return JSON.parse(readFileSync4(path11.join(this.scheduleDir(taskId2), "spec.json"), "utf8"));
     } catch (error) {
       if (!this.hasSchedule(taskId2)) throw new ScheduleError("SCHEDULE_NOT_FOUND", `unknown schedule: ${taskId2}`);
       throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId2} spec could not be read: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   writeSpec(spec) {
-    writeJsonAtomic(path9.join(this.scheduleDir(spec.task_id), "spec.json"), spec);
+    writeJsonAtomic(path11.join(this.scheduleDir(spec.task_id), "spec.json"), spec);
   }
   readState(taskId2) {
     try {
-      return JSON.parse(readFileSync4(path9.join(this.scheduleDir(taskId2), "state.json"), "utf8"));
+      return JSON.parse(readFileSync4(path11.join(this.scheduleDir(taskId2), "state.json"), "utf8"));
     } catch (error) {
       if (!this.hasSchedule(taskId2)) throw new ScheduleError("SCHEDULE_NOT_FOUND", `unknown schedule: ${taskId2}`);
       throw new ScheduleError("SCHEDULE_STATE", `schedule ${taskId2} state could not be read: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   writeState(state) {
-    writeJsonAtomic(path9.join(this.scheduleDir(state.task_id), "state.json"), state);
+    writeJsonAtomic(path11.join(this.scheduleDir(state.task_id), "state.json"), state);
   }
   notificationPath(taskId2) {
-    return path9.join(this.scheduleDir(taskId2), "outbox.json");
+    return path11.join(this.scheduleDir(taskId2), "outbox.json");
   }
   hasNotification(taskId2, eventId) {
     return this.listNotifications(taskId2).some((record2) => record2.event_id === eventId);
@@ -5660,14 +5730,14 @@ var ScheduleStore = class {
   }
   readRuntime() {
     try {
-      return JSON.parse(readFileSync4(path9.join(this.#root, "runtime.json"), "utf8"));
+      return JSON.parse(readFileSync4(path11.join(this.#root, "runtime.json"), "utf8"));
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
       throw error;
     }
   }
   writeRuntime(info) {
-    writeJsonAtomic(path9.join(this.#root, "runtime.json"), info);
+    writeJsonAtomic(path11.join(this.#root, "runtime.json"), info);
   }
 };
 
@@ -5777,7 +5847,7 @@ async function drainOutbox(controller2, taskId2, reason, sleep4, pollIntervalMs)
 
 // src/schedule/runner-main.ts
 var [dataRoot, taskId] = process.argv.slice(2);
-if (!dataRoot || !taskId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u.test(taskId) || !path10.isAbsolute(dataRoot)) {
+if (!dataRoot || !taskId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u.test(taskId) || !path12.isAbsolute(dataRoot)) {
   console.error("usage: node schedule-runner.mjs <dataRoot> <taskId>");
   process.exit(2);
 }

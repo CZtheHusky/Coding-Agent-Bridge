@@ -85,6 +85,11 @@ export interface AttemptTiming {
   notes: string[];
 }
 
+export interface ImageAttachment {
+  /** Absolute, readable image path on the Bridge host; no file snapshot is made. */
+  path: string;
+}
+
 export interface TaskPackage {
   /** Persisted executor; omitted keeps existing ZCode tasks compatible. */
   executor?: "zcode" | "kimi";
@@ -104,6 +109,7 @@ export interface TaskPackage {
   acceptance_criteria: string[];
   test_commands: string[];
   context?: string;
+  attachments?: ImageAttachment[];
 }
 
 export interface ZCodeModelSelection {
@@ -199,6 +205,8 @@ export interface CodingAgentAdapter {
     additionalRequirements: string[];
     previousSessionId: string | null;
     previousResult: TaskResult | null;
+    /** Only new images for this continuation; never resend task.attachments. */
+    attachments?: ImageAttachment[];
   }): Promise<AgentHandle>;
   getStatus(handle: AgentHandle): Promise<AgentProcessStatus>;
   getResult(handle: AgentHandle): Promise<AgentRunOutcome>;
@@ -350,6 +358,7 @@ export interface ContinueTaskInput {
   task_id: string;
   feedback: string;
   additional_requirements?: string[];
+  attachments?: ImageAttachment[];
   /** Stable id for retrying one continuation after a lost response. */
   operation_id?: string;
   /** Scheduled feedback must apply to the attempt that was actually reviewed. */

@@ -4,7 +4,7 @@
 // a ZCode worker (only initialize/initialized/tools/list/status-on-unknown-id).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -170,6 +170,35 @@ test("marketplace bundle starts from its plugin root without repo-local dependen
     assert.match(run.stderr, /data root/);
   } finally {
     rmSync(dataRoot, { recursive: true, force: true });
+  }
+});
+
+test("Claude plugin entry resolves inside its installation when launched from another project", { timeout: 30_000 }, () => {
+  const project = mkdtempSync(path.join(tmpdir(), "bridge-claude-project-"));
+  try {
+    const manifest = JSON.parse(readFileSync(path.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf8")) as {
+      mcpServers: { coding_agent_bridge: { command: string; args: string[]; env: NodeJS.ProcessEnv } };
+    };
+    const server = manifest.mcpServers.coding_agent_bridge;
+    assert.equal(server.command, "node");
+    assert.equal(server.args[0], "${CLAUDE_PLUGIN_ROOT}/dist/bridge.mjs", "Claude must expand the plugin root instead of resolving a project-relative entry");
+    assert.equal(existsSync(path.join(project, "dist", "bridge.mjs")), false);
+    const run = spawnSync(process.execPath, server.args.map(arg => arg.replaceAll("${CLAUDE_PLUGIN_ROOT}", PLUGIN_ROOT)), {
+      cwd: project,
+      input: PROTOCOL_MESSAGES,
+      encoding: "utf8",
+      env: { ...process.env, ...server.env, ZCODE_BRIDGE_DATA_DIR: project },
+      timeout: 20_000,
+    });
+    assert.equal(run.status, 0, `stderr: ${run.stderr}`);
+    const messages = run.stdout.trim().split(/\r?\n/u).map(line => JSON.parse(line) as { id?: number; result?: { tools?: Array<{ name: string }> } });
+    assert.ok(messages.find(message => message.id === 1)?.result, "the plugin must initialize outside its installation directory");
+    const names = messages.find(message => message.id === 2)?.result?.tools?.map(tool => tool.name);
+    assert.ok(names?.includes("coding_agent_task"));
+    assert.ok(names?.includes("coding_agent_continue"));
+    assert.doesNotMatch(run.stderr, /MODULE_NOT_FOUND/);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
   }
 });
 

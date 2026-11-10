@@ -1,7 +1,8 @@
 // Minimal PromptBuilder per docs/ARCHITECTURE.md: renders the task package and
 // continuation feedback as a bounded subordinate-coder prompt that requests a
 // JSON AgentReport embedded in the ZCode `response`. Pure functions; no I/O.
-import type { TaskPackage, TaskResult } from "../interfaces.js";
+import path from "node:path";
+import type { ImageAttachment, TaskPackage, TaskResult } from "../interfaces.js";
 
 const MAX_PROMPT_CHARS = 60_000;
 const MAX_SECTION_CHARS = 4_000;
@@ -13,6 +14,7 @@ export interface ContinuePromptInput {
   readonly additionalRequirements: readonly string[];
   readonly previousSessionId: string | null;
   readonly previousResult: TaskResult | null;
+  readonly attachments?: readonly ImageAttachment[];
 }
 
 export function buildTaskPrompt(task: TaskPackage): string {
@@ -22,8 +24,11 @@ export function buildTaskPrompt(task: TaskPackage): string {
     `PROJECT WORKSPACE: ${task.workspace}`,
     ...(task.worktree_path ? [`HOST-SELECTED EXECUTION WORKTREE: ${task.worktree_path}. Make task changes in the current working directory, which is this worktree; the project workspace above identifies its parent project.`] : []),
     ...(task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : []),
-    ...(task.timeout_ms ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`] : []),
+    ...(task.timeout_ms
+      ? [`EXECUTION TIME LIMIT: ${task.timeout_ms} ms for this attempt.`]
+      : ["EXECUTION TIME LIMIT: Bridge defaults to 60 minutes for this attempt when timeout_ms is not set; the user runtime configuration may override it (60 seconds to 4 hours). Plan the work and checkpoints accordingly."]),
     `OBJECTIVE\n${task.objective}`,
+    ...renderAttachments(task.attachments),
     renderList("REQUIREMENTS", task.requirements),
     renderPaths("ALLOWED PATHS (write only inside these when provided)", task.allowed_paths),
     renderPaths("FORBIDDEN PATHS (never create, modify, or delete)", task.forbidden_paths),
@@ -48,6 +53,7 @@ export function buildContinuePrompt(input: ContinuePromptInput): string {
   const sections: string[] = [
     `TASK ID: ${task.task_id}`,
     "You are a subordinate coding agent continuing a previous task in the same workspace. Stay inside the workspace.",
+    ...renderAttachments(input.attachments),
     ...(task.model ? [`REQUESTED ZCODE MODEL: ${task.model.provider_id}/${task.model.model_id}${task.model.reasoning_level ? ` (reasoning level: ${task.model.reasoning_level})` : ""}. The Bridge configures this model for the session.`] : []),
   ];
   if (previousSessionId) {
@@ -84,7 +90,7 @@ export function buildContinuePrompt(input: ContinuePromptInput): string {
   if (additionalRequirements.length > 0) {
     sections.push(renderList("ADDITIONAL REQUIREMENTS", [...additionalRequirements]));
   }
-  sections.push(`ORIGINAL TASK\n${buildTaskPrompt(task)}`);
+  sections.push(`ORIGINAL TASK\n${buildTaskPrompt({ ...task, attachments: undefined })}`);
   return joinBoundedPreservingTail(sections, OUTPUT_CONTRACT);
 }
 
@@ -102,6 +108,11 @@ const DECISION_RULE = [
   "Use only this task package, this prompt, repository files you inspect, and available tools; do not assume access to the calling host's conversation.",
   "Do not choose unresolved items explicitly listed under OPEN DECISIONS; a later explicit Master Feedback decision resolves that item. Also escalate conflicting requirements or missing decisions that would materially change externally visible behavior, even when the calling host did not list them. Record the exact question in issues and set needs_master_decision=true. Continue independent work that does not depend on the decision. For low-impact implementation choices, use the simplest consistent option and state the assumption in issues.",
 ].join("\n");
+
+function renderAttachments(attachments?: readonly ImageAttachment[]): string[] {
+  if (!attachments?.length) return [];
+  return [`IMAGES ATTACHED TO THIS MESSAGE (in order; inspect the native images directly without a file-reading tool)\n${attachments.map((image, index) => `${index + 1}. ${JSON.stringify(path.basename(image.path))}`).join("\n")}`];
+}
 
 function renderList(title: string, items: readonly string[]): string {
   if (items.length === 0) {

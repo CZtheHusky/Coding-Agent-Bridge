@@ -59,7 +59,9 @@ const input = readline.createInterface({ input: process.stdin });
 input.on("line", (line) => {
   const message = JSON.parse(line);
   fs.appendFileSync(requestLog, JSON.stringify(message) + "\n");
-  if (message.method === "session/create") {
+  if (message.method === "session/create" || message.method === "session/resume") {
+    process.stdout.write(JSON.stringify({ id: message.id, result: snapshot() }) + "\n");
+  } else if (message.method === "session/setMode") {
     process.stdout.write(JSON.stringify({ id: message.id, result: snapshot() }) + "\n");
   } else if (message.method === "session/setModel") {
     selected = message.params.model;
@@ -450,4 +452,37 @@ test("forwards a permission decision to ZCode and resolves duplicate request IDs
   } finally {
     await rm(runtime.root, { recursive: true, force: true });
   }
+});
+
+test("ZCode sends ordered native image attachments and only new images on same-session continuation", async () => {
+  const runtime = await makeFakeRuntime();
+  const events: unknown[] = [];
+  try {
+    const images = ["首张图.png", "next.png"];
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+    for (const image of images) await writeFile(path.join(runtime.root, image), png);
+    const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, onEvent: e => events.push(e), timeoutMs: 10_000, childEnvBase: { PATH: process.env.PATH } });
+    const withImages = { ...task, attachments: images.map(image => ({ path: path.join(runtime.root, image) })) };
+    const first = await adapter.getResult(await adapter.startTask({ task: withImages, workspace: makeWorkspace(runtime.root), attempt: 1 }));
+    const continued = await adapter.getResult(await adapter.continueTask({ task: withImages, workspace: makeWorkspace(runtime.root), attempt: 2, feedback: "inspect new image", additionalRequirements: [], previousSessionId: first.sessionId, previousResult: null, attachments: [withImages.attachments[1]!] }));
+    await adapter.getResult(await adapter.continueTask({ task: withImages, workspace: makeWorkspace(runtime.root), attempt: 3, feedback: "remember", additionalRequirements: [], previousSessionId: continued.sessionId, previousResult: null }));
+    const requests = (await readFile(runtime.requestLog, "utf8")).trim().split("\n").map(line => JSON.parse(line));
+    const sends = requests.filter(r => r.method === "session/send");
+    assert.deepEqual(sends[0].params.attachments.map((image: { filename: string; kind: string; mimeType: string; sizeBytes: number }) => [image.filename, image.kind, image.mimeType, image.sizeBytes]), images.map(name => [name, "image", "image/png", png.length]));
+    assert.deepEqual(sends[0].params.attachments.map((image: { localPath: string }) => image.localPath), withImages.attachments.map(image => image.path));
+    assert.equal(sends[1].params.attachments.length, 1);
+    assert.equal(sends[1].params.attachments[0].filename, "next.png");
+    assert.equal(sends[2].params.attachments, undefined);
+    assert.equal(requests.filter(r => r.method === "session/create").length, 1);
+    assert.equal(requests.filter(r => r.method === "session/resume").length, 2);
+    assert.doesNotMatch(JSON.stringify(events), /dataBase64|iVBORw0KGgo/);
+  } finally { await rm(runtime.root, { recursive: true, force: true }); }
+});
+
+test("a deleted ZCode image fails explicitly before starting the runtime", async () => {
+  const events: unknown[] = [];
+  const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => { throw new Error("must not resolve runtime"); } }, onEvent: e => events.push(e) });
+  const handle = await adapter.startTask({ task: { ...task, attachments: [{ path: path.join(tmpdir(), "bridge-image-missing-file.png") }] }, workspace: makeWorkspace(tmpdir()), attempt: 1 });
+  await assert.rejects(adapter.getResult(handle), { code: "attachment_invalid" });
+  assert.equal(events.some(e => (e as { type: string }).type === "app_server_started"), false);
 });

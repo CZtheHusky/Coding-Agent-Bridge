@@ -31,6 +31,7 @@ import type {
   ScheduleState,
 } from "./types.js";
 import { START_AT_PATTERN, THREAD_ID_PATTERN } from "./types.js";
+import { resolveImageAttachments } from "../attachments/images.js";
 
 export interface ScheduleNotifier {
   send(input: { pipePath: string; threadId: string; callId: string; message: string }): Promise<void>;
@@ -172,6 +173,8 @@ export class ScheduleController {
           throw new ScheduleError("SCHEDULE_CONFLICT", `schedule ${taskId} already exists with a different request`);
         }
       } else {
+        try { await resolveImageAttachments(input.task.attachments); }
+        catch (error) { throw new ScheduleError("SCHEDULE_INVALID", error instanceof Error ? error.message : String(error)); }
         const existing = await this.#manager.getStatus(taskId).catch((error: unknown) => {
           if (error instanceof TaskManagerError && error.code === "TASK_NOT_FOUND") return null;
           throw error;

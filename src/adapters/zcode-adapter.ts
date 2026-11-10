@@ -48,6 +48,7 @@ import {
 } from "./process-spawn.js";
 
 export type AdapterErrorCode =
+  | "attachment_invalid"
   | "spawn_failed"
   | "timeout"
   | "cancelled"

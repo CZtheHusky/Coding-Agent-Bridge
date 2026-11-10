@@ -1,9 +1,9 @@
 # 决策记录 / Decisions
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，仅核对 ADR-010 / ADR-011 索引与文档链接。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 / ADR-011）。
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅核对新增 ADR-016；ADR-015 保留 2026-11-08 核对，其余范围不变。
+> Verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree。
 
 本目录保存已批准的架构决策和带日期的决策记录。决策回答"为什么这样定"，当前实现仍以 `ARCHITECTURE.md` / `INTERFACES.md` 为准。
 
@@ -43,3 +43,7 @@ ADR-001 到 ADR-003 只搬运权威文档里已经写明的结论。ADR-004 原�
 - [ADR-013](ADR-013-coding-agent-bridge-discovery.md)：Coding Agent Bridge 展示名、coding_agent_* 工具与能力说明；安装及数据身份保留。
 
 - [ADR-014](ADR-014-kimi-reasoning-level.md)：Kimi reasoning_level 透传原生 thinking，按模型支持档位并保留省略默认。
+
+- [ADR-015](ADR-015-claude-plugin-entry-path.md)：Claude 独立 manifest 使用宿主插件根目录变量，保留 Codex 入口，并分别升级独立部署。
+
+- [ADR-016](ADR-016-native-image-attachments.md)：任务与续作的原生图片附件，ZCode/Kimi 字段、持久化和失败边界。

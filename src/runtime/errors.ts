@@ -3,6 +3,7 @@
 // environment dumps; paths and bounded stderr excerpts are allowed.
 
 export type BridgeErrorCode =
+  | "attachment_invalid"
   | "cleanup_failed"
   | "runtime_not_found"
   | "provider_config_missing"

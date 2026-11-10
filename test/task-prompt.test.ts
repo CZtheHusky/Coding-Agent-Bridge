@@ -28,6 +28,15 @@ test("mandatory output example is valid JSON with all required fields", () => {
   assert.equal(parseAgentReport(line.slice(line.indexOf("{"))).error, null);
 });
 
+test("task prompt exposes default and explicit execution time limits", () => {
+  const fallback = buildTaskPrompt(makeTask());
+  assert.match(fallback, /EXECUTION TIME LIMIT: Bridge defaults to 60 minutes/);
+  assert.match(fallback, /60 seconds to 4 hours/);
+  const explicit = buildTaskPrompt(makeTask({ timeout_ms: 14_400_000 }));
+  assert.match(explicit, /EXECUTION TIME LIMIT: 14400000 ms for this attempt\./);
+  assert.doesNotMatch(explicit, /defaults to 60 minutes/);
+});
+
 test("report-only continuation preserves candidate claims without repeating the implementation task", () => {
   const result: TaskResult = {
     task_id: "repair", status: "failed", error_code: "invalid_agent_report", summary: "report.needs_master_decision must be a boolean",

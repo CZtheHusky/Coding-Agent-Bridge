@@ -270,6 +270,7 @@ test("the real validator rejects injected development-path references and keeps 
     for (const directory of [
       path.join(root, "scripts", "lib"),
       path.join(pluginRoot, ".codex-plugin"),
+      path.join(pluginRoot, ".claude-plugin"),
       path.join(pluginRoot, "dist"),
       path.join(pluginRoot, "worker", "vendor", "pkg"),
       path.join(pluginRoot, "hooks"),
@@ -285,6 +286,10 @@ test("the real validator rejects injected development-path references and keeps 
     writeFileSync(path.join(root, "package.json"), JSON.stringify(manifest));
     writeFileSync(path.join(pluginRoot, "plugin.json"), JSON.stringify(manifest));
     writeFileSync(path.join(pluginRoot, ".codex-plugin", "plugin.json"), JSON.stringify(manifest));
+    writeFileSync(path.join(pluginRoot, ".claude-plugin", "plugin.json"), JSON.stringify({
+      ...manifest,
+      mcpServers: { coding_agent_bridge: { command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/dist/bridge.mjs"], env: { ZCODE_BRIDGE_PLUGIN_MODE: "1" } } },
+    }));
     writeFileSync(path.join(pluginRoot, "mcp.json"), JSON.stringify(mcp));
     writeFileSync(path.join(pluginRoot, ".mcp.json"), JSON.stringify(mcp));
     writeFileSync(path.join(pluginRoot, "worker", "vendor", "package.json"), JSON.stringify({ name: "playwright-core" }));

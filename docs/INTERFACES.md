@@ -1,16 +1,30 @@
 # 当前接口与兼容边界
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
+> Last updated: 2026-11-09
 > Last verified: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
 > Prior verification: 2026-10-15，最新上游整合分支的验证结果见[审查说明](reports/2026-10-15-browser-and-transport-fixes.md)；旧版本实测与当前分支回归分别记录。
 > Prior verified against: 上游fae74e45033a50fb560c0014d1a6d60a7dc771d1 + 本分支修复；受测源码指纹见审查说明。
 
+> Attachment verification: 2026-11-09，ADR-016 的输入 schema、文件头识别、任务/续作持久化和原生发送字段已核对；验证基线为 7c1d6f2 + 当前附件 working tree，真实识图范围见 [实测记录](reports/2026-11-09-native-image-attachments.md)。
+
 准确类型与 schema 以 `src/interfaces.ts` 和 `src/mcp/schemas.ts` 为准。核心公共入口见 [SHARED_CORE.md](SHARED_CORE.md)。历史源码注释中的 V0.1/FROZEN 是沿革说明，不代表当前新增功能已经冻结。
 
 共享核心的 13 个 MCP 工具：`coding_agent_task`、`coding_agent_status`、`coding_agent_feedback`、`coding_agent_result`、`coding_agent_continue`、`coding_agent_cancel`、`coding_agent_events`、`coding_agent_interaction_reply`、`coding_agent_doctor`、`coding_agent_model_catalog`、`coding_agent_default_model`、`coding_agent_set_default_model`、`coding_agent_clear_default_model`。实验 progress probe 需显式启用。默认 Codex stdio 宿主另装配下述四个调度工具；generic `createBridgeServer` 未传 schedule 时不会注册它们。
+
+## 图片附件（ADR-016）
+
+`coding_agent_task` 的 TaskPackage、`coding_agent_continue` 的输入以及 `coding_agent_schedule.task` 可传 `attachments: [{ path: "/absolute/image.png" }]`。这是 Bridge 所在机器的绝对路径，SSH 场景必须是远端文件，不能传另一台桌面机器的路径。支持 PNG/JPEG/GIF/WebP，按文件头确定 MIME 并保持数组顺序；不接受 URL、base64、PDF 或音视频。省略/空数组保持原来的文字行为。
+
+新任务把这些图片与文字放在第一条原生消息中。续作只发送本次 attachments，不重新附上原始任务/前次图片；复用已持久化的 executor/session。新增附件保存到该 attempt 的 continue.json，operation_id 的幂等身份包含附件路径和顺序；同 ID 换图为 CONTINUE_OPERATION_CONFLICT。没有 operation_id 的续作仍按原合同执行。
+
+接受新请求前校验绝对路径、普通文件和可识别图片头；错误为 TASK_INVALID，预约为 SCHEDULE_INVALID。adapter 在启动执行器前复查，文件失效为 attachment_invalid，不能丢弃附件继续执行。执行器报告协议/模型/供应商不支持图片或超过其限制时保留失败，不承诺所有模型支持视觉；执行器可能接受附件但模型未能识图，此时 completed 仍只表示执行结束，调用者必须核验识别结果。文件头检查不替代执行器完整解码。
+
+只保存路径，不复制、冻结或上传到 Bridge 存储。预约时文件须保留到实际执行，修改后读取新内容，删除/不可读会失败；自动续作不重新发送首轮图片。附件可能在 workspace 外，调用者须确保授权读取；路径约束不构成读取沙箱。图片由执行器及其模型供应商处理，字节不进入 Bridge 的 prompt/新增事件日志。prompt 仅标注当前消息的图片顺序和文件名，原有可见模型输出仍按已有证据策略保存。
+
+Observed：ZCode session/send 使用 `attachments[{kind:"image",filename,mimeType,sizeBytes,localPath}]`；Kimi 2.3.3 Server API 使用 `content[{type:"image",source:{kind:"path",path},name}]`，不是内部的 image_url 格式。不新增工具，模型可直接使用当前消息图片；是否另调工具由执行器行为及模型决定，token 节省不能由轮次直接推算。
 
 ## 预约目标工具（ADR-010）
 

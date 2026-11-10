@@ -2,11 +2,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as z from "zod/v4";
-import type { AgentHandle, AgentProcessStatus, CodingAgentAdapter, TaskPackage, WorkspaceRef } from "../interfaces.js";
+import type { AgentHandle, AgentProcessStatus, CodingAgentAdapter, ImageAttachment, TaskPackage, WorkspaceRef } from "../interfaces.js";
 import type { ZCodeAppServerAdapterOptions } from "./zcode-app-server-adapter.js";
 import type { AdapterErrorCode, ZCodeRunOutcome } from "./zcode-adapter.js";
 import { parseAgentReport } from "./agent-report.js";
 import { buildTaskPrompt, buildContinuePrompt } from "../prompts/task-prompt.js";
+import { resolveImageAttachments } from "../attachments/images.js";
 import { createMinimalOsEnv, createProxyEnv } from "../runtime/child-env.js";
 import { BridgeError } from "../runtime/errors.js";
 import { resolveTaskTimeout } from "../runtime/task-timeout.js";
@@ -44,10 +45,10 @@ export class KimiAdapter implements CodingAgentAdapter {
   constructor(options: Callbacks = {}) { this.#options = options; }
 
   async startTask(input: Parameters<CodingAgentAdapter["startTask"]>[0]): Promise<AgentHandle> {
-    return this.#start(input.task, input.workspace, buildTaskPrompt(input.task), null, input.attempt);
+    return this.#start(input.task, input.workspace, buildTaskPrompt(input.task), null, input.attempt, input.task.attachments);
   }
   async continueTask(input: Parameters<CodingAgentAdapter["continueTask"]>[0]): Promise<AgentHandle> {
-    return this.#start(input.task, input.workspace, buildContinuePrompt(input), input.previousSessionId, input.attempt);
+    return this.#start(input.task, input.workspace, buildContinuePrompt(input), input.previousSessionId, input.attempt, input.attachments);
   }
   async getStatus(handle: AgentHandle): Promise<AgentProcessStatus> {
     const run = this.#runs.get(handle)!;
@@ -60,14 +61,14 @@ export class KimiAdapter implements CodingAgentAdapter {
     run.controller.abort();
     await run.result;
   }
-  #start(task: TaskPackage, workspace: WorkspaceRef, prompt: string, previousSessionId: string | null, attempt: number): AgentHandle {
+  #start(task: TaskPackage, workspace: WorkspaceRef, prompt: string, previousSessionId: string | null, attempt: number, attachments?: ImageAttachment[]): AgentHandle {
     const controller = new AbortController();
-    const run: Run = { controller, child: null, cancelled: false, timedOut: false, result: Promise.resolve().then(() => this.#execute(run, task, workspace, prompt, previousSessionId)) };
+    const run: Run = { controller, child: null, cancelled: false, timedOut: false, result: Promise.resolve().then(() => this.#execute(run, task, workspace, prompt, previousSessionId, attachments)) };
     const handle: AgentHandle = { taskId: task.task_id, attempt, workerPid: process.pid, zcodePid: null, startedAt: new Date().toISOString() };
     this.#runs.set(handle, run);
     return handle;
   }
-  async #execute(run: Run, task: TaskPackage, workspace: WorkspaceRef, prompt: string, previousSessionId: string | null): Promise<ZCodeRunOutcome> {
+  async #execute(run: Run, task: TaskPackage, workspace: WorkspaceRef, prompt: string, previousSessionId: string | null, attachments?: ImageAttachment[]): Promise<ZCodeRunOutcome> {
     const emit = this.#options.onEvent;
     const signal = run.controller.signal;
     const timer = setTimeout(() => { run.timedOut = true; run.controller.abort(); }, resolveTaskTimeout(task, process.env));
@@ -82,6 +83,8 @@ export class KimiAdapter implements CodingAgentAdapter {
     let cleanupError: string | null = null;
     let usage: Record<string, unknown> | null = null;
     try {
+      signal.throwIfAborted();
+      const images = await resolveImageAttachments(attachments);
       signal.throwIfAborted();
       const env = { ...createMinimalOsEnv(process.env), ...createProxyEnv(process.env) };
       if (process.env["KIMI_CODE_HOME"]) env["KIMI_CODE_HOME"] = process.env["KIMI_CODE_HOME"];
@@ -224,7 +227,7 @@ export class KimiAdapter implements CodingAgentAdapter {
         };
       });
       await request(`sessions/${encodeURIComponent(session.id)}/prompts`, object, {
-        content: [{ type: "text", text: prompt }], prompt_id: promptId, permission_mode: task.kimi?.permission_mode ?? "yolo", ...(selectedModel ? { model: selectedModel } : {}), ...(task.kimi?.reasoning_level !== undefined ? { thinking: task.kimi.reasoning_level } : {}),
+        content: [{ type: "text", text: prompt }, ...images.map(image => ({ type: "image", source: { kind: "path", path: image.path }, name: image.filename }))], prompt_id: promptId, permission_mode: task.kimi?.permission_mode ?? "yolo", ...(selectedModel ? { model: selectedModel } : {}), ...(task.kimi?.reasoning_level !== undefined ? { thinking: task.kimi.reasoning_level } : {}),
       });
       const turn = await ended;
       signal.removeEventListener("abort", abort);
@@ -238,7 +241,7 @@ export class KimiAdapter implements CodingAgentAdapter {
       emit?.({ type: "model_selected", summary: "Kimi runtime model", details: { model_id: final.agent_config.model, ...(final.agent_config.thinking ? { reasoning_level: final.agent_config.thinking } : {}) } });
     } catch (error) {
       if (!errorCode) {
-        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error instanceof BridgeError && error.code === "spawn_failed" ? "spawn_failed" : "kimi_nonzero_exit";
+        errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error instanceof BridgeError && (error.code === "spawn_failed" || error.code === "attachment_invalid") ? error.code : "kimi_nonzero_exit";
         reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error instanceof BridgeError ? error.message : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
       }
     } finally {

@@ -1,9 +1,10 @@
 # 共享核心与宿主适配
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-10-28
-> Last verified: 2026-10-28，静态核对本次 createBridgeServer 的可选调度注入与默认 Codex stdio 装配；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
-> Verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
+> Last updated: 2026-11-08
+> Last verified: 2026-11-08，仅核对 ADR-015 的 Claude 入口声明、跨项目目录启动回归及真实 Claude MCP 健康检查；其余范围沿用历史记录。
+> Verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口修复。
+> Prior verification: 2026-10-28，createBridgeServer 可选调度注入、默认 Codex stdio 装配与 Linux 离线闭环，详见 ADR-010；新版调度在对话空闲时启动新轮次仍未验证。
 > Prior verification: 2026-10-16，仅核对本次新增的浏览器后端打包分层说明；其余条目仍未逐条核对
 > Prior verified against: 183611e9c9bfc619b543933c7ad7204b2f646ea2（加载与构建源码，本次未改动）
 
@@ -30,6 +31,8 @@ await startBridge({
 ```
 
 宿主独立维护 manifest、hook、安装配置、打包和发布版本。worker 可以把共享 `src/worker/worker-main.ts` 打进自己的制品，也可以调用公共 `runWorkerTask`；启动参数为 `dataRoot taskId attempt`，默认 spawner 同时传递校验后的宿主 profile。自定义 worker 入口必须接收并传给 `runWorkerTask`，不能重新猜测宿主。路径必须是绝对路径；设置、模型缓存和默认模型写入都使用该 profile，worker 使用同一配置。
+
+Claude marketplace 入口由 `.claude-plugin/plugin.json` 声明，用 `${CLAUDE_PLUGIN_ROOT}/dist/bridge.mjs` 覆盖自动发现的同名 MCP 条目；Codex / portable 入口仍保留自己的相对路径规则，见 [ADR-015](decisions/ADR-015-claude-plugin-entry-path.md)。独立部署的宿主需单独升级共享核心，更新 CLI 或其他宿主的缓存不会自动替换它。
 
 Codex 默认配置目录保持 `~/.codex/codex-zcode-bridge`。运行配置仍优先于环境变量。`legacySettingsDirectories` 仅在宿主明确配置时启用；缺文件才回退，存在但损坏的文件会报错。首次写入默认模型会复制完整 legacy 设置到宿主 canonical 文件，并保留未知字段；不会修改 legacy 文件。不要默认共享两个宿主的可变任务目录。
 

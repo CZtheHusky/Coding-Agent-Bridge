@@ -8,6 +8,7 @@ import type {
   AgentHandle,
   AgentProcessStatus,
   CodingAgentAdapter,
+  ImageAttachment,
   RuntimeResolver,
   TaskPackage,
   TaskResult,
@@ -18,6 +19,7 @@ import type {
 import { parseAgentReport } from "./agent-report.js";
 import type { ZCodeRunOutcome } from "./zcode-adapter.js";
 import { buildContinuePrompt, buildTaskPrompt } from "../prompts/task-prompt.js";
+import { resolveImageAttachments } from "../attachments/images.js";
 import { BridgeError } from "../runtime/errors.js";
 import { loadPersistedRuntimeEnvironment, NodeRuntimeResolver } from "../runtime/resolver.js";
 import { captureSpawnGenerationIdentity, childStillOnSpawnGeneration, isProcessRunning, terminateProcessTree } from "./process-spawn.js";
@@ -235,7 +237,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
   }
 
   async startTask(input: { task: TaskPackage; workspace: WorkspaceRef; attempt: number }): Promise<AgentHandle> {
-    return this.#launch(input.task, input.workspace, input.attempt, buildTaskPrompt(input.task), null);
+    return this.#launch(input.task, input.workspace, input.attempt, buildTaskPrompt(input.task), null, input.task.attachments);
   }
 
   async continueTask(input: {
@@ -246,6 +248,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
     additionalRequirements: string[];
     previousSessionId: string | null;
     previousResult: TaskResult | null;
+    attachments?: ImageAttachment[];
   }): Promise<AgentHandle> {
     const priorWorkspace = this.#workspaceByTask.get(input.task.task_id);
     if (priorWorkspace !== undefined && priorWorkspace !== input.workspace.canonicalPath) {
@@ -261,8 +264,10 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         additionalRequirements: input.additionalRequirements,
         previousSessionId: input.previousSessionId,
         previousResult: input.previousResult,
+        attachments: input.attachments,
       }),
       input.previousSessionId,
+      input.attachments,
     );
   }
 
@@ -304,6 +309,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
     attempt: number,
     prompt: string,
     resumeSessionId: string | null,
+    attachments?: ImageAttachment[],
   ): Promise<AgentHandle> {
     const handle: AgentHandle = {
       taskId: task.task_id,
@@ -367,7 +373,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
     };
     this.#runs.set(handle, entry);
     this.#workspaceByTask.set(task.task_id, workspace.canonicalPath);
-    entry.runPromise = this.#execute(entry, task, workspace, prompt, resumeSessionId, turn);
+    entry.runPromise = this.#execute(entry, task, workspace, prompt, resumeSessionId, turn, attachments);
     void entry.runPromise.then(
       (outcome) => { entry.outcome = outcome; entry.finished = true; },
       (error) => { entry.error = error; entry.finished = true; },
@@ -382,6 +388,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
     prompt: string,
     resumeSessionId: string | null,
     turn: Promise<TurnResult>,
+    attachments?: ImageAttachment[],
   ): Promise<ZCodeRunOutcome> {
     const startedAt = this.#now();
     const projectPath = workspace.sourcePath ?? workspace.canonicalPath;
@@ -389,6 +396,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
     let warningTimer: NodeJS.Timeout | undefined;
     let desktopTask: DesktopTaskIndexEntry | null = null;
     try {
+      const images = await resolveImageAttachments(attachments);
       const runtimeEnv = loadPersistedRuntimeEnvironment(this.#childEnvBase, this.#homeDir, this.#host);
       const timeoutMs = this.#timeoutMs ?? resolveTaskTimeout(task, runtimeEnv);
       const config = await this.#resolver.resolve();
@@ -637,7 +645,9 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
         afterSeq: runtimeSeq,
       });
       entry.acceptingTurn = true;
-      await client.request("session/send", { sessionId, content: prompt });
+      await client.request("session/send", { sessionId, content: prompt,
+        ...(images.length ? { attachments: images.map(image => ({ kind: "image", filename: image.filename, mimeType: image.mimeType, sizeBytes: image.sizeBytes, localPath: image.path })) } : {}),
+      });
       entry.rpcAcceptedAt = this.#now().toISOString();
       entry.onEvent({ type: "turn_started", summary: "ZCode accepted the task and started a turn", details: { rpc_accepted: true, ...(entry.turnId ? { turn_id: entry.turnId } : {}) } });
       // B2: if the runtime does not deliver turn.started for the accepted

@@ -1,8 +1,53 @@
 # Coding Agent Bridge
 
+> Status: AUTHORITATIVE
+> Last updated: 2026-11-09
+> Last verified: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
+> Verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
+
 **Coding Agent Bridge** 支持本机 ZCode / Kimi 后台编码任务。MCP server key 为 `coding_agent_bridge`，工具统一为 `coding_agent_*`。可选模型、查询进度、续作、处理审批和取消；ZCode 档位由 `coding_agent_model_catalog` 查询后传 `model.reasoning_level`，Kimi 支持 `kimi.model` 与可选 `kimi.reasoning_level`（原生 thinking；K3/K3.1 Pro 和标准模型当前支持 low/high/max，具体依模型而定）；省略时保留原生设置。环境支持时可一次预约并唤醒原 Codex 聊天验收，普通任务不会主动唤醒。升级后刷新工具列表，旧 `zcode_*` 名称不再注册；安装标识、路径、环境变量和任务数据名称保留。
 
 Codex 插件与本地 MCP 服务，用于把明确授权的开发任务交给本机 ZCode Agent 执行。Codex 可查看进度、选择模型、审查改动并决定是否接收。
+
+## 图片附件
+
+`coding_agent_task` 支持 `attachments`，图片随同一条原生消息按数组顺序发送，不必逐张调用 Read。使用 **Bridge 所在机器**的可读绝对路径：SSH 任务需要远端路径，桌面本机路径不能直接传给远端。支持 PNG/JPEG/GIF/WebP 内容，不支持 URL 或内联 base64。
+
+[GLM-5.3 普通版仅支持文本](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3)，不具备原生多模态能力；Bridge 传图不会为模型增加视觉能力。[GLM-5.3-Flash/FlashX 是原生多模态模型](https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash)。本轮实际验证了 GLM-5.3-Flash 与 Kimi 的原生附图、补图和同会话续作，未实测 FlashX；没有自动更换默认模型。
+
+先通过 `coding_agent_model_catalog` 查询 ZCode 的视觉模型并为下例补上相应 `model`；使用 Kimi 时增加 `"executor": "kimi"`。提交 `coding_agent_task`：
+
+```json
+{
+  "task_id": "image-review-001",
+  "workspace": "/absolute/project",
+  "objective": "Read the attached images in order and report the differences.",
+  "requirements": [],
+  "allowed_paths": [],
+  "forbidden_paths": [],
+  "acceptance_criteria": ["Describe every image accurately"],
+  "test_commands": [],
+  "attachments": [
+    { "path": "/absolute/images/01.png" },
+    { "path": "/absolute/images/02.png" }
+  ]
+}
+```
+
+本次执行结束后，可通过 `coding_agent_continue` 只追加新图片：
+
+```json
+{
+  "task_id": "image-review-001",
+  "operation_id": "add-image-03",
+  "feedback": "Compare this new image with the earlier two.",
+  "attachments": [{ "path": "/absolute/images/03.png" }]
+}
+```
+
+续作保留原执行器和 session，先前图片保留在会话历史中，不要重复附上。重试同一请求应保持相同 task_id / operation_id、路径及数组顺序。预约使用 `coding_agent_schedule.task.attachments`；Bridge 只保存路径，不复制图像，原文件须保留到执行时。
+
+无效输入返回 `TASK_INVALID` / `SCHEDULE_INVALID`，执行前文件失效返回 `attachment_invalid`，不能把丢图当作成功。模型和供应商自身的图片限制仍适用；识别正确率和 token 降幅需要实际验收。升级后刷新或重连 MCP，加载新增参数及技能说明。详见[接口合同](docs/INTERFACES.md#图片附件adr-016)与[实测记录](docs/reports/2026-11-09-native-image-attachments.md)。
 
 ## 功能
 
@@ -14,7 +59,7 @@ Codex 插件与本地 MCP 服务，用于把明确授权的开发任务交给本
 
 ## 安装
 
-需要 Node.js 22.18+、Git、已安装并登录的 ZCode，以及支持插件 marketplace 的 Codex 或 Claude Code。目前只在 Windows 完成真实 ZCode E2E；macOS 和 Linux 尚未验证。
+需要 Node.js 22.18+、Git、已安装并登录的 ZCode，以及支持插件 marketplace 的 Codex 或 Claude Code。Windows 和 Linux 已有记录范围内的真实执行测试；本次 Linux 原生附图实测见上方报告，macOS 尚未验证。
 
 ### Codex CLI 安装
 
@@ -110,6 +155,6 @@ npm run build
 
 ## Kimi 执行器
 
-现有 `coding_agent_task` 增加 `executor: "kimi"`；省略仍为 ZCode。`kimi.model` 是 Kimi 本地模型别名；`kimi.permission_mode` 可为 manual/yolo/auto，默认 yolo。查询、事件、结果、续作、交互回复、取消和预约工具复用现有 zcode_* 名称。续作复用原 Kimi session，不可更换执行器。ZCode doctor/模型目录/默认模型工具仍只适用于 ZCode。
+现有 `coding_agent_task` 增加 `executor: "kimi"`；省略仍为 ZCode。`kimi.model` 是 Kimi 本地模型别名；`kimi.permission_mode` 可为 manual/yolo/auto，默认 yolo。查询、事件、结果、续作、交互回复、取消和预约工具复用现有 coding_agent_* 名称。续作复用原 Kimi session，不可更换执行器。ZCode doctor/模型目录/默认模型工具仍只适用于 ZCode。
 
 需要已登录的 Kimi Code CLI 2.3.3（Node >=22.19）。可通过 `KIMI_BRIDGE_EXECUTABLE` 指定命令或 CLI JavaScript 入口，`KIMI_CODE_HOME` 指定配置与会话目录。完整示例与限制见 [English README](README.md#kimi-code-support)、[ADR-012](docs/decisions/ADR-012-kimi-executor.md) 与[验证报告](docs/reports/2026-10-28-kimi-validation.md)。
