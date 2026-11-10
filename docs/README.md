@@ -89,6 +89,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 日期 | 说明 |
 |---|---|---|
+| [上游 stable / preview 审阅台账](reports/2026-11-10-upstream-review.md) | 2026-11-10 | 83 + 11 个完整提交处置、专项核查与专题审阅边界、部分采纳候选及后续增量范围 / Upstream review ledger and incremental-review baseline |
 | [Kimi 代理修复与部署](reports/2026-11-04-kimi-proxy-fix.md) | 2026-11-04 | 代理边界回归、本机与远端安装验证、Desktop SSH 入口复核；公开脱敏记录 |
 | [Claude 入口与 Kimi 代理修复](reports/2026-11-08-claude-bridge-repair.md) | 2026-11-08 | 双实例根因、Claude 路径声明、独立宿主升级、真实模型执行与续作及待重连边界 |
 | [research/phase1-codex-zcode-2026-09-26.md](research/phase1-codex-zcode-2026-09-26.md) | 2026-09-26 | Phase 1 参考项目调研与 V0.1 架构建议 |
