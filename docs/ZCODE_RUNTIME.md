@@ -2,9 +2,9 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-10
-> Last verified: 2026-11-10，仅核对 ADR-019 的 Kimi 晚注册工具和原生用量语义；实际安装范围见本轮测试记录。
+> Last verified: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: a665ea2 + ADR-019 working tree
+> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
 > Prior verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
 > Prior verification: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
 > Prior verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
@@ -55,6 +55,6 @@ API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名
 
 数据任务可使用 `report_mode: "raw", session_profile: "minimal"`。ZCode 的 native create/resume 只通过公开协议中的工具白名单、MCP、workflow/off-peak 开关减少工具面，create 关闭标题生成；保留默认系统提示，不修改运行时安装包。Observed ZCode 3.16.3 对照：同样两张图、GLM-5.3-Flash/max、各一次主模型请求，输入 20,119 → 2,536，输出均独立核对正确，精简 session 的原会话续作也通过。该降幅不是固定开销保证。
 
-Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或修改全局工具设置。每次 prompt 枚举当前工具，并追加 `mcp__*` 与 `ReadMediaFile`，覆盖已观察到的异步 MCP / 图片工具注册；不替换默认系统提示。完成后的会话用量来自原生 snapshot，GET session 的零占位索引不作为实际消耗。input_tokens 为非缓存输入，cached_input_tokens 单列缓存读取。此修复依据额度恢复后的 Kimi 2.3.3 实测；跨版本及安装范围以本轮报告为准，见 [ADR-019](decisions/ADR-019-kimi-late-tools-and-usage.md)。
+Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或修改全局工具设置。每次 prompt 枚举当前工具，并追加 `mcp__*` 与 `ReadMediaFile`，覆盖已观察到的异步 MCP / 图片工具注册；不替换默认系统提示。完成后的会话用量来自原生 snapshot，GET session 的零占位索引不作为实际消耗。input_tokens 为非缓存输入，cached_input_tokens 单列缓存读取。Kimi 2.3.3 / 2.4.1 四安装入口已实测为零工具，原文、补图、同会话记忆及清理通过；另保留两次远端 OCR 数据失败，见[实测报告](reports/2026-11-10-kimi-api-live-validation.md)。跨版本范围不外推，决策见 [ADR-019](decisions/ADR-019-kimi-late-tools-and-usage.md)。
 
 精简不等于 OS 沙箱，不会清除调用工作区原生 AGENTS/技能/基础上下文。互不相关的 API 请求使用新 task_id/session，可避免历史累积；需要前文的请求才使用 continue。代码更新后重连 MCP，已加载旧代码的服务器不会自动生效。

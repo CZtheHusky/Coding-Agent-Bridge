@@ -1,10 +1,11 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-09
+> Last verified: 2026-11-10，仅核对 ADR-019 与 Kimi 实测报告、当前说明的路由；其余保留历史范围。
+> Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
+> Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 2318201 + ADR-018 working tree
+> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -54,14 +55,14 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 语言 | 最后更新 | 最后核对 |
 |---|---|---|---|
-| [README.md](../README.md) | en | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [README.md](../README.md) | en | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
+| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
+| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
+| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
 | [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-09 | API 模式用法、默认系统提示与工具边界；ZCode 实测，Kimi 仅离线/API 能力核对 |
+| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
+| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-10 | Kimi API 模式四入口、真实工具面/用量与 OCR 失败；其余范围见文档顶部 |
 | [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
 | [plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md) | zh | 2026-11-09 | 技能改名与精简、按需参考路由；API 参数验证边界同本轮记录 |
 
@@ -108,6 +109,8 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 | [archive/phase7-live-progress.md](archive/phase7-live-progress.md) | 2026-10-03 | Phase 7 兼容说明；有效内容已提炼进 `ARCHITECTURE.md` / `INTERFACES.md` |
 
 ### 报告 REPORT
+
+[Kimi API 模式真实补测](reports/2026-11-10-kimi-api-live-validation.md)：修复晚注册工具和用量零占位，四入口零工具；保留两次 OCR 数据失败。
 
 | 文档 | 说明 |
 |---|---|
@@ -177,3 +180,5 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [ADR-018：结果诊断与运行构建 / Result diagnostics and running build](decisions/ADR-018-result-diagnostics-and-running-build.md)：结构化 provider_error、同版执行文件更新观察与重连提示。
 
 - [结果诊断与构建观察验证 / Result diagnostics validation](reports/2026-11-09-result-diagnostics.md)：结构化诊断、同版本更新提示、回归及安装边界。
+
+- [ADR-019：Kimi 晚注册工具与真实用量](decisions/ADR-019-kimi-late-tools-and-usage.md)。

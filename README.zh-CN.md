@@ -1,10 +1,11 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-09
+> Last verified: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
+> Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
+> Last updated: 2026-11-10
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 2318201 + ADR-018 working tree
+> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
 > Prior verification: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
 
@@ -87,9 +88,9 @@ API 模式是上述两个选项的组合名称，没有新增 `mode` 参数或 H
 
 终态从 `coding_agent_result.zcode_output` 读取原文，独立验证 JSON、字段、顺序和条目数；不要从事件摘要拼数据。`completed` 只表示执行结束，`output_truncated: true` 表示捕获不完整，raw 会显式失败。预约任务依赖 `acceptance_met`，不支持 raw。续作保留原模式和 session；不相关的 API 请求各建新任务，避免历史累积。
 
-**两个执行器均保留原生默认系统提示**，不改全局配置。ZCode 使用原生工具/MCP/workflow 开关；Kimi 用原生 `disabled_tools` 禁用当前注册工具，每次续作重新枚举，不支持的 API 版本在模型请求前报 `session_profile_unsupported`，不会静默回退。原生技能目录、工作区说明及基础上下文仍可能存在，工具精简不等于 OS 沙箱。
+**两个执行器均保留原生默认系统提示**，不改全局配置。ZCode 使用原生工具/MCP/workflow 开关；Kimi 用原生 `disabled_tools` 禁用当前注册工具，并追加 `mcp__*` 和 `ReadMediaFile` 覆盖异步注册，每次续作重新枚举，不支持的 API 版本在模型请求前报 `session_profile_unsupported`，不会静默回退。原生技能目录、工作区说明及基础上下文仍可能存在，工具精简不等于 OS 沙箱。
 
-ZCode 3.16.3 / GLM-5.3-Flash 双图对照输入为 20,119 → 2,536 token，本样本减少 87.4%，答案及同 session 续作通过；不承诺固定降幅。Kimi 已核对原生 API 并通过离线协议测试，真实 token 降幅未验证。`runtime_session_usage` 是 ZCode 会话累计请求/错误计数，不是逐轮计费。
+ZCode 3.16.3 / GLM-5.3-Flash 双图对照输入为 20,119 → 2,536 token，本样本减少 87.4%，答案及同 session 续作通过；不承诺固定降幅。Kimi 双图样本总预填（含缓存读取）本机 65,211 → 3,111、远端 14,056 → 3,332，分别减少约 95.2% / 76.3%；四入口实际工具数均为 0。远端两次 OCR 字符识别失败已保留，不能据此保证精简无损。Kimi usage 是会话累计，input_tokens 为非缓存输入，cached_input_tokens 为缓存读取，不能只比较前者。详见[Kimi 实测](docs/reports/2026-11-10-kimi-api-live-validation.md)。`runtime_session_usage` 是 ZCode 会话累计请求/错误计数，不是逐轮计费。
 
 同目录及父子目录任务串行，8 worker 仅适用于不重叠目录。更新后重连 MCP 或开启新宿主会话；正在运行的服务不会热加载新参数。详见[接口合同](docs/INTERFACES.md#数据任务与精简会话adr-017)与[测试报告](docs/reports/2026-11-09-data-task-repair.md)。
 

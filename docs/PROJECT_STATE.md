@@ -1,10 +1,11 @@
 # Project State
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09，仅本次 ADR-018 接口及 Linux 回归；安装边界见本轮诊断报告，其余沿用下列历史范围。
+> Last updated: 2026-11-10
+> Last verified: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
+> Prior verification: 2026-11-09，仅本次 ADR-018 接口及 Linux 回归；安装边界见本轮诊断报告，其余沿用下列历史范围。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 对照及 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)，两端四入口八次真实执行见[安装验收](reports/2026-11-09-api-mode-deployment.md)。其余保留历史核对范围。
-> Verified against: 2a293d04662553f0e32dca030afb1fb024bc0ab8（诊断与运行构建功能）
+> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
 > Prior verification: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
 > Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
@@ -33,7 +34,7 @@ PR #47 claimant 扫描与预算返修（本轮，2026-10-18，含 review-round-1
 
 ## 2026-11-09 API 模式与数据调用修复
 
-ADR-017：新增显式 raw 输出、两执行器可选 minimal 工具精简、已识别 provider 拒绝诊断、ZCode 会话请求计数及空队列扫描优化。默认系统提示保持不变；默认编码模式仍为 structured。ZCode 双图受控对照输入 20,119→2,536，三次真实调用均正确，含同 session 续作。Kimi 原生 API/工具目录已检查，模型调用与 token 降幅 NOT RUN（额度停止约定仍有效）。完整检查与代码落地状态见[本轮修复报告](reports/2026-11-09-data-task-repair.md)。功能提交 998670c 已推送，两端四入口已替换并通过八次真实 ZCode 执行；Kimi 额度经用户确认尚未恢复，保留离线验证，详见[安装验收](reports/2026-11-09-api-mode-deployment.md)。未新建 release；既有宿主连接须重连。
+ADR-017：支持 raw 输出和可选 minimal；保留原生默认系统提示，默认编码仍为 structured/default。ZCode 双图对照 20,119→2,536，原验证与部署见[修复报告](reports/2026-11-09-data-task-repair.md)及[安装验收](reports/2026-11-09-api-mode-deployment.md)。额度恢复后发现并以 1878b33 修复 Kimi 晚注册 MCP/图片工具漏禁用、GET session 用量零占位（ADR-019）。本机 Kimi 2.3.3 / 远端 2.4.1 四安装入口的原生附图、补图、同 session 记忆及清理已验证，实际工具数 0；双图总预填本机 65,211→3,111、远端 14,056→3,332。两次远端 M/N OCR 数据失败保留，未计为通过，不承诺精简无损。功能已推送并替换两端，完整回归 672 通过 / 4 平台跳过；详见[Kimi 实测报告](reports/2026-11-10-kimi-api-live-validation.md)。未新建 release；既有宿主连接须重连。
 
 技能入口已改名为 `coding-agent-bridge`：主 SKILL.md 为 37 行、约 3.5 KB，预约、交互异常及执行器细节拆为按需参考文件；原先强制长表与重复历史说明不再默认加载。
 
@@ -43,7 +44,7 @@ ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原�
 
 ## 稳定
 
-- 原生附图（ADR-016）：task、continue 与 schedule.task 接收 `attachments: [{ path: "/absolute/image.png" }]`；续作只发送本轮新图并复用原 session。GLM-5.3 普通版仅支持文本，Flash/FlashX 原生多模态，本轮只实测 Flash。Linux 本机与 SSH 实际安装的四入口首图/补图均通过；Kimi 隔离测试通过，本轮安装复测受额度耗尽及测试 PATH 缺口限制，未完成。预约仅覆盖离线传播；完整证据见[功能实测](reports/2026-11-09-native-image-attachments.md)与[安装验收](reports/2026-11-09-native-image-deployment.md)。
+- 原生附图（ADR-016）：task、continue 与 schedule.task 接收 `attachments: [{ path: "/absolute/image.png" }]`；续作只发送本轮新图并复用原 session。GLM-5.3 普通版仅支持文本，Flash/FlashX 原生多模态，本轮只实测 Flash。Linux 本机与 SSH 实际安装的四入口首图/补图均通过；此前 Kimi 安装复测受额度限制；额度恢复后的四入口 PNG 传图/补图结果与 OCR 失败见[Kimi 补测](reports/2026-11-10-kimi-api-live-validation.md)。预约仅覆盖离线传播；完整证据见[功能实测](reports/2026-11-09-native-image-attachments.md)与[安装验收](reports/2026-11-09-native-image-deployment.md)。
 
 - Windows 进程树终止（ADR-009）：本机 Node 22/24 全量、专项单测、有界真实 fixture（正向身份绑定终止、错误指纹拒绝且零信号、缺身份拒绝、独立收束）与 Codex 九脚本十用例反例通过；2026-10-18 PR #47 返修后维护者原始反例、组合矩阵、真实 Manager 消费门禁与预算语义回归通过（attempt-1 版本 44/3/93/19 项为分文件历史计数；attempt-2 版本为 53/4 项加 evaluator 探针 10/10×3 Node）。claimant 闭包外（未观察中间祖先）不可证明，外来换代父不排除未证明的后代，不以完整清理名义宣称。
 - TaskManager 生命周期：`queued` / `running` / `completed` / `failed` / `cancelled` / `waiting_for_master`，含 attempt 独占、续跑归档、清理验证。

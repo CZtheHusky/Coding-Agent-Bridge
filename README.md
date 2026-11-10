@@ -3,11 +3,12 @@
 **Coding Agent Bridge** runs local ZCode or Kimi coding tasks in the background. MCP tools use `coding_agent_*` under `coding_agent_bridge`. Select ZCode models and reasoning levels via `coding_agent_model_catalog` and `model.reasoning_level`; Kimi uses `kimi.model` and optional `kimi.reasoning_level` (native thinking; currently low/high/max for K3/K3.1 Pro and standard models, depending on model support). Omit the level to preserve native settings. Monitor, continue, answer interactions and cancel tasks. One-time scheduled goals can wake the original Codex chat on supported Linux/App setups; ordinary tasks do not send completion wakeups. Refresh the MCP tool list after upgrading: old `zcode_*` names are no longer registered. Installation IDs, paths, environment variables and stored task data retain their existing names.
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09 — ADR-018 interfaces and implementation only; validation boundaries are recorded in the diagnostics report.
+> Last updated: 2026-11-10
+> Last verified: 2026-11-10 — Kimi API mode, native tools/usage and four installed entrypoints; OCR failures and platform limits are recorded in the live report.
+> Prior verification: 2026-11-09 — ADR-018 interfaces and implementation only; validation boundaries are recorded in the diagnostics report.
 > Prior verification: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
 > Prior verification: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
-> Verified against: 2318201 + ADR-018 working tree.
+> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
 
 **Use ZCode as a coding worker inside Codex.**
 
@@ -96,7 +97,13 @@ or an OS sandbox, and never changes global agent settings.
 
 A controlled two-image ZCode 3.16.3 / GLM-5.3-Flash test used 20,119 input tokens by
 default and 2,536 with minimal sessions (87.4% lower in this sample), with correct
-answers and one main request each. Kimi token savings have not been measured.
+answers and one main request each. Kimi live two-image samples used 65,211 → 3,111
+prefill tokens locally and 14,056 → 3,332 remotely (95.2% and 76.3% lower), counting
+cache reads. All four installed entrypoints exposed zero model tools. The remote
+OCR sample had two character-recognition failures; these savings do not establish
+unchanged accuracy. See the [Kimi live report](docs/reports/2026-11-10-kimi-api-live-validation.md).
+Kimi `usage` is session-wide: `input_tokens` reports uncached input and
+`cached_input_tokens` reports cache reads separately.
 Optional `runtime_session_usage` exposes ZCode's native **session-wide** request/error
 counts at `observed_at`; these are not per-turn counts or estimated billing.
 
@@ -107,7 +114,7 @@ keep their loaded code and tool schemas. Do not restart workers during active wo
 
 ## Kimi Code support
 
-The same bridge can run local **Kimi Code CLI 2.3.3** tasks. Install and log in to Kimi first. Submit `coding_agent_task` with `executor: "kimi"`; omit it to keep using ZCode. Existing status, events, feedback, result, continue, cancel, interaction reply and schedule tools work for both executors.
+The same bridge can run local **Kimi Code CLI** tasks. Install and log in to Kimi first. Submit `coding_agent_task` with `executor: "kimi"`; omit it to keep using ZCode. Existing status, events, feedback, result, continue, cancel, interaction reply and schedule tools work for both executors.
 
 ```json
 {
@@ -128,7 +135,7 @@ The same bridge can run local **Kimi Code CLI 2.3.3** tasks. Install and log in 
 
 The worker starts its own authenticated loopback `kimi web --no-open` process and resumes the same persisted Kimi session on continuation. Set `KIMI_BRIDGE_EXECUTABLE` if `kimi` is absent from PATH; a CLI `.mjs`/`.cjs`/`.js` entry is also supported. `KIMI_CODE_HOME` selects Kimi's configuration, login and session directory. These two variables pass to detached workers and scheduled runners; arbitrary API-key environment variables do not. Kimi currently requires Node 22.19 or newer; the Bridge's existing ZCode requirement is unchanged.
 
-The Kimi Server API is experimental. Compatibility is verified against 2.3.3; other versions and platforms require validation. Explicit quota exhaustion produces `kimi_usage_exhausted` and stops automatic continuation; an ordinary HTTP 429 is not treated as exhausted quota. See [ADR-012](docs/decisions/ADR-012-kimi-executor.md) and the [validation report](docs/reports/2026-10-28-kimi-validation.md).
+The Kimi Server API is experimental. Linux compatibility has been checked against 2.3.3 and 2.4.1 for the cases in the [live report](docs/reports/2026-11-10-kimi-api-live-validation.md); other versions and platforms require validation. Explicit quota exhaustion produces `kimi_usage_exhausted` and stops automatic continuation; an ordinary HTTP 429 is not treated as exhausted quota. See [ADR-012](docs/decisions/ADR-012-kimi-executor.md) and the [validation report](docs/reports/2026-10-28-kimi-validation.md).
 
 ## How it works
 

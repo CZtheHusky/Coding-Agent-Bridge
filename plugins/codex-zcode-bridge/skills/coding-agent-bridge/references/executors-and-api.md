@@ -2,9 +2,9 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-10
-> Last verified: 2026-11-10，仅核对 ADR-019 的 Kimi 晚注册工具和原生用量语义；实际安装范围见本轮测试记录。
+> Last verified: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，ADR-012/014/016/017 参数及未验证边界。
-> Verified against: a665ea2 + ADR-019 working tree
+> Verified against: 1878b33734b27070da14cd283b7a9e89acd94cae
 > Prior verified against: 998670c
 
 ## 模型与执行
@@ -35,4 +35,4 @@ ZCode minimal 用原生空工具白名单、空 MCP 列表、关闭动态 workfl
 
 两个执行器都保留默认系统提示，不发送自定义 agent/system_prompt 或私有模型请求。工作区说明、技能及历史仍可能增加输入上下文。ZCode 的 runtime_session_usage 是 observed_at 时的会话累计请求/错误数，不能当逐轮计费；普通 usage 缺失时写未报告，不填 0 或估算。Kimi 的 usage 是原生 snapshot 的会话累计：input_tokens 为非缓存输入，cached_input_tokens 为缓存读取，分别报告；不要仅比较非缓存输入就宣称上下文减少。主会话 token 只有宿主实际提供时才能报告。
 
-功能实测与安装边界见仓库 docs/reports/2026-11-09-data-task-repair.md 及 2026-11-09-api-mode-deployment.md；这些记录不构成其他版本或额度恢复后的认证。
+ZCode 实测与安装边界见仓库 docs/reports/2026-11-09-data-task-repair.md 及 2026-11-09-api-mode-deployment.md；额度恢复后的 Kimi 四入口、真实工具数和 token 对照见 docs/reports/2026-11-10-kimi-api-live-validation.md，其中保留两次远端 OCR 数据失败，不承诺精简无损或其他版本。
