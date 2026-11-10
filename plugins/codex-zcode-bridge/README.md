@@ -62,6 +62,8 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 
 升级后刷新或重连 MCP，以加载新增参数与技能说明。完整提交示例与验证范围见仓库中的 `README.zh-CN.md`「图片附件」及 `docs/reports/2026-11-09-native-image-attachments.md`。
 
+技能名为 `coding-agent-bridge`，入口文件位于 `skills/coding-agent-bridge/SKILL.md`。详细规则在同目录 references 中，按需读取。升级后重连 MCP 或开启新宿主会话以刷新技能。
+
 ## API 模式
 
 分类、抽取或标注任务可在现有任务中设置：

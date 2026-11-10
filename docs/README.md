@@ -62,7 +62,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 | [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
 | [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-09 | API 模式用法、默认系统提示与工具边界；ZCode 实测，Kimi 仅离线/API 能力核对 |
 | [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
-| [plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/zcode-bridge/SKILL.md) | zh | 2026-11-09 | API 模式用法、默认系统提示与工具边界；ZCode 实测，Kimi 仅离线/API 能力核对 |
+| [plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md) | zh | 2026-11-09 | 技能改名与精简、按需参考路由；API 参数验证边界同本轮记录 |
 
 `最后核对` 表示上一次有人把文档内容与代码对照的日期及范围；标记为未记录的条目仍缺少核对证据。新建和修改文档时必须填写，否则该文档只能算"最后更新"，不能算"已验证"。本地回归不代表真实 provider 或长期运行通过。
 

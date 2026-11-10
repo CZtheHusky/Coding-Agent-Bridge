@@ -274,7 +274,7 @@ test("the real validator rejects injected development-path references and keeps 
       path.join(pluginRoot, "dist"),
       path.join(pluginRoot, "worker", "vendor", "pkg"),
       path.join(pluginRoot, "hooks"),
-      path.join(pluginRoot, "skills", "zcode-bridge"),
+      path.join(pluginRoot, "skills", "coding-agent-bridge"),
     ]) {
       mkdirSync(directory, { recursive: true });
     }
@@ -294,7 +294,7 @@ test("the real validator rejects injected development-path references and keeps 
     writeFileSync(path.join(pluginRoot, ".mcp.json"), JSON.stringify(mcp));
     writeFileSync(path.join(pluginRoot, "worker", "vendor", "package.json"), JSON.stringify({ name: "playwright-core" }));
     writeFileSync(path.join(pluginRoot, "worker", "vendor", "browsers.json"), JSON.stringify({ browsers: [{ name: "chromium" }] }));
-    for (const file of ["hooks/hooks.json", "hooks/session-start.mjs", "hooks/configure-runtime.ps1", "skills/zcode-bridge/SKILL.md"]) {
+    for (const file of ["hooks/hooks.json", "hooks/session-start.mjs", "hooks/configure-runtime.ps1", "skills/coding-agent-bridge/SKILL.md"]) {
       writeFileSync(path.join(pluginRoot, file), "");
     }
 

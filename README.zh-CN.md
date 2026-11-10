@@ -51,6 +51,8 @@ Codex 插件与本地 MCP 服务，用于把明确授权的开发任务交给本
 
 无效输入返回 `TASK_INVALID` / `SCHEDULE_INVALID`，执行前文件失效返回 `attachment_invalid`，不能把丢图当作成功。模型和供应商自身的图片限制仍适用；识别正确率和 token 降幅需要实际验收。升级后刷新或重连 MCP，加载新增参数及技能说明。详见[接口合同](docs/INTERFACES.md#图片附件adr-016)与[实测记录](docs/reports/2026-11-09-native-image-attachments.md)。
 
+技能名为 `coding-agent-bridge`；主文件仅保留日常委派与关键边界，预约、交互和执行器细节按需读取参考文件。
+
 ## API 模式
 
 分类、抽取、标注等只需要模型回答时，在现有 TaskPackage 中设置：

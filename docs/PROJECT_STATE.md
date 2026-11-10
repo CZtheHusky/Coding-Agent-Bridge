@@ -34,6 +34,8 @@ PR #47 claimant 扫描与预算返修（本轮，2026-10-18，含 review-round-1
 
 ADR-017：新增显式 raw 输出、两执行器可选 minimal 工具精简、已识别 provider 拒绝诊断、ZCode 会话请求计数及空队列扫描优化。默认系统提示保持不变；默认编码模式仍为 structured。ZCode 双图受控对照输入 20,119→2,536，三次真实调用均正确，含同 session 续作。Kimi 原生 API/工具目录已检查，模型调用与 token 降幅 NOT RUN（额度停止约定仍有效）。完整检查与代码落地状态见[本轮修复报告](reports/2026-11-09-data-task-repair.md)。功能提交 998670c 已推送，两端四入口已替换并通过八次真实 ZCode 执行；Kimi 额度经用户确认尚未恢复，保留离线验证，详见[安装验收](reports/2026-11-09-api-mode-deployment.md)。未新建 release；既有宿主连接须重连。
 
+技能入口已改名为 `coding-agent-bridge`：主 SKILL.md 为 37 行、约 3.5 KB，预约、交互异常及执行器细节拆为按需参考文件；原先强制长表与重复历史说明不再默认加载。
+
 ## 稳定
 
 - 原生附图（ADR-016）：task、continue 与 schedule.task 接收 `attachments: [{ path: "/absolute/image.png" }]`；续作只发送本轮新图并复用原 session。GLM-5.3 普通版仅支持文本，Flash/FlashX 原生多模态，本轮只实测 Flash。Linux 本机与 SSH 实际安装的四入口首图/补图均通过；Kimi 隔离测试通过，本轮安装复测受额度耗尽及测试 PATH 缺口限制，未完成。预约仅覆盖离线传播；完整证据见[功能实测](reports/2026-11-09-native-image-attachments.md)与[安装验收](reports/2026-11-09-native-image-deployment.md)。

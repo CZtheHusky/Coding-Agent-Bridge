@@ -55,7 +55,7 @@ for (const relativePath of [
   "hooks/hooks.json",
   "hooks/session-start.mjs",
   "hooks/configure-runtime.ps1",
-  "skills/zcode-bridge/SKILL.md",
+  "skills/coding-agent-bridge/SKILL.md",
 ]) {
   await access(path.join(pluginRoot, relativePath));
 }

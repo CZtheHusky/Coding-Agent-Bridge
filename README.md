@@ -62,6 +62,8 @@ After the attempt ends, add **only new images** with `coding_agent_continue`:
 
 Continuation retains the same executor and session. Do not attach earlier images again. Request retries must keep the same task/operation ID, paths and array order. Scheduled tasks use the same attachments inside `task`; files are not copied, so keep originals until execution. Invalid input fails as `TASK_INVALID` / `SCHEDULE_INVALID`; files lost before execution fail as `attachment_invalid`. Model/provider image limits still apply; OCR accuracy and token savings are not guaranteed. Refresh/reconnect MCP after upgrading to load the new parameters and skill. See the [attachment contract](docs/INTERFACES.md#图片附件adr-016) and [validation evidence](docs/reports/2026-11-09-native-image-attachments.md).
 
+The bundled skill is named `coding-agent-bridge`. Its short entrypoint covers routine delegation; scheduling and failure details are loaded from its references only when needed.
+
 ## API mode: data-only calls with less context
 
 API mode names the combination below for classification, extraction, or image labeling. It uses the existing asynchronous Bridge task tools; no separate HTTP endpoint or new `mode` field is required. Set these optional task fields:
