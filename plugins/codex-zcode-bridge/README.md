@@ -1,12 +1,13 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](../../docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 合同核对、Kimi 普通异常 worker 回归；完整交付范围见仓库诊断与部署报告。
+> Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](../../docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-10
+> Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: c0ec7ce + Kimi exception diagnostics working tree
 > Prior verification: 2026-11-09，仅图片参数、续作示例与模型模态；其余沿用原说明。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree。
 
@@ -67,7 +68,7 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 
 技能名为 `coding-agent-bridge`，入口文件位于 `skills/coding-agent-bridge/SKILL.md`。详细规则在同目录 references 中，按需读取。升级后重连 MCP 或开启新宿主会话以刷新技能。
 
-失败结果可带脱敏的 `provider_error`；仍以顶层 error_code 处理额度和清理阻塞，不据 retryable 自动重试。回执/doctor 的 `bridge` 显示版本和构建观察；disk_status=changed 提示重连，unknown 表示无法确认，不自动重启。首次升级前的旧进程仍需手动重连。
+失败时先读 `result.summary/issues`、`status.error` 和 `provider_error.message`。启动退出保留退出码、信号及有界脱敏 stderr；provider 与 Kimi 普通异常保留脱敏文本和原因，旧记录不会自动补回已丢失的信息。Observed ZCode Server 3.18.0 的长 TMPDIR 可触发 socket 路径超限（listen EINVAL）；调用方应先选短临时路径再决定是否重试。失败结果可带脱敏的 `provider_error`；仍以顶层 error_code 处理额度和清理阻塞，不据 retryable 自动重试。回执/doctor 的 `bridge` 显示版本和构建观察；disk_status=changed 提示重连，unknown 表示无法确认，不自动重启。首次升级前的旧进程仍需手动重连。
 
 ## API 模式
 

@@ -296,3 +296,28 @@ test("Kimi minimal mode fails before a model prompt when the native API lacks di
     assert.equal(f.requests().some((r: { route: string }) => r.route.endsWith("/prompts")), false);
   } finally { f.cleanup(); }
 });
+
+
+test("Kimi prompt acceptance exceptions retain redacted causes in worker results instead of generic retry advice", async () => {
+  const f = fixture(); const dataRoot = path.join(f.cwd, "data"); const store = new TaskStore(dataRoot);
+  const nativeFetch = globalThis.fetch;
+  globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+    if (String(args[0]).endsWith("/prompts")) {
+      throw new Error("The operation was aborted due to timeout; token=SECRET_MUST_NOT_LEAK", {
+        cause: new Error("Kimi local prompt acceptance exceeded 30000 ms"),
+      });
+    }
+    return nativeFetch(...args);
+  };
+  try {
+    store.createTask(f.task, new Date().toISOString());
+    const { result } = await runWorkerTask({ dataRoot, taskId: f.task.task_id, attempt: 1 });
+    assert.equal(result.status, "failed");
+    assert.equal(result.error_code, "kimi_nonzero_exit", "a local request timeout is distinct from the overall task deadline or exhausted quota");
+    assert.equal(result.provider_error?.message, "The operation was aborted due to timeout; token=[REDACTED]\nKimi local prompt acceptance exceeded 30000 ms");
+    assert.match(result.summary, /aborted due to timeout/);
+    assert.match(store.readLog(f.task.task_id, "stderr"), /prompt acceptance exceeded 30000 ms/);
+    assert.doesNotMatch(JSON.stringify(result) + store.readLog(f.task.task_id, "stderr"), /SECRET_MUST_NOT_LEAK|private-fixture-token/);
+    assert.notEqual(result.error_code, "cleanup_failed");
+  } finally { globalThis.fetch = nativeFetch; f.cleanup(); }
+});

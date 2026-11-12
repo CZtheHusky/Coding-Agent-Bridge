@@ -266,7 +266,11 @@ export class KimiAdapter implements CodingAgentAdapter {
     } catch (error) {
       if (!errorCode) {
         errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error instanceof BridgeError && (error.code === "spawn_failed" || error.code === "attachment_invalid" || error.code === "session_profile_unsupported") ? error.code : "kimi_nonzero_exit";
-        reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error instanceof BridgeError ? error.message : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
+        if (!run.cancelled && !run.timedOut && !(error instanceof BridgeError)) {
+          const diagnostic = providerFailureDiagnostic(error).details;
+          if (Object.keys(diagnostic).length) providerError = diagnostic;
+        }
+        reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error instanceof BridgeError ? error.message : providerError?.message ? `Kimi execution or protocol failed: ${providerError.message}` : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
       }
     } finally {
       clearTimeout(timer);

@@ -21672,7 +21672,11 @@ var KimiAdapter = class {
     } catch (error62) {
       if (!errorCode) {
         errorCode = run.cancelled ? "cancelled" : run.timedOut ? "timeout" : error62 instanceof BridgeError && (error62.code === "spawn_failed" || error62.code === "attachment_invalid" || error62.code === "session_profile_unsupported") ? error62.code : "kimi_nonzero_exit";
-        reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error62 instanceof BridgeError ? error62.message : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
+        if (!run.cancelled && !run.timedOut && !(error62 instanceof BridgeError)) {
+          const diagnostic = providerFailureDiagnostic(error62).details;
+          if (Object.keys(diagnostic).length) providerError = diagnostic;
+        }
+        reportError = run.cancelled ? "Kimi task cancelled" : run.timedOut ? "Kimi task timed out" : error62 instanceof BridgeError ? error62.message : providerError?.message ? `Kimi execution or protocol failed: ${providerError.message}` : "Kimi execution or protocol failed; check executable, login, model configuration and session ownership";
       }
     } finally {
       clearTimeout(timer);
