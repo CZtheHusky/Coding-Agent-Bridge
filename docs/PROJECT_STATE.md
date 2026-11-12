@@ -2,14 +2,14 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-11
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
 > Prior verification: 2026-11-11，ADR-021、Linux 回归及远端三入口 ZCode/Kimi 真实文本调用；两份配置已启用自动发现，失败记录及未运行边界见[验证报告](reports/2026-11-11-server-runtime-discovery.md)。
 > Prior verification: 2026-11-10，ADR-020 Linux 回归及两端四入口替换、索引迁移和隔离加载检查；实际并发设为 20，保留 yolo 与代理。共享盘超时及未重跑真实模型边界见[部署报告](reports/2026-11-10-batch-scheduling-deployment.md)。
 > Prior verification: 2026-11-10，上游两处局部回移与 Linux 离线回归；本轮未重跑真实 provider 或替换安装。
 > Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口及 Linux 回归；安装边界见本轮诊断报告，其余沿用下列历史范围。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 对照及 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)，两端四入口八次真实执行见[安装验收](reports/2026-11-09-api-mode-deployment.md)。其余保留历史核对范围。
-> Verified against: e0a19e8 + ADR-021/022 working tree
+> Verified against: 122d9b7
 > Prior verification: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
 > Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
@@ -58,7 +58,7 @@ Linux Node 22 完整回归 690 通过 / 4 平台跳过，Node 24 定向 87/87，
 
 ## 2026-11-11 Server 自动发现与健康修复
 
-ADR-021 已实现并替换远端 Codex / Claude 插件和 Claude 独立服务；两份配置清除固定版本入口，按官方 current.json 自动发现 Server 3.18.0。显式固定入口仍优先且无效时报错。Kimi 2.4.1 恢复持久化标准启动链接。703 项 Linux 回归通过、4 平台跳过，Node 24 解析专项 24/24，三入口六项真实 ZCode/Kimi 文本任务均完成并独立核对输出与清理。yolo、20 并发、代理及数据目录保留。本轮源码与说明尚未提交/推送，本机安装未替换；当前旧聊天须重连。完整失败记录和验证边界见[报告](reports/2026-11-11-server-runtime-discovery.md)。
+ADR-021 已实现并替换远端 Codex / Claude 插件和 Claude 独立服务；两份配置清除固定版本入口，按官方 current.json 自动发现 Server 3.18.0。显式固定入口仍优先且无效时报错。Kimi 2.4.1 恢复持久化标准启动链接。703 项 Linux 回归通过、4 平台跳过，Node 24 解析专项 24/24，三入口六项真实 ZCode/Kimi 文本任务均完成并独立核对输出与清理。yolo、20 并发、代理及数据目录保留。源码及说明已提交推送，两端四入口已替换为 122d9b7；最终 GLM 四入口、本机 Kimi 和三次故障回传通过；远端 Kimi 实际调用在本地 prompt 接收请求 30 秒超时，当前旧聊天须重连。完整失败记录和验证边界见[报告](reports/2026-11-11-server-runtime-discovery.md)。
 
 ## 稳定
 

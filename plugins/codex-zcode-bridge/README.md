@@ -7,7 +7,7 @@
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: c0ec7ce + Kimi exception diagnostics working tree
+> Verified against: 122d9b7
 > Prior verification: 2026-11-09，仅图片参数、续作示例与模型模态；其余沿用原说明。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree。
 

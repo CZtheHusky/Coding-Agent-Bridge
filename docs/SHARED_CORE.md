@@ -6,7 +6,7 @@
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: e0a19e8 + ADR-021 working tree
+> Verified against: 122d9b7
 > Prior verification: 2026-11-08，仅核对 ADR-015 的 Claude 入口声明、跨项目目录启动回归及真实 Claude MCP 健康检查；其余范围沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口修复。
 > Prior verification: 2026-10-28，createBridgeServer 可选调度注入、默认 Codex stdio 装配与 Linux 离线闭环，详见 ADR-010；新版调度在对话空闲时启动新轮次仍未验证。

@@ -1,13 +1,13 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
 > Prior verification: 2026-11-11，ADR-021、自动发现与远端健康检查报告路由；其余保留历史范围。
 > Prior verification: 2026-11-10，ADR-020、20 并发、测量及两端四入口部署报告路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
 > Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: e0a19e8 + ADR-021/022 working tree
+> Verified against: 122d9b7
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -57,14 +57,14 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 语言 | 最后更新 | 最后核对 |
 |---|---|---|---|
-| [README.md](../README.md) | en | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
-| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
-| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
-| [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-09 | API 模式参数、默认系统提示边界与回归；ZCode 实测，Kimi 模型降幅未测；其余范围见文档顶部 |
-| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
-| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-10 | ADR-020 活动调度、目录覆盖与 20 并发 Linux 测量；慢盘超时及其余范围见文档顶部 |
+| [README.md](../README.md) | en | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [INTERFACES.md](INTERFACES.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-11 | ADR-022 错误文本、启动 stderr 和 Kimi 普通异常说明；验证边界见部署报告 |
 | [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
 | [plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md) | zh | 2026-11-09 | 技能改名与精简、按需参考路由；API 参数验证边界同本轮记录 |
 
@@ -195,3 +195,5 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 - [ADR-022：错误原文与进程退出诊断](decisions/ADR-022-error-text-and-process-exit-diagnostics.md)：脱敏消息、启动 stderr 与首个退出原因保留。
 - [GLM 111 条失败原因与回传修复](reports/2026-11-11-error-propagation.md)：长 TMPDIR socket 复现、丢失路径、测试与安装边界。
+
+- [版本自动发现与错误回传安装验收](reports/2026-11-11-runtime-errors-deployment.md)：122d9b7、两端四入口、五次正常调用通过、三次远端 Kimi 失败、三次预期启动故障及单独超时追踪。

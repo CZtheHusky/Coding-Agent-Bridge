@@ -2,10 +2,10 @@
 
 > Status: AUTHORITATIVE（仅指本索引）
 > Last updated: 2026-11-11
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](../reports/2026-11-11-error-propagation.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](../reports/2026-11-11-error-propagation.md)。
 > Prior verification: 2026-11-11，仅新增 ADR-021 决策路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅核对 ADR-017/018 决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
-> Verified against: e0a19e8 + ADR-021/022 working tree
+> Verified against: 122d9b7
 
 本目录保存已批准的架构决策和带日期的决策记录。决策回答"为什么这样定"，当前实现仍以 `ARCHITECTURE.md` / `INTERFACES.md` 为准。
 

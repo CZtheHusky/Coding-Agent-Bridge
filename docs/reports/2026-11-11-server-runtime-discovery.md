@@ -3,7 +3,7 @@
 > Status: RESEARCH
 > Date: 2026-11-11
 > Verified against: e0a19e8 + ADR-021 working tree
-> Scope: Linux 本地回归，远端 Codex / Claude 插件和 Claude 独立宿主；本轮改动尚未提交或推送
+> Scope: Linux 本地回归，远端 Codex / Claude 插件和 Claude 独立宿主；调查阶段尚未提交或推送，后续交付见[安装验收](2026-11-11-runtime-errors-deployment.md)
 
 ## 根因与修复
 

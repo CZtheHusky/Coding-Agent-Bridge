@@ -11,7 +11,7 @@
 > Prior verification: 2026-11-09 — ADR-018 interfaces and implementation only; validation boundaries are recorded in the diagnostics report.
 > Prior verification: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
 > Prior verification: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
-> Verified against: e0a19e8 + ADR-021/022 working tree
+> Verified against: 122d9b7
 
 **Use ZCode as a coding worker inside Codex.**
 

@@ -2,12 +2,12 @@
 
 > Status: AUTHORITATIVE
 > Last updated: 2026-11-11
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
 > Prior verification: 2026-11-11，ADR-021 官方指针与两宿主配置解析、Linux 回归及远端真实文本调用；其余范围保留历史记录，见[验证报告](reports/2026-11-11-server-runtime-discovery.md)。
 > Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: e0a19e8 + ADR-021/022 working tree
+> Verified against: 122d9b7
 > Prior verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
 > Prior verification: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
 > Prior verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
