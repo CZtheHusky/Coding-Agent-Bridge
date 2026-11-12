@@ -1,12 +1,14 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](docs/reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-11，ADR-021 自动发现、Linux 回归及远端三入口 ZCode/Kimi 文本调用；失败探针与未运行边界见[验证报告](docs/reports/2026-11-11-server-runtime-discovery.md)。
+> Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-10
+> Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: e0a19e8 + ADR-021/022 working tree
 > Prior verification: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
 
@@ -95,7 +97,7 @@ ZCode 3.16.3 / GLM-5.3-Flash 双图对照输入为 20,119 → 2,536 token，本�
 
 同目录及父子目录任务串行，8 worker 仅适用于不重叠目录。更新后重连 MCP 或开启新宿主会话；正在运行的服务不会热加载新参数。详见[接口合同](docs/INTERFACES.md#数据任务与精简会话adr-017)与[测试报告](docs/reports/2026-11-09-data-task-repair.md)。
 
-失败结果的 `provider_error` 提供脱敏后的原生错误码、HTTP 状态和重试提示等实际证据；未知字段缺省。顶层 `error_code` 仍决定额度耗尽和清理阻塞，不因 retryable=true 自动重试。提交/续作回执及 doctor 的 `bridge` 显示运行版本与构建指纹；`disk_status: "changed"` 表示执行文件已变化，需重连，unknown 表示未能确认。首次升级前的旧进程仍须手动重连。详见 [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md)。
+失败结果的 `provider_error` 提供脱敏后的原生错误码、HTTP 状态、重试提示及有界脱敏的 `message` 等实际证据；未知字段缺省。顶层 `error_code` 仍决定额度耗尽和清理阻塞，不因 retryable=true 自动重试。提交/续作回执及 doctor 的 `bridge` 显示运行版本与构建指纹；`disk_status: "changed"` 表示执行文件已变化，需重连，unknown 表示未能确认。首次升级前的旧进程仍须手动重连。详见 [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md)。
 
 批量任务可通过显式非空的 `ZCODE_BRIDGE_DATA_DIR=/absolute/batch-data` 覆盖保存的数据目录，其余运行/代理配置仍按原规则读取。不同目录拥有独立任务库、锁和 worker 并发名额，不会搬迁历史。调度使用活动候选索引，旧库首次全量校验在调度锁外完成；升级索引时，共用同一数据目录的所有 Bridge 管理进程必须一起升级并重连，不能与仍会提交/续作的旧管理进程混用。旧版 worker 可以完成已登记任务。
 
@@ -139,10 +141,10 @@ claude plugin install codex-zcode-bridge@codex-zcode-bridge
 
 安装后开启新对话，并检查、信任插件的 `SessionStart` hook。Windows 上 hook 会自动发现并验证 Node.js、ZCode runtime、provider 配置和数据目录，将设置保存到 `%USERPROFILE%\.codex\codex-zcode-bridge\runtime-config.json`。它不会写入 Windows 用户环境变量或复制 provider 凭据。标准安装不需要克隆仓库或运行 `npm install`；Marketplace 不会代为安装 Node.js 或 ZCode。
 
-如需自定义设置，直接编辑 `%USERPROFILE%\.codex\codex-zcode-bridge\runtime-config.json`。在 macOS/Linux 上对应 `~/.codex/codex-zcode-bridge/runtime-config.json`。Windows 首次启动时 hook 会创建该文件；其他平台如文件不存在，可自行创建。保留自动发现的路径字段，只修改需要覆盖的值：
+如需自定义设置，直接编辑 `%USERPROFILE%\.codex\codex-zcode-bridge\runtime-config.json`。在 macOS/Linux 上对应 `~/.codex/codex-zcode-bridge/runtime-config.json`。Windows 首次启动时 hook 会创建该文件；其他平台如文件不存在，可自行创建。只修改需要覆盖的值；ZCode Server 可按下述说明启用版本自动发现：
 
 - `ZCODE_BRIDGE_NODE`：Node.js 可执行文件的绝对路径（仅当 `node` 不在 PATH 中时需要）。
-- `ZCODE_BRIDGE_ZCODE_CJS`：ZCode runtime 的绝对路径。
+- `ZCODE_BRIDGE_ZCODE_CJS`：可选固定入口的绝对路径。设为 `null` 或 `""` 启用自动发现：先保留现有 Desktop 发现，再读取 `.zcode/server/current.json`，新任务跟随官方当前版本。显式固定路径无效仍报错。两宿主设置与排查见[运行配置](docs/ZCODE_RUNTIME.md#zcode-server-自动发现adr-021)。
 - `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` 与 `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE`：builtin 和个人 provider 配置文件的绝对路径。
 - `ZCODE_HOME`：实际 `.zcode` 数据目录的绝对路径。
 - `ZCODE_BRIDGE_DATA_DIR`：Bridge 任务数据目录的绝对路径。
@@ -167,6 +169,8 @@ ZCode session 标题根据首条任务 prompt 生成。Bridge 会将 `TASK ID` �
 任务完成后，Codex 应检查实际 diff 并独立运行验收。`completed` 只表示 ZCode 已报告执行结束，不代表改动已通过 Codex 审查。若任务遇到未解决且会影响重要行为的决定，ZCode 会请求 Codex 指示后再继续。
 
 ZCode Desktop 的 Workspace 视图按 Codex 项目目录查找任务。
+
+启动失败会保留退出码、信号和脱敏 stderr；未知 provider 错误保留脱敏文本，详见 [ADR-022](docs/decisions/ADR-022-error-text-and-process-exit-diagnostics.md)。
 
 遇到安装或启动问题时，调用 MCP 工具 `coding_agent_doctor` 获取只读诊断。它不会启动 ZCode 会话，也不做真实权限审批；审批链路只能由实际任务验证（记录版本上已完成单次 43,014-byte Write 的真实审批往返实测）。
 

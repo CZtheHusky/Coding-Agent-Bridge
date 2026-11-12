@@ -1,9 +1,11 @@
 # 决策记录 / Decisions
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last updated: 2026-11-10
-> Last verified: 2026-11-09，仅核对 ADR-017/018 决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
-> Verified against: 2318201 + ADR-018 working tree。
+> Last updated: 2026-11-11
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](../reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-11，仅新增 ADR-021 决策路由；其余保留历史范围。
+> Prior verification: 2026-11-09，仅核对 ADR-017/018 决策路由；ADR-016/ADR-015 沿用此前核对，其余范围不变。
+> Verified against: e0a19e8 + ADR-021/022 working tree
 
 本目录保存已批准的架构决策和带日期的决策记录。决策回答"为什么这样定"，当前实现仍以 `ARCHITECTURE.md` / `INTERFACES.md` 为准。
 
@@ -55,3 +57,7 @@ ADR-001 到 ADR-003 只搬运权威文档里已经写明的结论。ADR-004 原�
 - [ADR-019：Kimi 晚注册工具与真实用量](ADR-019-kimi-late-tools-and-usage.md)：原生 MCP 名称模式覆盖异步工具注册，snapshot 提供会话累计用量。
 
 - [ADR-020：活动调度索引与显式数据目录](ADR-020-scheduling-index-and-data-root.md)：写前登记、锁内验证撤销、一次迁移及 DATA_DIR 单项覆盖；同库 Manager 须统一升级。
+
+- [ADR-021：ZCode Server runtime 自动发现](ADR-021-zcode-server-runtime-discovery.md)：跟随官方 current.json，保留显式固定入口与两宿主独立配置。
+
+- [ADR-022：错误原文与进程退出诊断](ADR-022-error-text-and-process-exit-diagnostics.md)：脱敏消息、启动 stderr 与首个退出原因保留。

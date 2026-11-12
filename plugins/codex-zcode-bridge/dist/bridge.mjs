@@ -1694,7 +1694,7 @@ var init_build = __esm({
 });
 
 // src/mcp/main.ts
-import { realpathSync as realpathSync2 } from "node:fs";
+import { realpathSync as realpathSync3 } from "node:fs";
 import path20 from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
 
@@ -23230,18 +23230,31 @@ import path19 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/runtime/resolver.ts
-import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
+import { accessSync, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/adapters/provider-failure.ts
+import { stripVTControlCharacters } from "node:util";
+function sanitizeDiagnosticText(value) {
+  const text = stripVTControlCharacters(value).replace(/[\x00-\x08\x0b-\x1f\x7f]/gu, "").replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/gu, "[REDACTED PRIVATE KEY]").replace(/\b(?:https?|wss?):\/\/[^\s<>"')\]]+/giu, "[REDACTED URL]").replace(/(\b(?:authorization|proxy-authorization|cookie|set-cookie)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n]+)/giu, "$1[REDACTED]").replace(/(["']?\b(?:api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|client[-_]?secret|password|passwd|token|secret)\b["']?\s*[:=]\s*)(?:\[REDACTED\]|"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]]+)/giu, "$1[REDACTED]").replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/giu, "$1 [REDACTED]").replace(/\b(?:sk-[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/gu, "[REDACTED TOKEN]").trim();
+  const marker = "\u2026[truncated]";
+  return text.length <= 4e3 ? text : text.slice(0, 4e3 - marker.length) + marker;
+}
 function providerFailureDiagnostic(value) {
   const details = {};
+  const messages = [];
+  const rememberMessage = (value2) => {
+    if (typeof value2 !== "string" || messages.join("\n").length >= 4e3) return;
+    const text = sanitizeDiagnosticText(value2);
+    if (text && !messages.includes(text)) messages.push(text);
+  };
   let contentFilter = false;
   let code1301 = false;
   const visit = (value2, depth) => {
     if (typeof value2 === "string") {
+      rememberMessage(value2);
       if (/\[1301\]/u.test(value2.slice(0, 16384))) {
         contentFilter = true;
         code1301 = true;
@@ -23267,19 +23280,22 @@ function providerFailureDiagnostic(value) {
     if (typeof record3.retryable === "boolean") details.retryable = record3.retryable;
     for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
       const item = record3[key];
+      rememberMessage(item);
       if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
       if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
     }
     for (const key of ["error", "cause", "data", "detail", "attribution"]) visit(record3[key], depth + 1);
   };
   visit(value, 0);
+  if (messages.length) details.message = sanitizeDiagnosticText(messages.join("\n"));
   if (contentFilter) {
     if (code1301) details.code = "1301";
     details.category = "content_filter";
     return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
   }
-  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
-  return { summary: `ZCode turn failed${suffix}`, details };
+  const { message, ...fields } = details;
+  const suffix = Object.keys(fields).length ? ` (${JSON.stringify(fields)})` : "";
+  return { summary: `ZCode turn failed${message ? `: ${message}` : ""}${suffix}`, details };
 }
 
 // src/runtime/errors.ts
@@ -23405,11 +23421,12 @@ var NodeRuntimeResolver = class {
       zcodeEntrypoint = entryOverride;
     } else {
       const candidates = installCandidates(env, ["resources", "glm", "zcode.cjs"]);
-      const discovered = candidates.find(isReadableFile);
+      const serverHome = zcodeHome ?? path2.join(env["ZCODE_DATA_BASE_DIR"]?.trim() || this.#homeDir, ".zcode");
+      const discovered = candidates.find(isReadableFile) ?? serverRuntimeEntrypoint(serverHome);
       if (!discovered) {
         throw new BridgeError(
           "runtime_not_found",
-          `zcode.cjs was not found; searched: ${candidates.join(", ") || "(no installation roots available)"}`
+          `zcode.cjs was not found; searched: ${[...candidates, path2.join(serverHome, "server", "current.json")].join(", ")}`
         );
       }
       zcodeEntrypoint = discovered;
@@ -23571,6 +23588,33 @@ var NodeRuntimeResolver = class {
     return parsed;
   }
 };
+function serverRuntimeEntrypoint(zcodeHome) {
+  const serverRoot = path2.join(zcodeHome, "server");
+  const currentPath = path2.join(serverRoot, "current.json");
+  let current;
+  try {
+    current = JSON.parse(readFileSync(currentPath, "utf8"));
+  } catch (error2) {
+    if (error2.code === "ENOENT") return null;
+    throw new BridgeError("runtime_not_found", `Could not read ZCode Server version pointer: ${currentPath}`, { cause: error2 });
+  }
+  if (!isPlainObject3(current) || typeof current["releaseDir"] !== "string" || !path2.isAbsolute(current["releaseDir"])) {
+    throw new BridgeError("runtime_not_found", `Invalid ZCode Server releaseDir in ${currentPath}`);
+  }
+  try {
+    const releases = realpathSync(path2.join(serverRoot, "releases"));
+    const release = realpathSync(current["releaseDir"]);
+    const relative = path2.relative(releases, release);
+    if (!relative || relative === ".." || relative.startsWith(`..${path2.sep}`) || path2.isAbsolute(relative)) {
+      throw new Error("releaseDir is outside server/releases");
+    }
+    const entrypoint = path2.join(release, "runtime", "zcode.cjs");
+    if (!isReadableFile(entrypoint)) throw new Error("current release has no readable runtime/zcode.cjs");
+    return entrypoint;
+  } catch (error2) {
+    throw new BridgeError("runtime_not_found", `Invalid current ZCode Server runtime in ${currentPath}: ${errorText(error2)}`, { cause: error2 });
+  }
+}
 function installCandidates(env, relative) {
   const roots = [
     env["ZCODE_WINDOWS_APP_INSTALL_DIR"]?.trim(),
@@ -23662,7 +23706,7 @@ function errorText(error2) {
 init_task_store();
 
 // src/workspace/direct-provider.ts
-import { realpathSync, statSync as statSync4 } from "node:fs";
+import { realpathSync as realpathSync2, statSync as statSync4 } from "node:fs";
 import path5 from "node:path";
 var DirectWorkspaceProvider = class {
   async resolve(workspacePath, _taskId, executionPath) {
@@ -23691,7 +23735,7 @@ function resolveExistingDirectory(input, field) {
   }
   if (!stat3.isDirectory()) throw new Error(`${field} is not a directory: ${input}`);
   try {
-    return { requestedPath: input, canonicalPath: realpathSync(input) };
+    return { requestedPath: input, canonicalPath: realpathSync2(input) };
   } catch {
     throw new Error(`${field} could not be canonicalized: ${input}`);
   }
@@ -27030,6 +27074,7 @@ var bridgeRuntimeInfoSchema = object({
   reconnect_required: boolean2().nullable()
 });
 var providerErrorSchema = object({
+  message: string2().max(4e3).optional(),
   code: string2().optional(),
   type: string2().optional(),
   status: number2().nonnegative().optional(),
@@ -30021,8 +30066,8 @@ async function startBridge(host = codexHostProfile(), version2 = SERVER_VERSION)
 var isEntry = process.argv[1] !== void 0 && sameRealPath(import.meta.url, process.argv[1]);
 function sameRealPath(moduleUrl, argvPath) {
   try {
-    const modulePath = realpathSync2(fileURLToPath5(moduleUrl));
-    const entryPath = realpathSync2(path20.resolve(argvPath));
+    const modulePath = realpathSync3(fileURLToPath5(moduleUrl));
+    const entryPath = realpathSync3(path20.resolve(argvPath));
     return process.platform === "win32" ? modulePath.toLocaleLowerCase("en-US") === entryPath.toLocaleLowerCase("en-US") : modulePath === entryPath;
   } catch {
     return false;

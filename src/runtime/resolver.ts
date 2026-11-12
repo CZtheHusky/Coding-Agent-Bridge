@@ -7,7 +7,7 @@
 //   config from ZCODE_DATA_BASE_DIR or the home directory.
 // - Validates paths and JSON structure only; never logs or returns file
 //   contents; never copies or edits ZCode files; never silently accepts a stub.
-import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
+import { accessSync, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -136,11 +136,12 @@ export class NodeRuntimeResolver implements RuntimeResolver {
       zcodeEntrypoint = entryOverride;
     } else {
       const candidates = installCandidates(env, ["resources", "glm", "zcode.cjs"]);
-      const discovered = candidates.find(isReadableFile);
+      const serverHome = zcodeHome ?? path.join(env["ZCODE_DATA_BASE_DIR"]?.trim() || this.#homeDir, ".zcode");
+      const discovered = candidates.find(isReadableFile) ?? serverRuntimeEntrypoint(serverHome);
       if (!discovered) {
         throw new BridgeError(
           "runtime_not_found",
-          `zcode.cjs was not found; searched: ${candidates.join(", ") || "(no installation roots available)"}`,
+          `zcode.cjs was not found; searched: ${[...candidates, path.join(serverHome, "server", "current.json")].join(", ")}`,
         );
       }
       zcodeEntrypoint = discovered;
@@ -322,6 +323,35 @@ export class NodeRuntimeResolver implements RuntimeResolver {
       throw new BridgeError("provider_config_invalid", `${label} is not a JSON object: ${filePath}`);
     }
     return parsed;
+  }
+}
+
+/** Observed ZCode Server 3.18.0: follow the official launcher, never guess a release. */
+function serverRuntimeEntrypoint(zcodeHome: string): string | null {
+  const serverRoot = path.join(zcodeHome, "server");
+  const currentPath = path.join(serverRoot, "current.json");
+  let current: unknown;
+  try { current = JSON.parse(readFileSync(currentPath, "utf8")); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw new BridgeError("runtime_not_found", `Could not read ZCode Server version pointer: ${currentPath}`, { cause: error });
+  }
+  if (!isPlainObject(current) || typeof current["releaseDir"] !== "string" || !path.isAbsolute(current["releaseDir"])) {
+    throw new BridgeError("runtime_not_found", `Invalid ZCode Server releaseDir in ${currentPath}`);
+  }
+  try {
+    // Resolve both sides: the supported persistent HOME may itself be a symlink.
+    const releases = realpathSync(path.join(serverRoot, "releases"));
+    const release = realpathSync(current["releaseDir"]);
+    const relative = path.relative(releases, release);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new Error("releaseDir is outside server/releases");
+    }
+    const entrypoint = path.join(release, "runtime", "zcode.cjs");
+    if (!isReadableFile(entrypoint)) throw new Error("current release has no readable runtime/zcode.cjs");
+    return entrypoint;
+  } catch (error) {
+    throw new BridgeError("runtime_not_found", `Invalid current ZCode Server runtime in ${currentPath}: ${errorText(error)}`, { cause: error });
   }
 }
 

@@ -203,7 +203,7 @@ test("receipts and doctor expose the current connection's update state without c
     const doctor = await client.callTool({ name: "coding_agent_doctor", arguments: {} });
     assert.deepEqual((doctor.structuredContent as { bridge: unknown }).bridge, info);
     assert.equal(manager.receipt.bridge, undefined, "a live server observation must not alter submission idempotency");
-    manager.result = { ...manager.result, status: "failed", error_code: "zcode_nonzero_exit", provider_error: { code: "1301", statusCode: 400, retryable: false, category: "content_filter" } };
+    manager.result = { ...manager.result, status: "failed", error_code: "zcode_nonzero_exit", provider_error: { code: "1301", statusCode: 400, retryable: false, category: "content_filter", message: "native rejection" } };
     const result = await client.callTool({ name: "coding_agent_result", arguments: { task_id: "task_1" } });
     assert.deepEqual((result.structuredContent as unknown as TaskResult).provider_error, manager.result.provider_error);
   }, async () => ({ checked_at: CREATED_AT, execution_mode: "yolo", checks: [] }), () => info);

@@ -19838,12 +19838,25 @@ function isPlainObject2(value) {
 }
 
 // src/adapters/provider-failure.ts
+import { stripVTControlCharacters } from "node:util";
+function sanitizeDiagnosticText(value) {
+  const text = stripVTControlCharacters(value).replace(/[\x00-\x08\x0b-\x1f\x7f]/gu, "").replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/gu, "[REDACTED PRIVATE KEY]").replace(/\b(?:https?|wss?):\/\/[^\s<>"')\]]+/giu, "[REDACTED URL]").replace(/(\b(?:authorization|proxy-authorization|cookie|set-cookie)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n]+)/giu, "$1[REDACTED]").replace(/(["']?\b(?:api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|client[-_]?secret|password|passwd|token|secret)\b["']?\s*[:=]\s*)(?:\[REDACTED\]|"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]]+)/giu, "$1[REDACTED]").replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/giu, "$1 [REDACTED]").replace(/\b(?:sk-[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/gu, "[REDACTED TOKEN]").trim();
+  const marker = "\u2026[truncated]";
+  return text.length <= 4e3 ? text : text.slice(0, 4e3 - marker.length) + marker;
+}
 function providerFailureDiagnostic(value) {
   const details = {};
+  const messages = [];
+  const rememberMessage = (value2) => {
+    if (typeof value2 !== "string" || messages.join("\n").length >= 4e3) return;
+    const text = sanitizeDiagnosticText(value2);
+    if (text && !messages.includes(text)) messages.push(text);
+  };
   let contentFilter = false;
   let code1301 = false;
   const visit2 = (value2, depth) => {
     if (typeof value2 === "string") {
+      rememberMessage(value2);
       if (/\[1301\]/u.test(value2.slice(0, 16384))) {
         contentFilter = true;
         code1301 = true;
@@ -19869,19 +19882,22 @@ function providerFailureDiagnostic(value) {
     if (typeof record2.retryable === "boolean") details.retryable = record2.retryable;
     for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
       const item = record2[key];
+      rememberMessage(item);
       if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
       if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
     }
     for (const key of ["error", "cause", "data", "detail", "attribution"]) visit2(record2[key], depth + 1);
   };
   visit2(value, 0);
+  if (messages.length) details.message = sanitizeDiagnosticText(messages.join("\n"));
   if (contentFilter) {
     if (code1301) details.code = "1301";
     details.category = "content_filter";
     return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
   }
-  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
-  return { summary: `ZCode turn failed${suffix}`, details };
+  const { message, ...fields } = details;
+  const suffix = Object.keys(fields).length ? ` (${JSON.stringify(fields)})` : "";
+  return { summary: `ZCode turn failed${message ? `: ${message}` : ""}${suffix}`, details };
 }
 
 // src/prompts/task-prompt.ts
@@ -21719,7 +21735,7 @@ import { homedir as homedir3 } from "node:os";
 import path7 from "node:path";
 
 // src/runtime/resolver.ts
-import { accessSync, existsSync, readFileSync, statSync } from "node:fs";
+import { accessSync, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import path4 from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21834,11 +21850,12 @@ var NodeRuntimeResolver = class {
       zcodeEntrypoint = entryOverride;
     } else {
       const candidates = installCandidates(env, ["resources", "glm", "zcode.cjs"]);
-      const discovered = candidates.find(isReadableFile);
+      const serverHome = zcodeHome ?? path4.join(env["ZCODE_DATA_BASE_DIR"]?.trim() || this.#homeDir, ".zcode");
+      const discovered = candidates.find(isReadableFile) ?? serverRuntimeEntrypoint(serverHome);
       if (!discovered) {
         throw new BridgeError(
           "runtime_not_found",
-          `zcode.cjs was not found; searched: ${candidates.join(", ") || "(no installation roots available)"}`
+          `zcode.cjs was not found; searched: ${[...candidates, path4.join(serverHome, "server", "current.json")].join(", ")}`
         );
       }
       zcodeEntrypoint = discovered;
@@ -22000,6 +22017,33 @@ var NodeRuntimeResolver = class {
     return parsed;
   }
 };
+function serverRuntimeEntrypoint(zcodeHome) {
+  const serverRoot = path4.join(zcodeHome, "server");
+  const currentPath = path4.join(serverRoot, "current.json");
+  let current;
+  try {
+    current = JSON.parse(readFileSync(currentPath, "utf8"));
+  } catch (error62) {
+    if (error62.code === "ENOENT") return null;
+    throw new BridgeError("runtime_not_found", `Could not read ZCode Server version pointer: ${currentPath}`, { cause: error62 });
+  }
+  if (!isPlainObject3(current) || typeof current["releaseDir"] !== "string" || !path4.isAbsolute(current["releaseDir"])) {
+    throw new BridgeError("runtime_not_found", `Invalid ZCode Server releaseDir in ${currentPath}`);
+  }
+  try {
+    const releases = realpathSync(path4.join(serverRoot, "releases"));
+    const release = realpathSync(current["releaseDir"]);
+    const relative = path4.relative(releases, release);
+    if (!relative || relative === ".." || relative.startsWith(`..${path4.sep}`) || path4.isAbsolute(relative)) {
+      throw new Error("releaseDir is outside server/releases");
+    }
+    const entrypoint = path4.join(release, "runtime", "zcode.cjs");
+    if (!isReadableFile(entrypoint)) throw new Error("current release has no readable runtime/zcode.cjs");
+    return entrypoint;
+  } catch (error62) {
+    throw new BridgeError("runtime_not_found", `Invalid current ZCode Server runtime in ${currentPath}: ${errorText(error62)}`, { cause: error62 });
+  }
+}
 function installCandidates(env, relative) {
   const roots = [
     env["ZCODE_WINDOWS_APP_INSTALL_DIR"]?.trim(),
@@ -24030,6 +24074,8 @@ var ZCodeAppServerAdapter = class {
     let stdoutBuffer = "";
     let rpcId = 0;
     let closed = false;
+    let processFailure = null;
+    let stderrTruncated = false;
     child.once("exit", () => {
       entry.childExitSeen = true;
     });
@@ -24122,32 +24168,36 @@ var ZCodeAppServerAdapter = class {
       }
     });
     child.stderr.on("data", (chunk) => {
+      if (stderr.length + chunk.length > 64e3) stderrTruncated = true;
       if (stderr.length < 64e3) stderr += chunk.slice(0, 64e3 - stderr.length);
     });
     child.on("error", (error62) => {
       closed = true;
+      processFailure ??= new Error(sanitizeDiagnosticText(error62.message));
       for (const call of pending.values()) {
         clearTimeout(call.timer);
-        call.reject(error62);
+        call.reject(processFailure);
       }
       pending.clear();
-      entry.rejectTurn(error62);
+      entry.rejectTurn(processFailure);
     });
     child.on("close", (code, signal) => {
       closed = true;
+      const diagnostic = sanitizeDiagnosticText(stderr + (stderrTruncated ? "\n\u2026[truncated]" : ""));
+      processFailure ??= new Error(`ZCode app-server exited (${String(code)}${signal ? `, ${signal}` : ""})${diagnostic ? `; stderr: ${diagnostic}` : "; no stderr captured"}`);
       for (const call of pending.values()) {
         clearTimeout(call.timer);
-        call.reject(new Error(`ZCode app-server exited (${String(code)}${signal ? `, ${signal}` : ""})`));
+        call.reject(processFailure);
       }
       pending.clear();
       if (!entry.finished && !entry.timedOut && !entry.cancelRequested) {
-        entry.rejectTurn(new Error(`ZCode app-server exited before turn completion (${String(code)})`));
+        entry.rejectTurn(processFailure);
       }
     });
     const request = (method, params) => {
       if (entry.abort.signal.aborted) return Promise.reject(new Error("ZCode task attempt ended"));
       if (protocolFatal) return Promise.reject(new Error(`${protocolFatal.message}; blocked ${method} request after the fatal protocol error`));
-      if (closed) return Promise.reject(new Error(`ZCode app-server is closed before ${method}`));
+      if (closed) return Promise.reject(processFailure ?? new Error(`ZCode app-server is closed before ${method}`));
       const id = ++rpcId;
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {

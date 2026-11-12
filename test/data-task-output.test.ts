@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildTaskPrompt, buildContinuePrompt } from "../src/prompts/task-prompt.js";
 import { buildTaskResult } from "../src/manager/normalize.js";
-import { providerFailureDiagnostic } from "../src/adapters/provider-failure.js";
+import { providerFailureDiagnostic, sanitizeDiagnosticText } from "../src/adapters/provider-failure.js";
 import { zcodeTaskInputSchema, zcodeScheduleInputSchema, taskResultSchema } from "../src/mcp/schemas.js";
 import { FakeAdapter, fakeOutcome, makeManagerFixture } from "./manager-helpers.js";
 import { ScheduleController } from "../src/schedule/controller.js";
@@ -75,14 +75,30 @@ test("data settings are validated for direct core callers as well as MCP; raw sc
   } finally { await f.cleanup(); await s.cleanup(); }
 });
 
-test("provider projection exposes actionable classification and safe scalar fields without arbitrary provider text", () => {
-  const diagnostic = providerFailureDiagnostic({ code: "UNKNOWN_ERROR", data: { error: { message: "[1301][unsafe][SECRET] https://private.invalid", retryable: false, status: 400, retry_after: 60 }, headers: { authorization: "SECRET" }, metadata: { message: "quota exhausted SECRET" } } });
+test("provider projection exposes actionable classification and safe scalar fields with bounded redacted error text", () => {
+  const diagnostic = providerFailureDiagnostic({ code: "UNKNOWN_ERROR", data: { error: { message: "[1301][unsafe] token=SECRET https://private.invalid", retryable: false, status: 400, retry_after: 60 }, headers: { authorization: "SECRET" }, metadata: { message: "quota exhausted SECRET" } } });
   assert.match(diagnostic.summary, /content safety rejection \(1301\)/);
   assert.equal(diagnostic.details.code, "1301"); assert.equal(diagnostic.details.retryable, false);
   assert.equal(diagnostic.details.retry_after, 60); assert.equal(diagnostic.details.status, 400);
-  for (const input of [diagnostic, providerFailureDiagnostic({ code: "sk-SECRET", message: "PRIVATE_PROMPT SECRET", retryable: "SECRET", data: { input: "SECRET" } })]) assert.doesNotMatch(JSON.stringify(input), /SECRET|PRIVATE|private.invalid/);
+  for (const input of [diagnostic, providerFailureDiagnostic({ code: "sk-SECRET", message: "upstream failed; token=SECRET", retryable: "SECRET", data: { input: "SECRET" } })]) assert.doesNotMatch(JSON.stringify(input), /SECRET|PRIVATE|private.invalid/);
   assert.equal(providerFailureDiagnostic({ code: "content_filter" }).details.code, "content_filter", "do not invent a numeric business code for another provider");
   assert.equal(providerFailureDiagnostic({ metadata: { code: 1301 }, request: { message: "[1301]" } }).details.category, undefined);
+});
+
+test("diagnostic text keeps unknown reasons, is idempotent and visibly bounded, and redacts credentials before truncation", () => {
+  const original = "Error: listen EINVAL: invalid argument /fixture/tmp/znr.sock";
+  assert.equal(sanitizeDiagnosticText(original), original, "an unfamiliar diagnostic must retain its wording and path");
+  const raw = ["\u001b[31mTLS handshake failed\u001b[0m\u0000", "Authorization: Bearer AUTH_SECRET", "Cookie: session=COOKIE_SECRET; other=COOKIE2_SECRET", 'api_key="KEY_SECRET" password=PASSWORD_SECRET access_token=ACCESS_SECRET', "https://user:URL_SECRET@private.invalid/path?token=QUERY_SECRET", "Bearer BARE_SECRET", "sk-TOKEN_SECRET", "-----BEGIN PRIVATE KEY-----\nPEM_SECRET\n-----END PRIVATE KEY-----"].join("\n");
+  const redacted = sanitizeDiagnosticText(raw);
+  assert.match(redacted, /TLS handshake failed/); assert.doesNotMatch(redacted, /SECRET|private\.invalid|\u001b|\u0000/);
+  assert.equal(sanitizeDiagnosticText(redacted), redacted, "worker and recovery re-projection must not corrupt redaction markers");
+  const projected = providerFailureDiagnostic({ message: original, cause: { message: "upstream detail" }, stack: "STACK_SECRET", request: { message: "REQUEST_SECRET" }, metadata: { message: "METADATA_SECRET" } });
+  assert.equal(projected.details.message, original + "\nupstream detail");
+  assert.deepEqual(providerFailureDiagnostic(projected.details).details, projected.details);
+  assert.doesNotMatch(JSON.stringify(projected), /SECRET/);
+  const huge = providerFailureDiagnostic({ message: "native failure " + "x".repeat(10_000) + " token=TAIL_SECRET" });
+  assert.equal(huge.details.message!.length, 4_000); assert.match(huge.details.message!, /…\[truncated\]$/);
+  assert.doesNotMatch(JSON.stringify(huge), /TAIL_SECRET/);
 });
 
 test("idle healthy history leaves recovery without hiding newly queued work", async () => {
@@ -127,7 +143,7 @@ test("raw checkpoint recovery preserves truncation rather than fabricating a com
 });
 
 test("provider evidence survives worker failure and cleanup priority without exposing arbitrary metadata", async () => {
-  const evidence = { code: "1301", statusCode: 400, retryable: false, headers: { authorization: "SECRET" }, message: "PRIVATE_REQUEST_BODY" };
+  const evidence = { code: "1301", statusCode: 400, retryable: false, headers: { authorization: "SECRET" }, message: "input rejected; token=SECRET", metadata: { message: "PRIVATE_REQUEST_BODY" } };
   class FailedAdapter extends FakeAdapter {
     override async getResult(): Promise<ZCodeRunOutcome> {
       throw new BridgeError("zcode_nonzero_exit", "provider rejected input", { providerError: evidence });
@@ -139,7 +155,7 @@ test("provider evidence survives worker failure and cleanup priority without exp
     await f.runWorker(task.task_id, new FailedAdapter());
     const result = await f.manager.getResult(task.task_id);
     assert.equal(result.error_code, "zcode_nonzero_exit");
-    assert.deepEqual(result.provider_error, { code: "1301", statusCode: 400, retryable: false, category: "content_filter" });
+    assert.deepEqual(result.provider_error, { code: "1301", statusCode: 400, retryable: false, category: "content_filter", message: "input rejected; token=[REDACTED]" });
     assert.deepEqual(taskResultSchema.parse(result).provider_error, result.provider_error);
     assert.doesNotMatch(JSON.stringify(result), /SECRET|PRIVATE/);
     const cleanup = buildTaskResult({ task, attempt: 1, startedAt: null, finishedAt: new Date().toISOString(), outcome: { ...fakeOutcome(), providerError: evidence }, failure: { code: "cleanup_failed", message: "unverified cleanup" } });
@@ -159,11 +175,12 @@ test("checkpoint recovery retains sanitized provider diagnostics when a worker e
     f.store.writeAttemptMeta(task.task_id, 1, "outcome-checkpoint.json", {
       exit_code: 1, session_id: "raw-session", response: "", error_code: "zcode_nonzero_exit",
       report_error: "provider failed", agent_report: null, cleanup_verified: true,
-      provider_error: { code: "1301", statusCode: 400, retryable: false, headers: { authorization: "SECRET" } },
+      provider_error: { code: "1301", statusCode: 400, retryable: false, message: "input rejected; token=SECRET", headers: { authorization: "SECRET" } },
     });
     await f.manager.recoverTasks();
     const result = await f.manager.getResult(task.task_id);
     assert.equal(result.error_code, "zcode_nonzero_exit"); assert.equal(result.provider_error?.code, "1301");
+    assert.equal(result.provider_error?.message, "input rejected; token=[REDACTED]");
     assert.doesNotMatch(JSON.stringify(result), /SECRET|authorization/);
   } finally { await f.cleanup(); }
 });

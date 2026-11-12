@@ -1,11 +1,13 @@
 # ZCode 运行配置边界
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-10
-> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Last updated: 2026-11-11
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-11，ADR-021 官方指针与两宿主配置解析、Linux 回归及远端真实文本调用；其余范围保留历史记录，见[验证报告](reports/2026-11-11-server-runtime-discovery.md)。
+> Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: e0a19e8 + ADR-021/022 working tree
 > Prior verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
 > Prior verification: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
 > Prior verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
@@ -23,6 +25,14 @@ Bridge 只读取官方 builtin/personal provider 配置，不复制、不改写�
 ADR-020：显式非空 `ZCODE_BRIDGE_DATA_DIR` 环境变量优先于已保存的同名设置，须为绝对路径；空值仍使用持久化设置，其余键的配置优先规则保持不变。它只选择独立任务库，不搬迁历史；Host、detached worker 与 runner 使用同一解析。
 
 persisted runtime-config 中已知字段只能是字符串或 null；缺文件允许环境/发现回退，存在但损坏、非 object 或超过 64 KiB 会报配置错误。默认 mode 仍为已披露的 yolo；不能把坏配置当成首次未设置而回退到该模式。
+
+## ZCode Server 自动发现（ADR-021）
+
+将宿主 `runtime-config.json` 的 `ZCODE_BRIDGE_ZCODE_CJS` 设为 `null` 或 `""`，可清除旧父进程继承的版本化入口并启用自动发现。非空路径仍表示固定入口，无效就报 `runtime_not_found`，不会静默换版本。Codex 和标准 Claude 插件使用 `~/.codex/codex-zcode-bridge/runtime-config.json`；独立 Claude/core 宿主使用其 `settingsDirectory` 下的同名配置，需分别设置。
+
+现有 Desktop 发现顺序保持不变。找不到 Desktop 入口时，读取 `ZCODE_HOME/server/current.json` 的 `releaseDir`；没有配置 ZCODE_HOME 时，使用 `ZCODE_DATA_BASE_DIR/.zcode`，否则使用 `HOME/.zcode`。Observed ZCode Server 3.18.0 的官方启动器使用这个指针；Bridge 校验真实 release 位于同一 `server/releases` 内，并使用其中可读取的 `runtime/zcode.cjs`，兼容持久化目录符号链接。每次解析重新读取指针，因此升级删除旧版本后，新任务仍可跟随当前 release；已经开始的任务继续使用本次入口。
+
+指针缺失视为未发现；存在但损坏、越界或指向缺失的 runtime 时明确报错，不扫描目录猜最大版本、不回退旧 release、不修改官方指针。provider 文件、代理、默认系统提示、权限及数据目录保持既有规则。首次安装此功能须重连旧 Bridge；后续官方 current 变化无需再修改版本化路径。见 [ADR-021](decisions/ADR-021-zcode-server-runtime-discovery.md)。
 
 浏览器宿主配置（ADR-007）：`ZCODE_BRIDGE_BROWSER_USE` 取 `off`（默认，含空值/未设置/非法值回退为 off）或 `headless`；`ZCODE_BRIDGE_BROWSER_EXECUTABLE` 可选，须为已存在文件的绝对路径，缺省按官方实现解析已安装 Chromium/Edge（不下载浏览器）。两项均为普通字符串配置键，遵循配置优先于环境变量的既有规则；非法 USE 值不阻断任务，仅保持关闭并由 doctor 给出 warning。detached worker 进程按显式键清单转发这两项非秘密设置（2026-10-16 修复：此前 env-only 配置在真实 spawn 边界丢失），其余任意父进程环境与秘密仍不透传。Windows worker 环境保留 `ProgramFiles` / `ProgramFiles(x86)`（接受常见大小写）等非敏感系统目录变量供自动发现使用，发现解析同样不区分大小写键；显式 `ZCODE_BRIDGE_BROWSER_EXECUTABLE` 优先级不变。不向 app-server 传递任何 headless CLI 参数；浏览器由 worker 内的 managed CDP runtime 以独立临时 profile 启动，生命周期见 ARCHITECTURE.md。
 
@@ -61,3 +71,9 @@ API 模式是 `report_mode: "raw"` 与 `session_profile: "minimal"` 的组合名
 Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或修改全局工具设置。每次 prompt 枚举当前工具，并追加 `mcp__*` 与 `ReadMediaFile`，覆盖已观察到的异步 MCP / 图片工具注册；不替换默认系统提示。完成后的会话用量来自原生 snapshot，GET session 的零占位索引不作为实际消耗。input_tokens 为非缓存输入，cached_input_tokens 单列缓存读取。Kimi 2.3.3 / 2.4.1 四安装入口已实测为零工具，原文、补图、同会话记忆及清理通过；另保留两次远端 OCR 数据失败，见[实测报告](reports/2026-11-10-kimi-api-live-validation.md)。跨版本范围不外推，决策见 [ADR-019](decisions/ADR-019-kimi-late-tools-and-usage.md)。
 
 精简不等于 OS 沙箱，不会清除调用工作区原生 AGENTS/技能/基础上下文。互不相关的 API 请求使用新 task_id/session，可避免历史累积；需要前文的请求才使用 continue。代码更新后重连 MCP，已加载旧代码的服务器不会自动生效。
+
+## 启动失败与临时 socket 路径
+
+失败时先读 `result.summary/issues` 和 `status.error`；新版保留 app-server 退出码、信号及脱敏 stderr，原生 provider 错误文本另见 `provider_error.message`。仅有 `zcode_nonzero_exit` 不能判断是否额度耗尽或可重试。旧记录丢失的 stderr 不会因升级自动还原；升级后须重连 MCP。
+
+Observed ZCode Server 3.18.0（Linux）会在 `TMPDIR` 下创建 `znr-<UUID>.sock`。过长的 TMPDIR 会使 socket 路径超出 Linux 的 `sockaddr_un.sun_path` 108 字节容量（通常最多 107 字节路径加终止符），报 `listen EINVAL`，在 session/create 前退出。可给调用进程设置同盘较短的 TMPDIR；不需要改模型、代理或默认系统提示。Bridge 不自动迁移调用者的临时目录，也不因此重跑任务。复现边界见[本轮报告](reports/2026-11-11-error-propagation.md)。

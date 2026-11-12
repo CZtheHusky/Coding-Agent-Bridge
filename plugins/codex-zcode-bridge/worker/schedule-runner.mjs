@@ -1443,12 +1443,25 @@ function toPublicStatus(status) {
 }
 
 // src/adapters/provider-failure.ts
+import { stripVTControlCharacters } from "node:util";
+function sanitizeDiagnosticText(value) {
+  const text = stripVTControlCharacters(value).replace(/[\x00-\x08\x0b-\x1f\x7f]/gu, "").replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/gu, "[REDACTED PRIVATE KEY]").replace(/\b(?:https?|wss?):\/\/[^\s<>"')\]]+/giu, "[REDACTED URL]").replace(/(\b(?:authorization|proxy-authorization|cookie|set-cookie)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n]+)/giu, "$1[REDACTED]").replace(/(["']?\b(?:api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|client[-_]?secret|password|passwd|token|secret)\b["']?\s*[:=]\s*)(?:\[REDACTED\]|"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]]+)/giu, "$1[REDACTED]").replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/giu, "$1 [REDACTED]").replace(/\b(?:sk-[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/gu, "[REDACTED TOKEN]").trim();
+  const marker = "\u2026[truncated]";
+  return text.length <= 4e3 ? text : text.slice(0, 4e3 - marker.length) + marker;
+}
 function providerFailureDiagnostic(value) {
   const details = {};
+  const messages = [];
+  const rememberMessage = (value2) => {
+    if (typeof value2 !== "string" || messages.join("\n").length >= 4e3) return;
+    const text = sanitizeDiagnosticText(value2);
+    if (text && !messages.includes(text)) messages.push(text);
+  };
   let contentFilter = false;
   let code1301 = false;
   const visit = (value2, depth) => {
     if (typeof value2 === "string") {
+      rememberMessage(value2);
       if (/\[1301\]/u.test(value2.slice(0, 16384))) {
         contentFilter = true;
         code1301 = true;
@@ -1474,19 +1487,22 @@ function providerFailureDiagnostic(value) {
     if (typeof record2.retryable === "boolean") details.retryable = record2.retryable;
     for (const key of ["message", "detail", "reason", "errorMessage", "underlyingErrorMessage", "underlyingErrorDetail"]) {
       const item = record2[key];
+      rememberMessage(item);
       if (typeof item === "string" && /\[1301\]|系统检测到输入或生成内容可能包含不安全或敏感内容/u.test(item.slice(0, 16384))) contentFilter = true;
       if (typeof item === "string" && /\[1301\]/u.test(item.slice(0, 16384))) code1301 = true;
     }
     for (const key of ["error", "cause", "data", "detail", "attribution"]) visit(record2[key], depth + 1);
   };
   visit(value, 0);
+  if (messages.length) details.message = sanitizeDiagnosticText(messages.join("\n"));
   if (contentFilter) {
     if (code1301) details.code = "1301";
     details.category = "content_filter";
     return { summary: `ZCode turn failed: provider content safety rejection${code1301 ? " (1301)" : ""}; do not retry unchanged input automatically`, details };
   }
-  const suffix = Object.keys(details).length ? ` (${JSON.stringify(details)})` : "";
-  return { summary: `ZCode turn failed${suffix}`, details };
+  const { message, ...fields } = details;
+  const suffix = Object.keys(fields).length ? ` (${JSON.stringify(fields)})` : "";
+  return { summary: `ZCode turn failed${message ? `: ${message}` : ""}${suffix}`, details };
 }
 
 // src/manager/normalize.ts

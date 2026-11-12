@@ -16,7 +16,7 @@ import type {
   ZCodeInteractionRequest,
   ZCodeRuntimeConfig,
 } from "../interfaces.js";
-import { providerFailureDiagnostic } from "./provider-failure.js";
+import { providerFailureDiagnostic, sanitizeDiagnosticText } from "./provider-failure.js";
 import { parseAgentReport } from "./agent-report.js";
 import type { ZCodeRunOutcome } from "./zcode-adapter.js";
 import { buildContinuePrompt, buildTaskPrompt } from "../prompts/task-prompt.js";
@@ -932,6 +932,8 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
     let stdoutBuffer = "";
     let rpcId = 0;
     let closed = false;
+    let processFailure: Error | null = null;
+    let stderrTruncated = false;
     // ADR-009 spawn-generation binding: libuv releases the child's native
     // handle when it delivers 'exit' (before stdio close), so continuity is
     // tracked from the exit state. The shared capture re-verifies the
@@ -1039,23 +1041,27 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
       }
     });
     child.stderr.on("data", (chunk: string) => {
+      if (stderr.length + chunk.length > 64_000) stderrTruncated = true;
       if (stderr.length < 64_000) stderr += chunk.slice(0, 64_000 - stderr.length);
     });
     child.on("error", (error) => {
       closed = true;
-      for (const call of pending.values()) { clearTimeout(call.timer); call.reject(error); }
+      processFailure ??= new Error(sanitizeDiagnosticText(error.message));
+      for (const call of pending.values()) { clearTimeout(call.timer); call.reject(processFailure); }
       pending.clear();
-      entry.rejectTurn(error);
+      entry.rejectTurn(processFailure);
     });
     child.on("close", (code, signal) => {
       closed = true;
+      const diagnostic = sanitizeDiagnosticText(stderr + (stderrTruncated ? "\n…[truncated]" : ""));
+      processFailure ??= new Error(`ZCode app-server exited (${String(code)}${signal ? `, ${signal}` : ""})${diagnostic ? `; stderr: ${diagnostic}` : "; no stderr captured"}`);
       for (const call of pending.values()) {
         clearTimeout(call.timer);
-        call.reject(new Error(`ZCode app-server exited (${String(code)}${signal ? `, ${signal}` : ""})`));
+        call.reject(processFailure);
       }
       pending.clear();
       if (!entry.finished && !entry.timedOut && !entry.cancelRequested) {
-        entry.rejectTurn(new Error(`ZCode app-server exited before turn completion (${String(code)})`));
+        entry.rejectTurn(processFailure);
       }
     });
 
@@ -1065,7 +1071,7 @@ export class ZCodeAppServerAdapter implements CodingAgentAdapter {
       // original wire-format failure surfaces instead of a later timeout
       // (ADR-008).
       if (protocolFatal) return Promise.reject(new Error(`${protocolFatal.message}; blocked ${method} request after the fatal protocol error`));
-      if (closed) return Promise.reject(new Error(`ZCode app-server is closed before ${method}`));
+      if (closed) return Promise.reject(processFailure ?? new Error(`ZCode app-server is closed before ${method}`));
       const id = ++rpcId;
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {

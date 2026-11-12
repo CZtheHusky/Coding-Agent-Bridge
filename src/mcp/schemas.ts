@@ -113,6 +113,7 @@ const bridgeRuntimeInfoSchema = z.object({
 });
 
 export const providerErrorSchema = z.object({
+  message: z.string().max(4_000).optional(),
   code: z.string().optional(), type: z.string().optional(),
   status: z.number().nonnegative().optional(), statusCode: z.number().nonnegative().optional(),
   retryAfter: z.number().nonnegative().optional(), retry_after: z.number().nonnegative().optional(),

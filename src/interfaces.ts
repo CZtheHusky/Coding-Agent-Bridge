@@ -137,8 +137,9 @@ export interface RuntimeSessionUsage {
   model_error_count: number;
 }
 
-/** Safe scalar projection only; never arbitrary provider messages or metadata. */
+/** Safe scalar fields and bounded, redacted error text; never whole provider objects. */
 export interface ProviderError {
+  message?: string;
   code?: string;
   type?: string;
   status?: number;

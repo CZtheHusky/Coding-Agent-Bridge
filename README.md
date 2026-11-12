@@ -3,13 +3,15 @@
 **Coding Agent Bridge** runs local ZCode or Kimi coding tasks in the background. MCP tools use `coding_agent_*` under `coding_agent_bridge`. Select ZCode models and reasoning levels via `coding_agent_model_catalog` and `model.reasoning_level`; Kimi uses `kimi.model` and optional `kimi.reasoning_level` (native thinking; currently low/high/max for K3/K3.1 Pro and standard models, depending on model support). Omit the level to preserve native settings. Monitor, continue, answer interactions and cancel tasks. One-time scheduled goals can wake the original Codex chat on supported Linux/App setups; ordinary tasks do not send completion wakeups. Refresh the MCP tool list after upgrading: old `zcode_*` names are no longer registered. Installation IDs, paths, environment variables and stored task data retain their existing names.
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-10
-> Last verified: 2026-11-10 — ADR-020 scheduling, data-root overrides and twenty-worker Linux tests; shared-storage timeouts and untested scope are recorded in the [repair report](docs/reports/2026-11-10-batch-scheduling-and-data-root.md).
+> Last updated: 2026-11-11
+> Last verified: 2026-11-11 — ADR-022 error-text and startup-stderr regression; native isolated validation and deployment limits are recorded in the [report](docs/reports/2026-11-11-error-propagation.md).
+> Prior verification: 2026-11-11 — ADR-021 Server discovery, Linux regressions and three remote entrypoints with real ZCode/Kimi text calls; limits and failed probes are in the [validation report](docs/reports/2026-11-11-server-runtime-discovery.md).
+> Prior verification: 2026-11-10 — ADR-020 scheduling, data-root overrides and twenty-worker Linux tests; shared-storage timeouts and untested scope are recorded in the [repair report](docs/reports/2026-11-10-batch-scheduling-and-data-root.md).
 > Prior verification: 2026-11-10 — Kimi API mode, native tools/usage and four installed entrypoints; OCR failures and platform limits are recorded in the live report.
 > Prior verification: 2026-11-09 — ADR-018 interfaces and implementation only; validation boundaries are recorded in the diagnostics report.
 > Prior verification: 2026-11-09 — image examples/schema, native image checks and model modality documentation only; see the attachment validation report.
 > Prior verification: 2026-10-28 — static review plus eight offline integration checks using real systemd 255, MCP, and Bridge workers; executor and App receiver were fixtures, with no model calls. Real GLM-5.3/max scheduling, continuation, current-App delivery and independent Codex acceptance also passed on this Linux host; a new turn from an idle chat remains unverified.
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: e0a19e8 + ADR-021/022 working tree
 
 **Use ZCode as a coding worker inside Codex.**
 
@@ -67,7 +69,7 @@ Continuation retains the same executor and session. Do not attach earlier images
 
 The bundled skill is named `coding-agent-bridge`. Its short entrypoint covers routine delegation; scheduling and failure details are loaded from its references only when needed.
 
-Failed results may include a sanitized `provider_error` with native codes, HTTP status and retry hints; the top-level `error_code` still governs quota and cleanup handling. Task/continue receipts and doctor include `bridge` runtime version/build observations. `disk_status: "changed"` means execution files changed and MCP should reconnect; `unknown` means the comparison could not be confirmed. Existing processes predating this feature need an initial reconnect. No automatic restart or retry is performed; see [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md).
+Failed results may include a sanitized `provider_error` with native codes, HTTP status, retry hints and a bounded redacted `message`; the top-level `error_code` still governs quota and cleanup handling. Task/continue receipts and doctor include `bridge` runtime version/build observations. `disk_status: "changed"` means execution files changed and MCP should reconnect; `unknown` means the comparison could not be confirmed. Existing processes predating this feature need an initial reconnect. No automatic restart or retry is performed; see [ADR-018](docs/decisions/ADR-018-result-diagnostics-and-running-build.md).
 
 ## API mode: data-only calls with less context
 
@@ -223,7 +225,7 @@ After installing, start a new conversation and review and trust the plugin's `Se
 To customize settings, edit `%USERPROFILE%\.codex\codex-zcode-bridge\runtime-config.json` directly. On macOS/Linux, use `~/.codex/codex-zcode-bridge/runtime-config.json`. The Windows first-run hook creates this file; on other platforms, create it if needed. Keep the discovered path fields and change only the values you need:
 
 - `ZCODE_BRIDGE_NODE`: absolute path to Node.js (only needed when `node` is not on PATH).
-- `ZCODE_BRIDGE_ZCODE_CJS`: absolute path to the ZCode runtime.
+- `ZCODE_BRIDGE_ZCODE_CJS`: optional absolute runtime pin. Set it to `null` or `""` in runtime-config.json for automatic discovery: existing Desktop discovery runs first, then ZCode Server follows `.zcode/server/current.json`. New tasks follow the official current release after upgrades; an invalid explicit pin still fails. See [runtime discovery](docs/ZCODE_RUNTIME.md#zcode-server-自动发现adr-021).
 - `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` and `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE`: absolute paths to the builtin and personal provider config files.
 - `ZCODE_HOME`: absolute path to the actual `.zcode` data directory.
 - `ZCODE_BRIDGE_DATA_DIR`: absolute path to the Bridge task data directory.
@@ -246,6 +248,8 @@ ZCode generates the session title from the first task prompt. The Bridge puts `T
 After execution, Codex should inspect the actual diff and run acceptance checks independently. `completed` means ZCode reported the task finished; it does not mean Codex approved the changes. If an unresolved decision could materially affect behavior, ZCode asks Codex for direction before proceeding on that point.
 
 In ZCode Desktop, find tasks in the Workspace view under the Codex project directory.
+
+Startup exits retain the exit code/signal and bounded redacted stderr in the task error. Unknown provider messages are preserved after redaction; see [ADR-022](docs/decisions/ADR-022-error-text-and-process-exit-diagnostics.md).
 
 For installation or startup problems, call the `coding_agent_doctor` MCP tool for setup diagnostics. It does not start a ZCode session. Use `coding_agent_model_catalog` to read the cached or live app-server model list; a real permission-approval roundtrip still requires an actual task.
 

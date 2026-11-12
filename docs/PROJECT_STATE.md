@@ -1,13 +1,15 @@
 # Project State
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-10
-> Last verified: 2026-11-10，ADR-020 Linux 回归及两端四入口替换、索引迁移和隔离加载检查；实际并发设为 20，保留 yolo 与代理。共享盘超时及未重跑真实模型边界见[部署报告](reports/2026-11-10-batch-scheduling-deployment.md)。
+> Last updated: 2026-11-11
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-11，ADR-021、Linux 回归及远端三入口 ZCode/Kimi 真实文本调用；两份配置已启用自动发现，失败记录及未运行边界见[验证报告](reports/2026-11-11-server-runtime-discovery.md)。
+> Prior verification: 2026-11-10，ADR-020 Linux 回归及两端四入口替换、索引迁移和隔离加载检查；实际并发设为 20，保留 yolo 与代理。共享盘超时及未重跑真实模型边界见[部署报告](reports/2026-11-10-batch-scheduling-deployment.md)。
 > Prior verification: 2026-11-10，上游两处局部回移与 Linux 离线回归；本轮未重跑真实 provider 或替换安装。
 > Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口及 Linux 回归；安装边界见本轮诊断报告，其余沿用下列历史范围。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 对照及 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)，两端四入口八次真实执行见[安装验收](reports/2026-11-09-api-mode-deployment.md)。其余保留历史核对范围。
-> Verified against: e5bbfcc85d0809bb41c6ff9a50b98c802b8b47f6
+> Verified against: e0a19e8 + ADR-021/022 working tree
 > Prior verification: 2026-11-09，仅 ADR-016 附图参数、模型模态和两端安装验收；代码提交 d1bf2fe，详见[安装验收](reports/2026-11-09-native-image-deployment.md)。其余沿用历史核对范围。
 > Prior verification: 2026-10-28，静态核对本次 ADR-010 调度状态、默认 stdio 工具装配与未验证边界；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度相关源码与同版 bundle 离线实测；仅上述范围）
@@ -53,6 +55,10 @@ ADR-018：TaskResult 可选 provider_error，覆盖可投影的 ZCode/Kimi 原�
 ADR-020：活动候选索引将健康历史的全量校验集中在首次迁移，迁移不持有共享调度锁；正常状态写入先登记候选，清理验证及损坏范围仍重新校验。显式非空 DATA_DIR 覆盖同一持久化字段，其余配置优先级不变。worker 默认及上限改为 20，已有较小配置继续生效，重叠目录仍串行。
 
 Linux Node 22 完整回归 690 通过 / 4 平台跳过，Node 24 定向 87/87，clean-entrypoints 6/6。独立本地数据目录的双进程测试两端各 120/120 无错误；远端共享盘 2×8 仍有 8/48 次排队超时，更强突发也未通过，不能宣称任意存储零超时。修复 e5bbfcc 已统一替换两端四入口，三个实际任务库完成索引迁移，宿主运行配置明确设为 20，yolo、代理及生产数据目录保持原值。新进程隔离加载检查通过，没有重跑真实模型；当前聊天须重连，旧 Manager 不能混用。详见[测量与修复报告](reports/2026-11-10-batch-scheduling-and-data-root.md)及[安装验收](reports/2026-11-10-batch-scheduling-deployment.md)。
+
+## 2026-11-11 Server 自动发现与健康修复
+
+ADR-021 已实现并替换远端 Codex / Claude 插件和 Claude 独立服务；两份配置清除固定版本入口，按官方 current.json 自动发现 Server 3.18.0。显式固定入口仍优先且无效时报错。Kimi 2.4.1 恢复持久化标准启动链接。703 项 Linux 回归通过、4 平台跳过，Node 24 解析专项 24/24，三入口六项真实 ZCode/Kimi 文本任务均完成并独立核对输出与清理。yolo、20 并发、代理及数据目录保留。本轮源码与说明尚未提交/推送，本机安装未替换；当前旧聊天须重连。完整失败记录和验证边界见[报告](reports/2026-11-11-server-runtime-discovery.md)。
 
 ## 稳定
 
@@ -117,3 +123,7 @@ KimiAdapter 通过认证的 loopback Server API 执行；先 GET snapshot 恢复
 ## Coding Agent Bridge 命名（ADR-013）
 
 展示名为 **Coding Agent Bridge**，MCP server key 为 `coding_agent_bridge`，公开工具使用 `coding_agent_*`（可选 ledger 工具为 `coding_agent_ledger_*`）。旧 `zcode_*` / `ledger_*` 工具名不再注册；升级后刷新 MCP 工具列表并更新调用名。安装 ID、包名、路径、环境变量和已存任务字段保持原值。ZCode 支持模型与 `model.reasoning_level` 选择，档位取自 `coding_agent_model_catalog`；Kimi 支持 `kimi.model` 和可选 `kimi.reasoning_level`，透传原生 thinking，支持值依模型而定；见 [ADR-014](decisions/ADR-014-kimi-reasoning-level.md)。见 [ADR-013](decisions/ADR-013-coding-agent-bridge-discovery.md)。
+
+## 2026-11-11：GLM 定向补标错误诊断
+
+111 条的两轮各 4 个任务均在 session/create 前退出；受控初始化复现为长 TMPDIR 导致 Unix socket 路径超限。Bridge 丢弃 stderr 并用后续 closed-before 覆盖首错的问题已按 ADR-022 修复，另增加 provider_error.message 保留脱敏原文。业务标注未重跑，任务记录未改写；检查、部署及未运行范围见[诊断报告](reports/2026-11-11-error-propagation.md)。

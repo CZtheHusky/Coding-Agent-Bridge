@@ -3,7 +3,7 @@
 // paths containing spaces or non-ASCII characters. All filesystem state is
 // created under a disposable temp directory; nothing machine-specific.
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -338,3 +338,110 @@ test("ZCODE_BRIDGE_DATA_DIR must be absolute when set", async () => {
     cleanup();
   }
 });
+
+
+for (const name of ["codex", "claude"]) {
+  test(`${name} auto discovery follows current.json after an upgrade deletes the old release`, async () => {
+    const { root, cleanup } = makeFixture();
+    try {
+      const server = path.join(root, "persistent home 中文", ".zcode", "server");
+      const settingsDirectory = path.join(root, name === "codex" ? ".codex/codex-zcode-bridge" : "claude-settings");
+      mkdirSync(settingsDirectory, { recursive: true });
+      writeFileSync(path.join(settingsDirectory, "runtime-config.json"), JSON.stringify({ ZCODE_BRIDGE_ZCODE_CJS: null }));
+      // The official pointer uses a physical path; HOME can be a persistent link.
+      const linkedHome = path.join(root, "linked-home");
+      mkdirSync(path.dirname(path.dirname(server)), { recursive: true });
+      symlinkSync(path.dirname(path.dirname(server)), linkedHome, process.platform === "win32" ? "junction" : "dir");
+      const install = makeInstall(root);
+      const personal = path.join(root, "personal.json");
+      writeFileSync(personal, REAL_PERSONAL);
+      const env = {
+        ZCODE_BRIDGE_ZCODE_CJS: path.join(root, "deleted-inherited-runtime.cjs"),
+        ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: path.join(install, "resources/config/provider/zcode-builtin.json"),
+        ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: personal,
+      };
+      const host = { name, settingsDirectory };
+      const resolver = new NodeRuntimeResolver({ env, homeDir: linkedHome, host, packageRoot: root });
+      let previous = "";
+      for (const version of ["3.18.0", "3.19.0"]) {
+        const releaseDir = path.join(server, "releases", version);
+        const entry = path.join(releaseDir, "runtime", "zcode.cjs");
+        mkdirSync(path.dirname(entry), { recursive: true });
+        writeFileSync(entry, "// fake current runtime");
+        writeFileSync(path.join(server, "current.json"), JSON.stringify({ releaseDir }));
+        if (previous) rmSync(previous, { recursive: true });
+        assert.equal((await resolver.resolve()).zcodeEntrypoint, entry, "new tasks follow the official pointer, not a cached path");
+        previous = releaseDir;
+      }
+    } finally { cleanup(); }
+  });
+}
+
+test("server discovery honors ZCODE_HOME and never replaces an explicit runtime pin", async () => {
+  const { root, cleanup } = makeFixture();
+  try {
+    const server = path.join(root, "custom", ".zcode", "server");
+    const releaseDir = path.join(server, "releases", "current");
+    mkdirSync(path.join(releaseDir, "runtime"), { recursive: true });
+    writeFileSync(path.join(releaseDir, "runtime/zcode.cjs"), "// server");
+    writeFileSync(path.join(server, "current.json"), JSON.stringify({ releaseDir }));
+    const install = makeInstall(root);
+    const home = path.dirname(server);
+    mkdirSync(path.join(home, "v2"));
+    const personal = path.join(home, "v2/provider_config.json");
+    writeFileSync(personal, REAL_PERSONAL);
+    const env = { ZCODE_HOME: home, ZCODE_BRIDGE_ZCODE_CJS: "", ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: path.join(install, "resources/config/provider/zcode-builtin.json"), ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: personal };
+    const resolver = new NodeRuntimeResolver({ env, homeDir: root, packageRoot: root });
+    assert.equal((await resolver.resolve()).zcodeEntrypoint, path.join(releaseDir, "runtime/zcode.cjs"));
+    env.ZCODE_BRIDGE_ZCODE_CJS = path.join(install, "resources/glm/zcode.cjs");
+    assert.equal((await resolver.resolve()).zcodeEntrypoint, env.ZCODE_BRIDGE_ZCODE_CJS);
+    env.ZCODE_BRIDGE_ZCODE_CJS = path.join(root, "deleted-pin.cjs");
+    await assert.rejects(resolver.resolve(), (error: unknown) => error instanceof BridgeError && error.code === "runtime_not_found" && /ZCODE_BRIDGE_ZCODE_CJS/.test(error.message));
+  } finally { cleanup(); }
+});
+
+test("server discovery uses the configured data base and preserves Desktop precedence", async () => {
+  const { root, cleanup } = makeFixture();
+  try {
+    const server = path.join(root, "data-base", ".zcode", "server");
+    const releaseDir = path.join(server, "releases", "current");
+    mkdirSync(path.join(releaseDir, "runtime"), { recursive: true });
+    writeFileSync(path.join(releaseDir, "runtime/zcode.cjs"), "// server");
+    writeFileSync(path.join(server, "current.json"), JSON.stringify({ releaseDir }));
+    const install = makeInstall(root);
+    const personal = path.join(root, "personal.json");
+    writeFileSync(personal, REAL_PERSONAL);
+    const env: NodeJS.ProcessEnv = { ZCODE_DATA_BASE_DIR: path.join(root, "data-base"), ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: path.join(install, "resources/config/provider/zcode-builtin.json"), ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: personal };
+    const resolver = new NodeRuntimeResolver({ env, homeDir: path.join(root, "unused-home"), packageRoot: root });
+    assert.equal((await resolver.resolve()).zcodeEntrypoint, path.join(releaseDir, "runtime/zcode.cjs"));
+    env.ZCODE_WINDOWS_APP_INSTALL_DIR = install;
+    writeFileSync(path.join(server, "current.json"), "broken server pointer");
+    assert.equal((await resolver.resolve()).zcodeEntrypoint, path.join(install, "resources/glm/zcode.cjs"), "existing Desktop discovery still wins");
+  } finally { cleanup(); }
+});
+
+for (const kind of ["missing-pointer", "malformed", "array", "relative", "outside", "missing-runtime", "missing-release"]) {
+  test(`server discovery rejects ${kind} rather than guessing another installed release`, async () => {
+    const { root, cleanup } = makeFixture();
+    try {
+      const server = path.join(root, ".zcode", "server");
+      const releaseDir = path.join(server, "releases", "999.0.0");
+      mkdirSync(path.join(releaseDir, "runtime"), { recursive: true });
+      writeFileSync(path.join(releaseDir, "runtime/zcode.cjs"), "// must not guess the latest version");
+      let current: unknown = { releaseDir };
+      if (kind === "array") current = [];
+      if (kind === "relative") current = { releaseDir: "releases/999.0.0" };
+      if (kind === "outside") {
+        const outside = path.join(root, "outside");
+        mkdirSync(path.join(outside, "runtime"), { recursive: true });
+        writeFileSync(path.join(outside, "runtime/zcode.cjs"), "// valid runtime outside the official releases");
+        current = { releaseDir: outside };
+      }
+      if (kind === "missing-runtime") rmSync(path.join(releaseDir, "runtime/zcode.cjs"));
+      if (kind === "missing-release") current = { releaseDir: path.join(server, "releases", "deleted") };
+      if (kind !== "missing-pointer") writeFileSync(path.join(server, "current.json"), kind === "malformed" ? "{broken" : JSON.stringify(current));
+      const resolver = new NodeRuntimeResolver({ env: {}, homeDir: root, packageRoot: root });
+      await assert.rejects(resolver.resolve(), (error: unknown) => error instanceof BridgeError && error.code === "runtime_not_found");
+    } finally { cleanup(); }
+  });
+}

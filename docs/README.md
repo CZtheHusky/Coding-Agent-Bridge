@@ -1,11 +1,13 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-10，ADR-020、20 并发、测量及两端四入口部署报告路由；其余保留历史范围。
+> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；隔离原生验证和生产未替换范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-11，ADR-021、自动发现与远端健康检查报告路由；其余保留历史范围。
+> Prior verification: 2026-11-10，ADR-020、20 并发、测量及两端四入口部署报告路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-10
+> Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: e5bbfcc85d0809bb41c6ff9a50b98c802b8b47f6
+> Verified against: e0a19e8 + ADR-021/022 working tree
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -92,6 +94,7 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 | [上游 stable / preview 审阅台账](reports/2026-11-10-upstream-review.md) | 2026-11-10 | 83 + 11 个完整提交处置、专项核查与专题审阅边界、部分采纳候选及后续增量范围 / Upstream review ledger and incremental-review baseline |
 | [批量调度、目录覆盖与 20 并发](reports/2026-11-10-batch-scheduling-and-data-root.md) | 2026-11-10 | 活动索引、两宿主目录解析、Linux 回归及双进程存储对照；保留共享盘排队超时 / Batch scheduling, explicit data roots, twenty-worker tests and storage limits |
 | [批量调度与 20 并发安装验收](reports/2026-11-10-batch-scheduling-deployment.md) | 2026-11-10 | e5bbfcc、两端四入口替换、三个任务库迁移及隔离加载；保留真实模型未重跑边界 / Coordinated deployment, index migration and isolated loading checks |
+| [Server 自动发现与远端健康检查](reports/2026-11-11-server-runtime-discovery.md) | 2026-11-11 | 官方 current 指针、三入口替换、六项真实 ZCode/Kimi 调用及失败探针 / Server discovery and remote health checks |
 | [Kimi 代理修复与部署](reports/2026-11-04-kimi-proxy-fix.md) | 2026-11-04 | 代理边界回归、本机与远端安装验证、Desktop SSH 入口复核；公开脱敏记录 |
 | [Claude 入口与 Kimi 代理修复](reports/2026-11-08-claude-bridge-repair.md) | 2026-11-08 | 双实例根因、Claude 路径声明、独立宿主升级、真实模型执行与续作及待重连边界 |
 | [research/phase1-codex-zcode-2026-09-26.md](research/phase1-codex-zcode-2026-09-26.md) | 2026-09-26 | Phase 1 参考项目调研与 V0.1 架构建议 |
@@ -187,3 +190,8 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [ADR-019：Kimi 晚注册工具与真实用量](decisions/ADR-019-kimi-late-tools-and-usage.md)。
 
 - [ADR-020：活动调度索引与显式数据目录 / Active scheduling index and explicit data root](decisions/ADR-020-scheduling-index-and-data-root.md)：批量历史扫描与共享锁修复、一次迁移及同库统一升级要求。
+
+- [ADR-021：ZCode Server runtime 自动发现 / Server runtime discovery](decisions/ADR-021-zcode-server-runtime-discovery.md)：官方版本指针、显式固定入口及 Codex/Claude 配置。
+
+- [ADR-022：错误原文与进程退出诊断](decisions/ADR-022-error-text-and-process-exit-diagnostics.md)：脱敏消息、启动 stderr 与首个退出原因保留。
+- [GLM 111 条失败原因与回传修复](reports/2026-11-11-error-propagation.md)：长 TMPDIR socket 复现、丢失路径、测试与安装边界。

@@ -193,7 +193,7 @@ test("classifies explicit provider usage exhaustion without publishing its raw e
   const runtime = await makeFakeRuntime(undefined, true, false, {
     code: "insufficient_quota",
     type: "usage_limit_error",
-    message: `Account usage quota exhausted; ${privateMarker}`,
+    message: `Account usage quota exhausted; token=${privateMarker}`,
   });
   const events: Array<{ type: string; summary: string; details?: Record<string, unknown> }> = [];
   try {
@@ -579,9 +579,9 @@ test("raw mode cannot convert an unknown or failed native terminal into success"
   }
 });
 
-test("content safety rejection survives native event and RPC wrappers without private error text", async () => {
+test("content safety rejection retains native text with credentials redacted across event and RPC wrappers", async () => {
   for (const delivery of ["event", "rpc"] as const) {
-    const runtime = await makeFakeRuntime(undefined, true, false, { code: "UNKNOWN_ERROR", message: "Turn failed", underlyingErrorMessage: "[1301][unsafe][PRIVATE_REQUEST_ID]", data: { error: { message: "[1301][系统检测到输入或生成内容可能包含不安全或敏感内容][PRIVATE_REQUEST_ID]", retryable: false }, headers: { Authorization: "SECRET" }, url: "https://private.invalid/SECRET" } }, delivery);
+    const runtime = await makeFakeRuntime(undefined, true, false, { code: "UNKNOWN_ERROR", message: "Turn failed", underlyingErrorMessage: "[1301][unsafe] token=PRIVATE_REQUEST_ID", data: { error: { message: "[1301][系统检测到输入或生成内容可能包含不安全或敏感内容] token=PRIVATE_REQUEST_ID", retryable: false }, headers: { Authorization: "SECRET" }, url: "https://private.invalid/SECRET" } }, delivery);
     const events: unknown[] = [];
     try {
       const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, onEvent: e => events.push(e), childEnvBase: { PATH: process.env.PATH } });
@@ -596,6 +596,25 @@ test("content safety rejection survives native event and RPC wrappers without pr
   }
 });
 
+
+test("unknown provider error text survives event and RPC failures instead of a generic turn-failed result", async () => {
+  for (const delivery of ["event", "rpc"] as const) {
+    const native = { message: "Model request failed", underlyingErrorMessage: "TLS certificate verify failed; token=PROVIDER_SECRET", metadata: { message: "PRIVATE_METADATA" } };
+    const runtime = await makeFakeRuntime(undefined, true, false, native, delivery);
+    const events: { type: string; summary: string; details?: Record<string, unknown> }[] = [];
+    try {
+      const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => runtime.config }, onEvent: e => events.push(e), childEnvBase: { PATH: process.env.PATH } });
+      await assert.rejects(adapter.getResult(await adapter.startTask({ task, workspace: makeWorkspace(runtime.root), attempt: 1 })), error => {
+        assert.ok(error instanceof BridgeError); assert.equal(error.code, "zcode_nonzero_exit");
+        assert.match(error.message, /TLS certificate verify failed/);
+        assert.match(error.providerError!.message!, /Model request failed\nTLS certificate verify failed/);
+        assert.doesNotMatch(JSON.stringify({ error: error.message, details: error.providerError }), /PROVIDER_SECRET|PRIVATE_METADATA/); return true;
+      });
+      assert.ok(events.some(e => e.type === "error" && e.summary.includes("TLS certificate verify failed")));
+      assert.doesNotMatch(JSON.stringify(events), /PROVIDER_SECRET|PRIVATE_METADATA/);
+    } finally { await rm(runtime.root, { recursive: true, force: true }); }
+  }
+});
 
 test("raw native capture overflow is explicit instead of silently returning incomplete data", async () => {
   const runtime = await makeFakeRuntime(undefined, true, false, undefined, "event", { response: "x".repeat(2_000_001) });

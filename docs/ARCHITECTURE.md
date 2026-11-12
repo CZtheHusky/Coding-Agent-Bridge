@@ -1,10 +1,11 @@
 # 当前架构
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-10
-> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Last updated: 2026-11-11
+> Last verified: 2026-11-11，ADR-022 错误文本、退出 stderr 及首错保留；验证和安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: e0a19e8 + ADR-021/022 working tree
 > Prior verification: 2026-10-28，静态核对本次 src/schedule 的监督、持久化、续作与唤醒装配；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
 > Quota verification: 2026-10-28，ADR-011 白名单字段、provider 范围和 RPC 错误投影；离线协议及 worker 持久结果回归，真实额度故障 NOT RUN。
@@ -86,7 +87,7 @@ app-server stdout 协议帧与模型文本捕获分离（ADR-008）：完整 JSO
 
 生产执行使用 ZCodeAppServerAdapter。历史 CLI adapter、envelope、loader 和 GitWorktreeProvider 保留为 legacy 模块及其测试，不从共享公共入口导出，也不参与生产任务路径。不要把 legacy CLI 的重试、快照排除或 worktree 创建语义应用到当前生产路径。
 
-收到 ZCode `turn.failed` 或 RPC 错误回复时，adapter 按 [ADR-011](decisions/ADR-011-provider-quota-diagnostic-coverage.md) 在错误的 `code/type/message/detail/underlyingErrorMessage/underlyingErrorDetail`、`attribution.providerErrorCode`（或纯文本错误）中寻找明确的额度耗尽标记；数字业务码仅对错误归因或实际选中的 Z.AI/智谱 provider 生效。匹配后错误码为 `zcode_usage_exhausted`，事件与结果使用 Bridge 固定说明，明确本次执行已中断，要求 Codex 立即停止当前任务并告知用户；不得继续工作、自动重试或续作，须等待用户确认额度恢复。原始 RPC 错误不外发。HTTP 429、普通 rate limit、泛化 limit 错误和未识别内容仍为 `zcode_nonzero_exit`，不能推断额度耗尽。是否能分类取决于当前 ZCode runtime 实际提供的错误字段。
+收到 ZCode `turn.failed` 或 RPC 错误回复时，adapter 按 [ADR-011](decisions/ADR-011-provider-quota-diagnostic-coverage.md) 在错误的 `code/type/message/detail/underlyingErrorMessage/underlyingErrorDetail`、`attribution.providerErrorCode`（或纯文本错误）中寻找明确的额度耗尽标记；数字业务码仅对错误归因或实际选中的 Z.AI/智谱 provider 生效。匹配后错误码为 `zcode_usage_exhausted`，事件与结果使用 Bridge 固定说明，明确本次执行已中断，要求 Codex 立即停止当前任务并告知用户；不得继续工作、自动重试或续作，须等待用户确认额度恢复。完整 RPC 错误对象不外发；错误消息按 ADR-022 脱敏、有界回传，保留额度分类和固定停止说明。HTTP 429、普通 rate limit、泛化 limit 错误和未识别内容仍为 `zcode_nonzero_exit`，不能推断额度耗尽。是否能分类取决于当前 ZCode runtime 实际提供的错误字段。
 
 模型目录客户端与执行客户端目前保留各自 RPC 生命周期：前者处理短 session/cache，后者处理 turn/event/interaction。未为了减少行数合并协议客户端；公共配置、环境、报告和进程管理仍共享。
 

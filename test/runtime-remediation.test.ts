@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawn } from "node:child_process";
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, mkdir, rename } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { ZCodeAppServerAdapter } from "../src/adapters/zcode-app-server-adapter.js";
@@ -43,13 +43,14 @@ test("interaction timeout aborts the resolver rather than leaving a pending poll
   } finally { await fixture.cleanup(); }
 });
 
-test("raw runtime failure messages never enter public progress", async () => {
+test("runtime failure text reaches public progress with credentials redacted", async () => {
   const fixture = await runtimeFixture({ fail: true });
   try {
     const events: unknown[] = [];
     const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => fixture.config }, homeDir: fixture.home, host: fixture.host, timeoutMs: 3_000, onEvent: (event) => events.push(event) });
     const handle = await adapter.startTask({ task: makeTask({ workspace: fixture.root }), workspace: makeWorkspace(fixture.root), attempt: 1 });
     await assert.rejects(adapter.getResult(handle), /turn failed/);
+    assert.match(JSON.stringify(events), /TLS handshake failed/);
     assert.doesNotMatch(JSON.stringify(events), /PRIVATE_RUNTIME_ERROR/);
   } finally { await fixture.cleanup(); }
 });
@@ -58,7 +59,7 @@ test("five-hour quota failure reaches the worker result, status and events with 
   const fixture = await runtimeFixture({ failure: {
     type: "MODEL_RATE_LIMITED", message: "Model request failed", code: "1308",
     attribution: { providerId: "account:bigmodel-individual-coding-plan", providerErrorCode: "1308" },
-    underlyingErrorDetail: "PRIVATE_PROVIDER_DETAIL",
+    underlyingErrorDetail: "token=PRIVATE_PROVIDER_DETAIL",
   } });
   try {
     const store = new TaskStore(fixture.root);
@@ -82,6 +83,48 @@ test("five-hour quota failure reaches the worker result, status and events with 
     const requests = (await readFile(fixture.log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
     assert.equal(requests.filter((request) => request.method === "session/send").length, 1, "exhaustion never causes an automatic retry");
   } finally { await fixture.cleanup(); }
+});
+
+test("startup exit diagnostics survive the worker and optional account sync instead of becoming closed-before", async (t) => {
+  for (const accountSync of [false, true]) await t.test(`account sync ${accountSync}`, async () => {
+    const stderr = "Error: listen EINVAL: invalid argument /fixture/tmp/znr-test.sock\nAuthorization: Bearer STARTUP_SECRET\n";
+    const fixture = await runtimeFixture({ startupStderr: stderr, startupExitCode: 23 });
+    try {
+      if (accountSync) await writeFile(fixture.config.providerBuiltinConfigFile, JSON.stringify({ config: { providerConfigRules: { providerRules: [{ providerId: "account:fixture", config: { access: { type: "zhipu-account" } } }] } } }));
+      const store = new TaskStore(fixture.root);
+      store.createTask(makeTask({ workspace: fixture.root }), new Date().toISOString());
+      const before = { ...process.env };
+      Object.assign(process.env, fixture.env);
+      try { await runWorkerTask({ dataRoot: fixture.root, taskId: "task_1", attempt: 1, host: fixture.host }); }
+      finally { for (const key of Object.keys(process.env)) if (!(key in before)) delete process.env[key]; Object.assign(process.env, before); }
+      const result = store.readResult("task_1")!;
+      const status = store.readStatus("task_1");
+      const events = store.readEvents("task_1", 0, 200).events;
+      assert.equal(result.status, "failed"); assert.equal(result.error_code, "zcode_nonzero_exit");
+      for (const text of [result.summary, status.error!, store.readLog("task_1", "stderr")]) {
+        assert.match(text, /exited \(23\)/); assert.match(text, /listen EINVAL.*znr-test\.sock/);
+        assert.doesNotMatch(text, /STARTUP_SECRET|closed before/);
+      }
+      if (accountSync) assert.ok(events.some(e => e.type === "account_provider_sync_failed" && e.summary.includes("listen EINVAL")), "the later session/create request must retain the first exit diagnosis");
+      const requests = (await readFile(fixture.log, "utf8")).trim().split("\n").map(line => JSON.parse(line));
+      assert.equal(requests.some(r => r.method === "session/send"), false, "a startup failure must not invoke or retry the model");
+      assert.doesNotMatch(JSON.stringify({ result, status, events }), /STARTUP_SECRET/);
+    } finally { await fixture.cleanup(); }
+  });
+});
+
+test("startup exit without stderr reports its exit code and oversized stderr is explicitly bounded", async () => {
+  for (const stderr of ["", "EIO: storage failed\n" + "x".repeat(80_000)]) {
+    const fixture = await runtimeFixture({ startupStderr: stderr });
+    try {
+      const adapter = new ZCodeAppServerAdapter({ resolver: { resolve: async () => fixture.config }, homeDir: fixture.home, host: fixture.host, timeoutMs: 3_000 });
+      await assert.rejects(adapter.getResult(await adapter.startTask({ task: makeTask(), workspace: makeWorkspace(fixture.root), attempt: 1 })), error => {
+        assert.match(String(error), /exited \(1\)/);
+        assert.match(String(error), stderr ? /EIO: storage failed[\s\S]*\[truncated\]/ : /no stderr captured/);
+        assert.ok(String(error).length < 4_200); return true;
+      });
+    } finally { await fixture.cleanup(); }
+  }
 });
 
 test("worker preserves every visible output character across multiple bounded events", async () => {
@@ -218,3 +261,37 @@ test("host-specific defaults and cache remain isolated, preserve unknown setting
     assert.equal((await settings.getDefaultModel()).configured, false);
   } finally { await fixture.cleanup(); }
 });
+
+
+for (const name of ["codex", "claude"]) {
+  test(`detached ${name} worker discovers current Server runtime after a saved null clears an inherited pin`, { timeout: 15_000 }, async () => {
+    const fixture = await runtimeFixture();
+    const host = name === "codex"
+      ? { name: "codex-zcode-bridge", settingsDirectory: path.join(fixture.home, ".codex/codex-zcode-bridge") }
+      : fixture.host;
+    let child: ReturnType<typeof spawn> | undefined;
+    try {
+      const server = path.join(fixture.home, ".zcode/server");
+      const releaseDir = path.join(server, "releases/current");
+      await mkdir(path.join(releaseDir, "runtime"), { recursive: true });
+      await rename(fixture.config.zcodeEntrypoint, path.join(releaseDir, "runtime/zcode.cjs"));
+      await writeFile(path.join(server, "current.json"), JSON.stringify({ releaseDir }));
+      await mkdir(host.settingsDirectory, { recursive: true });
+      await writeFile(path.join(host.settingsDirectory, "runtime-config.json"), JSON.stringify({ ZCODE_BRIDGE_ZCODE_CJS: null }));
+      const store = new TaskStore(fixture.root);
+      store.createTask(makeTask({ workspace: fixture.root }), new Date().toISOString());
+      child = spawn(process.execPath, [workerEntry, fixture.root, "task_1", "1"], { env: { ...fixture.env, ZCODE_BRIDGE_HOST_PROFILE: JSON.stringify(host) }, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+      let stderr = "";
+      child.stderr!.on("data", (chunk) => { stderr += String(chunk); });
+      const exited = new Promise<number | null>((resolve) => child!.once("close", resolve));
+      assert.equal(await Promise.race([exited, delay(10_000).then(() => "hung")]), 0, stderr);
+      assert.equal(store.readResult("task_1")?.status, "completed");
+      assert.equal(store.readStatus("task_1").cleanup_unverified, false);
+      const requests = (await readFile(fixture.log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+      assert.equal(requests.filter((request) => request.method === "session/send").length, 1, "the discovered entry must actually execute, not only pass a path check");
+    } finally {
+      if (child && child.exitCode === null && child.signalCode === null && child.pid) await terminateFixtureChild(child);
+      await fixture.cleanup();
+    }
+  });
+}

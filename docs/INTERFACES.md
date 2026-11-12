@@ -1,12 +1,13 @@
 # 当前接口与兼容边界
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
+> Last verified: 2026-11-11，ADR-022 错误文本、退出 stderr 及首错保留；验证和安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-10
+> Last updated: 2026-11-11
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 01748cd + ADR-020 working tree
+> Verified against: e0a19e8 + ADR-021/022 working tree
 > Prior verified against: 2318201 + ADR-018 working tree
 > Prior verification: 2026-10-28，静态核对本次四个调度工具的 schema、acceptance_met 与 attempt 约束；另核对本机 systemd 255 / MCP / Bridge worker 的 8 项离线闭环实测证据（执行器和 App 接收端为 fixture、无模型调用），详见 [ADR-010](decisions/ADR-010-scheduled-zcode-and-codex-wakeup.md#当前验证边界2026-10-28)。另已完成本机真实 ZCode 自评/续作、当前 App 消息送达与 Codex 独立验收；新版调度在对话空闲时启动新轮次仍未验证，详见 ADR-010。
 > Prior verified against: 0e74ee1c64b179752a24317574916a98c77a5ef1 + 当前 working tree（ADR-010 调度离线实测与 ADR-011 额度诊断回归；仅上述范围）
@@ -61,7 +62,7 @@ TaskPackage 的五个数组必须存在，可为空。workspace 是绝对项目�
 
 任务 objective、requirements、路径、验收、测试命令及续跑 feedback 不截断；完整 prompt 超过 60,000 字符会返回 TASK_INVALID。参考 context 与旧结果摘要仍有明确的截断标记，不能把安全约束只放在参考 context。
 
-coding_agent_events 使用单调 seq cursor、limit 1–200、wait_ms 0–25,000、raw/summary view。summary 合并可见输出时会注明压缩。公开事件只包含可见文本、工具名称与状态，以及有限的生命周期 metadata；隐藏 reasoning 和未知 usage metadata 不进入公开事件。`turn.failed` 与 RPC 错误回复仅投影 Bridge 稳定错误码，不转发 provider 原始错误；按 [ADR-011](decisions/ADR-011-provider-quota-diagnostic-coverage.md) 读取白名单诊断字段，明确额度耗尽显示为 `zcode_usage_exhausted`，未识别原因仍显示为 `zcode_nonzero_exit`。订阅前记录 `snapshot.runtime.eventSeq`。live 订阅连续 10 秒没有新事件时，每 5 秒按已观测序号向 `session/events` 补拉一次，重放仍经过同样的 session、单调 runtime seq 和 turn ID 过滤；runtime 明确拒绝该方法时降级为纯 live 订阅，连续 3 次失败后同样降级，两种情况都会发出可见的 `session_event_replay_unavailable` 事件。协议变化不能只靠字符串方法名推断支持。`session/read` 未接入，原生当前状态查询仍为 NOT RUN。运行时事件先核对 session、单调 runtime seq 和可用 turn ID；存在历史事件的 session 必须观察新 turn.started 后才接受结束事件。缺少某些身份字段的旧协议仍有兼容路径，真实跨版本行为未全部验证。
+coding_agent_events 使用单调 seq cursor、limit 1–200、wait_ms 0–25,000、raw/summary view。summary 合并可见输出时会注明压缩。公开事件只包含可见文本、工具名称与状态，以及有限的生命周期 metadata；隐藏 reasoning 和未知 usage metadata 不进入公开事件。`turn.failed` 与 RPC 错误回复保留 Bridge 稳定错误码，并按 ADR-022 返回有界脱敏错误文本，不复制完整 provider 对象；按 [ADR-011](decisions/ADR-011-provider-quota-diagnostic-coverage.md) 读取白名单诊断字段，明确额度耗尽显示为 `zcode_usage_exhausted`，未识别原因仍显示为 `zcode_nonzero_exit`。订阅前记录 `snapshot.runtime.eventSeq`。live 订阅连续 10 秒没有新事件时，每 5 秒按已观测序号向 `session/events` 补拉一次，重放仍经过同样的 session、单调 runtime seq 和 turn ID 过滤；runtime 明确拒绝该方法时降级为纯 live 订阅，连续 3 次失败后同样降级，两种情况都会发出可见的 `session_event_replay_unavailable` 事件。协议变化不能只靠字符串方法名推断支持。`session/read` 未接入，原生当前状态查询仍为 NOT RUN。运行时事件先核对 session、单调 runtime seq 和可用 turn ID；存在历史事件的 session 必须观察新 turn.started 后才接受结束事件。缺少某些身份字段的旧协议仍有兼容路径，真实跨版本行为未全部验证。
 
 `coding_agent_feedback` 是独立的 `TaskFeedbackSnapshotV01` v0.1 聚合层，含 `schema_version: "0.1"`，并返回结构化 snapshot 与简洁文本。它不替代 `coding_agent_events`，也不改变 `TaskResult`、状态接口或已持久化记录。字段来源分为 Bridge task state（task、attempt、status、起止时间和墙钟 duration）、runtime-observed（只接受当前 attempt 规范化 `model_selected`、`model_tool_call`、`tool_status` 事件中的 allowlisted 字段）和 Agent report（仅当前 attempt 出现 `report_ready`、结果 attempt/status 匹配且结果为 `completed` 或 `waiting_for_master` 时，标记 `source: "agent_report"`）。模型不从请求或 catalog 回退；runtime model 缺失时为 `null`。`phase` 与 `progress` 固定为 `null`。activity 使用 Bridge 持久化事件时生成的 observation timestamp，语义固定为 `last_observed`；不表达工具仍在运行。交互状态固定为 `not_observed`，表示 snapshot 未确立可靠的当前交互状态，不表示历史中没有交互或没有待处理请求；原始交互事件仍由 `coding_agent_events` 提供。该 snapshot 不包含 runtime turn outcome 或 Bridge failure reason 字段，因此文本只显示可由 Bridge status 支持的完成/失败状态，不推断 turn 成功、目标完成或主机验收。Agent 报告中的 summary、文件、tests 与 issues 均不是 Bridge 独立验证结果。
 
@@ -103,16 +104,20 @@ Kimi 的 `usage` 从原生 `snapshot.session.usage` 读取，不能读取 GET se
 
 可选 `runtime_session_usage` 只返回 ZCode 原生 session/usage 的 session_id、observed_at、model_request_count、model_error_count 和固定 source=zcode_runtime_session。这是观测时的会话累计请求/错误数，可能包括辅助请求，不能标为单轮或逐请求统计；不复制该 RPC 中具有基线语义的 token 字段。不支持时字段缺省并发出 session_usage_unavailable，不估算为 0。
 
-turn.failed / RPC 错误的既有码不变；消息及事件 provider_error 可附白名单 code/type/status/retryable/retry-after 数值与固定分类说明。1301 为内容安全拒绝，不自动原样重试；未知原始消息、URL、headers、metadata、请求体不外发。额度耗尽判断优先，停止策略不变。不能据此承诺任意未知失败都已完整诊断。
+turn.failed / RPC 错误的既有码不变；消息及事件 provider_error 可附白名单 code/type/status/retryable/retry-after 数值与固定分类说明。1301 为内容安全拒绝，不自动原样重试；原错误文本经凭据和 URL 脱敏、控制字符清理及长度限制后回传，headers、metadata、请求体不复制。额度耗尽判断优先，停止策略不变。不能据此承诺任意未知失败都已完整诊断。
 
 同目录和父子目录互斥保持不变；8 worker 只适用于互不重叠执行目录。文件升级不使运行中 MCP 进程热更新，须重连 MCP 或新建宿主会话。决策见 [ADR-017](decisions/ADR-017-data-task-output-and-diagnostics.md)。
 
 ## 结构化诊断与运行版本（ADR-018）
 
-`TaskResult.provider_error` 可选，保留原生失败的白名单 code/type、数值 status/statusCode/retryAfter/retry_after、布尔 retryable 和固定 category=content_filter。没有证据时缺省；未知消息、请求体、headers 和 metadata 不外发。支持 ZCode event/RPC 失败及 Kimi 原生失败中实际提供的字段，并随已有 checkpoint 恢复。顶层 error_code 及额度/清理优先级不变；不要只根据 provider_error.retryable 自动重试。
+`TaskResult.provider_error` 可选，保留原生失败的白名单 code/type、数值 status/statusCode/retryAfter/retry_after、布尔 retryable 和固定 category=content_filter；可选 `message` 保留错误文本，最多 4,000 字符，超出带 `…[truncated]`。消息只从原生错误消息字段及既有包装路径提取，清除终端控制字符并脱敏 URL、认证头、Cookie、密钥/密码赋值、常见令牌及 PEM 私钥。没有证据时缺省；请求体、headers、stack 和 metadata 不复制。支持 ZCode event/RPC 失败及 Kimi 原生失败中实际提供的字段，并随已有 checkpoint 恢复。顶层 error_code 及额度/清理优先级不变；不要只根据 provider_error.retryable 自动重试。
 
 MCP task/continue 回执及 doctor 的可选 `bridge` 提供核心 version、started_at、running_build_id、disk_build_id、disk_status（same/changed/unknown）和 reconnect_required（布尔或 null）。manager 的持久幂等回执不附加该观察。SHA-256 比较启动时分发执行文件与当前磁盘内容，覆盖标准插件的三入口 bundle 或编译 core 的 JS/CJS 树；不能据此排序版本或认定任务通过。changed 提示重连；文件缺失/不可读或初始指纹缺失为 unknown，reconnect_required=null，不阻断任务。更旧进程没有此能力，须首次重连；不热更新或自动重启。详见 [ADR-018](decisions/ADR-018-result-diagnostics-and-running-build.md)。
 
 ## 调度候选与目录覆盖（ADR-020）
 
 MCP schema 和任务查询契约不变。同库 worker 并发默认 20、范围 1–20，较小的显式配置仍生效；重叠目录仍串行。内部活动候选索引避免逐轮读取健康历史，仍逐次验证当前状态、损坏范围与 cleanup。首次旧库迁移不持有共享调度锁；超时及同 task_id 重试语义不变。所有写入状态的 Manager 须一起升级重连；不支持新旧 Manager 混用同库。健康终态退出调度集合后，手工更改历史文件不作为恢复入口；通过 continue/cancel 的正常状态写入会重新登记。显式非空 DATA_DIR 只覆盖目录，其余持久化设置优先，详见 ADR-020 与 ZCODE_RUNTIME。
+
+## 错误文本与启动退出（ADR-022）
+
+app-server 启动/运行退出保留首个实际退出码、信号及有界脱敏 stderr，进入既有事件、status.error、result.summary/issues 和 stderr.log。可选账号同步失败后的 RPC 不把原退出原因覆盖为 closed before。没有 stderr 时明确说明 no stderr captured；不把缺少 stderr 推断成额度/网络错误。provider 原生文本另保留于 provider_error.message，未知失败摘要也包含文本；额度耗尽及内容审核仍保留固定行动说明。旧任务记录不回填，不新增自动重试。较新的 [ADR-022](decisions/ADR-022-error-text-and-process-exit-diagnostics.md) 替代 ADR-017/018 禁止一切未知消息的边界。
