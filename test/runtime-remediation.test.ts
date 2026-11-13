@@ -207,6 +207,63 @@ test("real worker reaches its 60-second timeout and exits with an unanswered int
   }
 });
 
+test("model catalog reports the native startup cause with credentials redacted, including account sync failures", async (t) => {
+  for (const accountSync of [false, true]) await t.test(`account sync ${accountSync}`, async () => {
+    const fixture = await runtimeFixture({
+      startupStderr: "\u001b[31mError: listen EINVAL: invalid argument /fixture/tmp/znr-test.sock\u001b[0m\nAuthorization: Bearer CATALOG_SECRET\nproxy=https://user:PRIVATE_PASSWORD@example.invalid\n",
+      startupExitCode: 23,
+    });
+    try {
+      if (accountSync) await writeFile(fixture.config.providerBuiltinConfigFile, JSON.stringify({ config: { providerConfigRules: { providerRules: [{ providerId: "account:fixture", config: { access: { type: "zhipu-account" } } }] } } }));
+      const settings = new ZCodeModelSettings(fixture.env, { homeDir: fixture.home, host: fixture.host });
+      await assert.rejects(settings.listModels(fixture.root), error => {
+        assert.match(String(error), /exited \(23\)/);
+        assert.match(String(error), /stderr: Error: listen EINVAL: invalid argument \/fixture\/tmp\/znr-test.sock/);
+        assert.match(String(error), /coding_agent_doctor/);
+        assert.doesNotMatch(String(error), /CATALOG_SECRET|PRIVATE_PASSWORD|example\.invalid|\u001b|closed before/);
+        if (accountSync) assert.match(String(error), /Account provider synchronization failed/);
+        assert.equal((error as { code: string }).code, "zcode_nonzero_exit");
+        return true;
+      });
+      const requests = (await readFile(fixture.log, "utf8")).trim().split("\n").map(line => JSON.parse(line));
+      assert.equal(requests.filter(request => ["provider/updateAccountConfig", "session/create"].includes(request.method)).length, 2, "catalog keeps its existing single refresh retry");
+      assert.equal(requests.some(request => request.method === "session/send"), false, "startup diagnosis must not spend model quota");
+    } finally { await fixture.cleanup(); }
+  });
+});
+
+test("model catalog distinguishes missing stderr from bounded, explicitly truncated diagnostics", async () => {
+  for (const stderr of ["", "EIO: storage failed\n" + "x".repeat(80_000)]) {
+    const fixture = await runtimeFixture({ startupStderr: stderr });
+    try {
+      const settings = new ZCodeModelSettings(fixture.env, { homeDir: fixture.home, host: fixture.host });
+      await assert.rejects(settings.listModels(fixture.root), error => {
+        assert.match(String(error), /exited \(1\)/);
+        assert.match(String(error), stderr ? /EIO: storage failed[\s\S]*\[truncated\]/ : /no stderr captured/);
+        assert.ok(String(error).length < 4_500, "public catalog errors stay bounded even with huge native stderr");
+        return true;
+      });
+    } finally { await fixture.cleanup(); }
+  }
+});
+
+test("model catalog preserves RPC error messages without publishing private protocol metadata", async () => {
+  const fixture = await runtimeFixture({ catalogError: {
+    code: -32000, message: "Provider initialization rejected; token=CATALOG_SECRET",
+    data: { underlyingErrorMessage: "TLS certificate verify failed" },
+    metadata: { message: "PRIVATE_METADATA" },
+  } });
+  try {
+    const settings = new ZCodeModelSettings(fixture.env, { homeDir: fixture.home, host: fixture.host });
+    await assert.rejects(settings.listModels(fixture.root), error => {
+      assert.match(String(error), /request failed \(code -32000\): Provider initialization rejected/);
+      assert.match(String(error), /TLS certificate verify failed/);
+      assert.doesNotMatch(String(error), /CATALOG_SECRET|PRIVATE_METADATA/);
+      return true;
+    });
+  } finally { await fixture.cleanup(); }
+});
+
 test("model catalog uses yolo by default and shares its cache with explicit yolo while respecting build", async () => {
   const fixture = await runtimeFixture();
   try {

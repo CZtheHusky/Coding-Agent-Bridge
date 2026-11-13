@@ -1,14 +1,14 @@
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](docs/reports/2026-11-11-error-propagation.md)。
+> Last verified: 2026-11-12，仅本次模型目录错误回传与 TMPDIR 提醒；其余沿用既有验证范围。
 > Prior verification: 2026-11-11，ADR-021 自动发现、Linux 回归及远端三入口 ZCode/Kimi 文本调用；失败探针与未运行边界见[验证报告](docs/reports/2026-11-11-server-runtime-discovery.md)。
 > Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](docs/reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，Kimi API 模式、真实工具面/用量及四安装入口补测；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-11
+> Last updated: 2026-11-12
 > Prior verification: 2026-11-09，仅 API 模式参数、示例和系统提示/工具边界；实测及未运行范围见本轮数据任务修复报告，其余沿用历史记录。
-> Verified against: 122d9b7
+> Verified against: 3042a71 + 本次模型目录诊断 working tree
 > Prior verification: 2026-11-09，仅本次图片参数、示例、模型模态和 Linux 附图范围；其余内容未重新核对。
 > Prior verified against: 7c1d6f2 + ADR-016 working tree；证据见附图实测记录。
 
@@ -170,7 +170,9 @@ ZCode session 标题根据首条任务 prompt 生成。Bridge 会将 `TASK ID` �
 
 ZCode Desktop 的 Workspace 视图按 Codex 项目目录查找任务。
 
-启动失败会保留退出码、信号和脱敏 stderr；未知 provider 错误保留脱敏文本，详见 [ADR-022](docs/decisions/ADR-022-error-text-and-process-exit-diagnostics.md)。
+任务及模型目录查询的启动失败均保留退出码、信号和脱敏 stderr；未知 provider 错误保留脱敏文本，详见 [ADR-022](docs/decisions/ADR-022-error-text-and-process-exit-diagnostics.md)。
+
+Linux 调用方应在启动 Bridge 前设置短 `TMPDIR`。Observed ZCode Server 3.18.0 追加的 `znr-<UUID>.sock` 及分隔符约占 46 字节，完整 Unix socket 路径通常最多 107 字节（按 UTF-8 字节计算）；深层业务输出目录可能在创建 session 前触发 `listen EINVAL`。应在预期数据盘选择短临时目录，重新连接 MCP 后再决定重试，并保留临时目录直到相关任务结束。详见[启动诊断](docs/ZCODE_RUNTIME.md#启动失败与临时-socket-路径)。
 
 遇到安装或启动问题时，调用 MCP 工具 `coding_agent_doctor` 获取只读诊断。它不会启动 ZCode 会话，也不做真实权限审批；审批链路只能由实际任务验证（记录版本上已完成单次 43,014-byte Write 的真实审批往返实测）。
 

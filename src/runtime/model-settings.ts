@@ -10,6 +10,7 @@ import { BridgeError } from "./errors.js";
 import { loadPersistedRuntimeEnvironment, NodeRuntimeResolver } from "./resolver.js";
 import { ZCODE_SESSION_MODES, type ZCodeSessionMode } from "./session-preferences.js";
 import type { ZCodeRuntimeConfig } from "../interfaces.js";
+import { providerFailureDiagnostic, sanitizeDiagnosticText } from "../adapters/provider-failure.js";
 import { captureSpawnGenerationIdentity, childStillOnSpawnGeneration, createPlatformProbe, terminateProcessTree } from "../adapters/process-spawn.js";
 import { codexHostProfile, validateHostProfile, type BridgeHostProfile } from "../host/profile.js";
 import { withProcessLock } from "../store/process-lock.js";
@@ -135,7 +136,7 @@ export class ZCodeModelSettings {
     }
     const reason = lastError instanceof Error ? lastError.message : String(lastError);
     const code = lastError instanceof BridgeError ? lastError.code : "zcode_nonzero_exit";
-    throw new BridgeError(code, `Model catalog refresh failed after re-reading provider config and retrying: ${reason}. Run coding_agent_doctor to identify a missing or invalid runtime/provider file; after correcting it, call coding_agent_model_catalog again.`, { cause: lastError });
+    throw new BridgeError(code, `Model catalog refresh failed after re-reading provider config and retrying: ${reason}. Run coding_agent_doctor to check runtime/provider configuration. If stderr reports socket listen EINVAL, check TMPDIR path length and choose a shorter temporary directory on the intended filesystem before restarting the Bridge. After correcting the reported cause, call coding_agent_model_catalog again.`, { cause: lastError });
   }
 
   async #resolveCatalogSource(workspacePath: string): Promise<CatalogSource> {
@@ -320,6 +321,8 @@ function startAppServer(config: ZCodeRuntimeConfig, cwd: string, env: NodeJS.Pro
   const pending = new Map<string | number, PendingRequest>();
   let stdoutBuffer = "";
   let stderr = "";
+  let stderrTruncated = false;
+  let processFailure: Error | null = null;
   let nextId = 0;
   let closed = false;
   // ADR-009 spawn-generation continuity: libuv releases the child's native
@@ -371,32 +374,39 @@ function startAppServer(config: ZCodeRuntimeConfig, cwd: string, env: NodeJS.Pro
         pending.delete(message.id as string | number);
         if (message.error !== undefined) {
           const error = asRecord(message.error);
-          call.reject(new Error(`ZCode app-server request failed${typeof error.code === "number" ? ` (code ${error.code})` : ""}`));
+          const diagnostic = providerFailureDiagnostic(error).details.message;
+          call.reject(new Error(`ZCode app-server request failed${typeof error.code === "number" ? ` (code ${error.code})` : ""}${diagnostic ? `: ${diagnostic}` : ""}`));
         } else call.resolve(message.result);
       } else if ((typeof message.id === "string" || typeof message.id === "number") && typeof message.method === "string") {
         write({ id: message.id, error: { code: -32601, message: `Unsupported ZCode app-server request: ${message.method}` } });
       }
     }
   });
-  child.stderr.on("data", (chunk: string) => { if (stderr.length < 64_000) stderr += chunk.slice(0, 64_000 - stderr.length); });
+  child.stderr.on("data", (chunk: string) => {
+    if (stderr.length + chunk.length > 64_000) stderrTruncated = true;
+    if (stderr.length < 64_000) stderr += chunk.slice(0, 64_000 - stderr.length);
+  });
   child.on("error", (error) => {
     closed = true;
+    processFailure ??= new Error(sanitizeDiagnosticText(error.message));
     for (const call of pending.values()) {
       clearTimeout(call.timer);
-      call.reject(error);
+      call.reject(processFailure);
     }
     pending.clear();
   });
   child.on("close", (code, signal) => {
     closed = true;
+    const diagnostic = sanitizeDiagnosticText(stderr + (stderrTruncated ? "\n…[truncated]" : ""));
+    processFailure ??= new Error(`ZCode app-server exited (${String(code)}${signal ? `, ${signal}` : ""})${diagnostic ? `; stderr: ${diagnostic}` : "; no stderr captured"}`);
     for (const call of pending.values()) {
       clearTimeout(call.timer);
-      call.reject(new Error(`ZCode app-server exited (${String(code)}${signal ? `, ${signal}` : ""})`));
+      call.reject(processFailure);
     }
     pending.clear();
   });
   const request = (method: string, params: JsonRecord): Promise<unknown> => {
-    if (closed) return Promise.reject(new Error(`ZCode app-server is closed before ${method}`));
+    if (closed) return Promise.reject(processFailure ?? new Error(`ZCode app-server is closed before ${method}`));
     const id = ++nextId;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { pending.delete(id); reject(new Error(`ZCode app-server request timed out: ${method}`)); }, RPC_TIMEOUT_MS);

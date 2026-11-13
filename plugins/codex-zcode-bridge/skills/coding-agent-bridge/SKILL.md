@@ -6,9 +6,9 @@ description: 通过 Coding Agent Bridge 委派本机 ZCode 或 Kimi 任务，跟
 # Coding Agent Bridge
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09，常用流程与按需参考路由；运行验证边界见仓库 PROJECT_STATE。
-> Verified against: 998670c（执行代码）+ 本次技能改名与精简
+> Last updated: 2026-11-12
+> Last verified: 2026-11-12，仅本次模型目录错误回传与 TMPDIR 提醒；其余沿用既有验证范围。
+> Verified against: 3042a71 + 本次模型目录诊断 working tree
 
 ## 常用流程
 
@@ -28,6 +28,7 @@ description: 通过 Coding Agent Bridge 委派本机 ZCode 或 Kimi 任务，跟
 - `allowed_paths`、worktree 和工具禁用都不是 OS 沙箱；默认 yolo 不代表所有请求已授权。审批/问题按已有授权处理，需要新授权或关键决定时才询问用户；不能把有界预览当完整输入。
 - `zcode_usage_exhausted` / `kimi_usage_exhausted`：停止该执行器的自动调用、重试和续作，告知用户并等待确认额度恢复。失败先核对 error_code；cleanup 未确认时不得续作、删锁或重派冲突目录。
 - 不把凭据、代理秘密或 App pipe 写进任务、日志或仓库；不要为方便更改 provider 配置。汇报区分独立实测、执行器自报和未验证，不估算缺失 token。
+- Linux 的 ZCode 使用短 `TMPDIR`；路径过长可在启动时触发 socket `listen EINVAL`。优先在调用者指定的数据盘选短目录，详见[交互与异常](references/interactions-and-failures.md#临时目录路径过长)。
 - 升级文件后需重连 MCP 或开启新宿主会话，已有连接不会热加载新代码/技能。
 
 ## 只在需要时读取

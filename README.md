@@ -249,7 +249,9 @@ After execution, Codex should inspect the actual diff and run acceptance checks 
 
 In ZCode Desktop, find tasks in the Workspace view under the Codex project directory.
 
-Startup exits retain the exit code/signal and bounded redacted stderr in the task error. Unknown provider messages are preserved after redaction; see [ADR-022](docs/decisions/ADR-022-error-text-and-process-exit-diagnostics.md).
+Startup exits retain the exit code/signal and bounded redacted stderr in task and model-catalog errors. Unknown provider messages are preserved after redaction; see [ADR-022](docs/decisions/ADR-022-error-text-and-process-exit-diagnostics.md).
+
+On Linux, start the Bridge with a short `TMPDIR` on your intended filesystem. Observed ZCode Server 3.18.0 appends `znr-<UUID>.sock` (about 46 extra bytes including the separator); the full Unix socket path normally has a 107-byte limit. Deep output directories can therefore cause `listen EINVAL` before a session exists. Select a shorter temporary directory on the same data disk and reconnect MCP before retrying; keep it until its tasks finish. See [startup diagnostics](docs/ZCODE_RUNTIME.md#启动失败与临时-socket-路径).
 
 For installation or startup problems, call the `coding_agent_doctor` MCP tool for setup diagnostics. It does not start a ZCode session. Use `coding_agent_model_catalog` to read the cached or live app-server model list; a real permission-approval roundtrip still requires an actual task.
 

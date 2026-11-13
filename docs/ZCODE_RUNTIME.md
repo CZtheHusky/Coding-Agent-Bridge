@@ -1,13 +1,13 @@
 # ZCode 运行配置边界
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-11
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Last updated: 2026-11-12
+> Last verified: 2026-11-12，仅本次模型目录错误回传与 TMPDIR 提醒；其余沿用既有验证范围。
 > Prior verification: 2026-11-11，ADR-021 官方指针与两宿主配置解析、Linux 回归及远端真实文本调用；其余范围保留历史记录，见[验证报告](reports/2026-11-11-server-runtime-discovery.md)。
 > Prior verification: 2026-11-10，ADR-020 活动调度、目录覆盖与 20 并发的 Linux 离线回归及双进程测量；共享盘超时和未运行边界见[本轮报告](reports/2026-11-10-batch-scheduling-and-data-root.md)。
 > Prior verification: 2026-11-10，ADR-019 语义、真实工具面/用量及四安装入口；OCR 两次失败与平台边界见实测报告。
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 122d9b7
+> Verified against: 3042a71 + 本次模型目录诊断 working tree
 > Prior verified against: 7d59bbfc22df4615f736e4169eaa4dae0674037d + ADR-017 working tree
 > Prior verification: 2026-11-04，仅新增代理继承边界；两处真实 spawn 回归、本机与远端安装后 Kimi 执行/续作及 ZCode 回归，详见[报告](reports/2026-11-04-kimi-proxy-fix.md)。其余条目沿用下述历史核对范围。
 > Prior verified against: 2e14ea4a95e61876c68a59bd68baa08a6b3ae4f1 + 本次代理修复源码及独立部署 bundle
@@ -74,6 +74,6 @@ Kimi 使用其自身 Server API 的 disabled_tools，未复用 ZCode 配置或�
 
 ## 启动失败与临时 socket 路径
 
-失败时先读 `result.summary/issues` 和 `status.error`；新版保留 app-server 退出码、信号及脱敏 stderr，原生 provider 错误文本另见 `provider_error.message`。仅有 `zcode_nonzero_exit` 不能判断是否额度耗尽或可重试。旧记录丢失的 stderr 不会因升级自动还原；升级后须重连 MCP。
+失败时先读 `result.summary/issues` 和 `status.error`；任务与模型目录接口均保留 app-server 退出码、信号及脱敏 stderr，原生 provider 错误文本另见 `provider_error.message`。仅有 `zcode_nonzero_exit` 不能判断是否额度耗尽或可重试。旧记录丢失的 stderr 不会因升级自动还原；升级后须重连 MCP。
 
-Observed ZCode Server 3.18.0（Linux）会在 `TMPDIR` 下创建 `znr-<UUID>.sock`。过长的 TMPDIR 会使 socket 路径超出 Linux 的 `sockaddr_un.sun_path` 108 字节容量（通常最多 107 字节路径加终止符），报 `listen EINVAL`，在 session/create 前退出。可给调用进程设置同盘较短的 TMPDIR；不需要改模型、代理或默认系统提示。Bridge 不自动迁移调用者的临时目录，也不因此重跑任务。复现边界见[本轮报告](reports/2026-11-11-error-propagation.md)。
+Observed ZCode Server 3.18.0（Linux）会在 `TMPDIR` 下创建 `znr-<UUID>.sock`。过长的 TMPDIR 会使 socket 路径超出 Linux 的 `sockaddr_un.sun_path` 108 字节容量（通常最多 107 字节路径加终止符），报 `listen EINVAL`，在 session/create 前退出。本版本文件名及分隔符约占 46 字节，长度按 UTF-8 字节而非字符数计算。可在预期数据盘创建短名称独立目录，给 Bridge 启动进程设置 TMPDIR，并重新连接 MCP；临时目录保留到相关任务结束后再清理。doctor 是静态检查，不能据其通过认定 socket 可创建；不需要改模型、代理或默认系统提示。Bridge 不自动迁移调用者的临时目录，也不因此重跑任务。复现边界见[本轮报告](reports/2026-11-11-error-propagation.md)。

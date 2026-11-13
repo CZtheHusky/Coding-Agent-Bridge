@@ -1,9 +1,9 @@
 # 交互与异常
 
 > Status: AUTHORITATIVE
-> Last updated: 2026-11-09
-> Last verified: 2026-11-09，ADR-018 结构化诊断/构建提示；其余沿用既有交互/清理范围。
-> Verified against: 2318201 + ADR-018 working tree
+> Last updated: 2026-11-12
+> Last verified: 2026-11-12，仅本次模型目录错误回传与 TMPDIR 提醒；其余沿用既有验证范围。
+> Verified against: 3042a71 + 本次模型目录诊断 working tree
 
 ## 审批与问题
 
@@ -25,3 +25,9 @@ preview=true 的 input_preview 不是全文。判断需要完整输入时读同 
 需要续作时复用同 task/session/目录并给出具体失败证据。接收 worktree 改动前保护已有用户改动、解决冲突并独立验收；Bridge 不自动合并、提交或删除 worktree。
 
 汇报以用户所需结论为主，说明独立验证范围、未验证项和必要下一步；需要时附模型、usage 与证据链接，不强制长表。执行器自报、历史记录和独立实测必须区分，任务成功与清理未确认应分开说明。
+
+## 临时目录路径过长
+
+Observed ZCode Server 3.18.0（Linux）在 `TMPDIR` 下创建 `znr-<UUID>.sock`。Linux Unix socket 路径通常最多 107 字节；本版本追加的文件名和分隔符约占 46 字节，深层业务输出目录作为 TMPDIR 可能在创建 session 前报 `listen EINVAL`。长度按 UTF-8 字节计算，不按字符数计算。
+
+启动任务或查询模型目录前，为 Bridge 进程选择调用者预期文件系统中的短临时目录；例如在数据盘根下创建短名称的独立目录，再设置 `TMPDIR` 启动 Bridge。修改父 shell 的变量不会改变已启动的 MCP 进程，需要重新连接。保持目录到相关任务结束后再清理，不能在仍有任务时删除。Bridge 保留脱敏后的具体路径与 stderr，但不会自动更换磁盘或重跑业务。`coding_agent_doctor` 的静态检查通过也不能证明 socket 可以创建；模型目录刷新失败应读该工具返回的错误原文。

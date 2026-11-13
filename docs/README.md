@@ -1,13 +1,14 @@
 # 文档索引 / Documentation
 
 > Status: AUTHORITATIVE（仅指本索引）
-> Last verified: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
+> Last verified: 2026-11-12，模型目录诊断报告与调用提示路由；其余保留历史验证范围。
+> Prior verification: 2026-11-11，ADR-022 错误文本与启动 stderr 回归；原生验证和两端安装范围见[诊断报告](reports/2026-11-11-error-propagation.md)。
 > Prior verification: 2026-11-11，ADR-021、自动发现与远端健康检查报告路由；其余保留历史范围。
 > Prior verification: 2026-11-10，ADR-020、20 并发、测量及两端四入口部署报告路由；其余保留历史范围。
 > Prior verification: 2026-11-09，仅本次 ADR-018 接口与实现核对；回归和安装范围见本轮诊断报告。
-> Last updated: 2026-11-11
+> Last updated: 2026-11-12
 > Prior verification: 2026-11-09，仅核对 ADR-017 数据输出、工具精简、诊断与扫描增量；ZCode 实测和 Kimi 未运行边界见[修复报告](reports/2026-11-09-data-task-repair.md)。其余保留历史核对范围。
-> Verified against: 122d9b7
+> Verified against: 3042a71 + 本次模型目录诊断 working tree
 > Prior verification: 2026-11-09，仅新增 ADR-016 与附图实测记录已核对；其余沿用历史范围。
 > Prior verification: 2026-11-08，仅核对新增 Claude 入口决策、共享核心说明与验证报告路由；其余条目沿用历史记录。
 > Prior verified against: 7c1d6f29418e50337f1e2fbe04d6c83daeb3b789 + 当前 Claude 入口与 ADR-016 附件 working tree
@@ -57,14 +58,14 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 
 | 文档 | 语言 | 最后更新 | 最后核对 |
 |---|---|---|---|
-| [README.md](../README.md) | en | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
-| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [README.md](../README.md) | en | 2026-11-12 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [README.zh-CN.md](../README.zh-CN.md) | zh | 2026-11-12 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
 | [PROJECT_STATE.md](PROJECT_STATE.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
 | [INTERFACES.md](INTERFACES.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
 | [SHARED_CORE.md](SHARED_CORE.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
-| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-11 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
-| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-11 | ADR-022 错误文本、启动 stderr 和 Kimi 普通异常说明；验证边界见部署报告 |
+| [ZCODE_RUNTIME.md](ZCODE_RUNTIME.md) | zh | 2026-11-12 | ADR-021/022 错误回传、版本发现及两端安装；具体验证范围见文档顶部 |
+| [plugins/codex-zcode-bridge/README.md](../plugins/codex-zcode-bridge/README.md) | zh | 2026-11-12 | ADR-022 错误文本、启动 stderr 和 Kimi 普通异常说明；验证边界见部署报告 |
 | [plugins/codex-zcode-bridge/SECURITY.md](../plugins/codex-zcode-bridge/SECURITY.md) | zh + en | 2026-11-04 | 仅核对新增 Kimi 代理条目；其余未记录 |
 | [plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md](../plugins/codex-zcode-bridge/skills/coding-agent-bridge/SKILL.md) | zh | 2026-11-09 | 技能改名与精简、按需参考路由；API 参数验证边界同本轮记录 |
 
@@ -197,3 +198,5 @@ English readers start at [README.md](../README.md). This index is bilingual; the
 - [GLM 111 条失败原因与回传修复](reports/2026-11-11-error-propagation.md)：长 TMPDIR socket 复现、丢失路径、测试与安装边界。
 
 - [版本自动发现与错误回传安装验收](reports/2026-11-11-runtime-errors-deployment.md)：122d9b7、两端四入口、五次正常调用通过、三次远端 Kimi 失败、三次预期启动故障及单独超时追踪。
+
+- [模型目录启动错误回传与 TMPDIR 提醒](reports/2026-11-12-catalog-startup-diagnostics.md)：独立客户端诊断补齐、同盘长短路径对照、两端四入口安装及平台跳过项。

@@ -132,7 +132,7 @@ export function createBridgeServer(options: BridgeServerOptions): McpServer {
     "coding_agent_model_catalog",
     {
       title: "List ZCode models and supported reasoning levels (ZCode only)",
-      description: "Read models and reasoning levels for this workspace. The Bridge caches the catalog for 24 hours, refreshes when provider settings change or the cache expires, and re-reads provider config before retrying a failed refresh. A cache response has current_model=null; use provider_id/model_id from models in coding_agent_task.model, and reasoning_levels[].value as model.reasoning_level. Supported levels depend on the model; do not guess. This catalog does not list Kimi models.",
+      description: "Read models and reasoning levels for this workspace. The Bridge caches the catalog for 24 hours, refreshes when provider settings change or the cache expires, and re-reads provider config before retrying a failed refresh. A cache response has current_model=null; use provider_id/model_id from models in coding_agent_task.model, and reasoning_levels[].value as model.reasoning_level. Supported levels depend on the model; do not guess. This catalog does not list Kimi models. On Linux, start the Bridge with a short TMPDIR on the intended filesystem: a long temporary path can make ZCode exit with socket listen EINVAL before creating a session. Refresh failures preserve bounded, redacted native diagnostics.",
       inputSchema: zcodeModelCatalogInputSchema,
       outputSchema: modelCatalogSchema,
     },
